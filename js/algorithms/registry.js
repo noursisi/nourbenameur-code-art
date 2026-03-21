@@ -61,17 +61,24 @@ class Registry {
   getAllMetadata() {
     const result = [];
     this._map.forEach((entry, id) => {
-      // Instantiate temporarily with null engine just to read metadata
-      let inst = entry.instance;
-      if (!inst) {
-        // Use a dummy to read static metadata without side effects
-        try {
-          inst = new entry.Class(null);
-        } catch {
-          return;
+      // Read metadata from prototype to avoid constructing with null engine
+      try {
+        const proto = entry.Class.prototype;
+        const metaDesc = Object.getOwnPropertyDescriptor(proto, 'metadata');
+        if (metaDesc && metaDesc.get) {
+          // Call the getter with a minimal fake context
+          const meta = metaDesc.get.call({ engine: null });
+          result.push({ id, ...meta });
+        } else {
+          // Fallback: try instantiation
+          const inst = new entry.Class(null);
+          result.push({ id, ...inst.metadata });
         }
+      } catch (e) {
+        console.error(`Registry: failed to read metadata for "${id}":`, e);
+        // Still add it with fallback metadata so it shows in the grid
+        result.push({ id, name: id, eq: '', cat: 'Other', desc: '' });
       }
-      result.push({ id, ...inst.metadata });
     });
     return result;
   }
