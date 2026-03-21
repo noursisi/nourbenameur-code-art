@@ -64,6 +64,9 @@ if (algoGridEl) {
 
 selectAlgorithm(state.algo || 'lsystem');
 
+// Remove loading early so the app is interactive even if later init fails
+document.getElementById('loading')?.remove();
+
 // ── Mouse interaction ─────────────────────────────────────────────────────────
 
 initMouse(
@@ -340,7 +343,7 @@ initKeyboard({
 
 // ── Remove loading indicator ──────────────────────────────────────────────────
 
-document.getElementById('loading')?.remove();
+try { document.getElementById('loading')?.remove(); } catch(e) { console.error(e); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
