@@ -529,17 +529,17 @@ class ImageProcessor {
       return;
     }
 
-    // Try WebGL rendering, fall back to simple 2D canvas draw
+    // Try WebGL rendering, fall back to fitted 2D draw
     const glCanvas = engine.getGLCanvas();
     const gl = engine.getGL();
     if (!gl) {
-      try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
+      this._drawFitted(ctx, W, H, state);
       return;
     }
 
     const distortion = DISTORTIONS[effect];
     if (!distortion) {
-      try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
+      this._drawFitted(ctx, W, H, state);
       return;
     }
 
@@ -606,8 +606,16 @@ class ImageProcessor {
       this._captureFeedback(gl, pW, pH);
     }
 
-    // Composite to 2D canvas
-    ctx.drawImage(glCanvas, 0, 0, W, H);
+    // Composite to 2D canvas with scale/offset
+    const iw = this._source.videoWidth || this._source.naturalWidth || this._source.width;
+    const ih = this._source.videoHeight || this._source.naturalHeight || this._source.height;
+    const userScale = state.ip_scale || 1;
+    const fitScale = Math.min(W / (iw || W), H / (ih || H)) * userScale;
+    const dw = (iw || W) * fitScale;
+    const dh = (ih || H) * fitScale;
+    const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
+    const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
+    ctx.drawImage(glCanvas, dx, dy, dw, dh);
   }
 
   _setupFeedback(gl, prog, w, h) {
