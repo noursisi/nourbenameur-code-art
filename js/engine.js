@@ -69,21 +69,23 @@ class Engine {
     this._algorithm = algo;
   }
 
-  /** Get background color for the current colorMode */
+  /** Get background color — uses direct color if set, falls back to colorMode */
   bg() {
+    if (state.bgColor) return state.bgColor;
     switch (state.colorMode) {
       case 'bw':     return '#f0efe8';
       case 'silver': return '#0a0a0a';
-      default:       return '#000000'; // wb
+      default:       return '#000000';
     }
   }
 
-  /** Get foreground color for the current colorMode */
+  /** Get foreground/shape color — uses direct color if set, falls back to colorMode */
   fg() {
+    if (state.fgColor) return state.fgColor;
     switch (state.colorMode) {
       case 'bw':     return '#000000';
       case 'silver': return '#bbbbbb';
-      default:       return '#ffffff'; // wb
+      default:       return '#ffffff';
     }
   }
 

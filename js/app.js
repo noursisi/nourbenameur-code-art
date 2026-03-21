@@ -82,50 +82,47 @@ initMouse(
 
 // ── Wire Style controls ────────────────────────────────────────────────────────
 
-// Base color swatches
-document.querySelectorAll('#color-swatches .swatch').forEach(sw => {
-  sw.addEventListener('click', () => {
-    document.querySelectorAll('#color-swatches .swatch').forEach(s => s.classList.remove('active'));
-    sw.classList.add('active');
-    set('colorMode', sw.dataset.color);
-  });
-});
-
-// Tint swatches
-document.querySelectorAll('#tint-swatches .swatch').forEach(sw => {
-  sw.addEventListener('click', () => {
-    const tint = sw.dataset.tint;
-
-    if (tint === 'custom') {
-      const picker = document.getElementById('custom-tint-picker');
-      if (picker) picker.click();
-      return;
-    }
-
-    document.querySelectorAll('#tint-swatches .swatch').forEach(s => s.classList.remove('active'));
-    sw.classList.add('active');
-    set('tint', tint);
-  });
-});
-
-// Custom tint color picker
-const customPicker = document.getElementById('custom-tint-picker');
-if (customPicker) {
-  // Prevent click on the hidden input from bubbling up to the swatch click handler
-  customPicker.addEventListener('click', e => e.stopPropagation());
-  customPicker.addEventListener('change', () => {
-    const hex = customPicker.value;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    set('customTintRGB', [r, g, b]);
-    set('tint', 'custom');
-    // Activate the custom swatch
-    document.querySelectorAll('#tint-swatches .swatch').forEach(s => s.classList.remove('active'));
-    const customSw = document.querySelector('[data-tint="custom"]');
-    if (customSw) customSw.classList.add('active');
+// ── Background color ──
+function wireColorRow(pickerId, presetSelector, dataAttr, stateKey) {
+  const picker = document.getElementById(pickerId);
+  if (picker) {
+    picker.addEventListener('input', () => {
+      set(stateKey, picker.value);
+      // Deactivate preset swatches
+      document.querySelectorAll(presetSelector + ' .swatch').forEach(s => s.classList.remove('active'));
+    });
+  }
+  document.querySelectorAll(presetSelector + ' .swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const val = sw.dataset[dataAttr];
+      set(stateKey, val);
+      if (picker) picker.value = val.startsWith('#') ? val : '#000000';
+      document.querySelectorAll(presetSelector + ' .swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+    });
   });
 }
+
+wireColorRow('bg-color-picker', '#bg-presets', 'bg', 'bgColor');
+wireColorRow('fg-color-picker', '#fg-presets', 'fg', 'fgColor');
+
+// Glow color
+const glowPicker = document.getElementById('glow-color-picker');
+if (glowPicker) {
+  glowPicker.addEventListener('input', () => {
+    set('glowColor', glowPicker.value);
+    document.querySelectorAll('#glow-presets .swatch').forEach(s => s.classList.remove('active'));
+  });
+}
+document.querySelectorAll('#glow-presets .swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    const val = sw.dataset.glow;
+    set('glowColor', val);
+    if (val !== 'same' && glowPicker) glowPicker.value = val;
+    document.querySelectorAll('#glow-presets .swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+  });
+});
 
 // Glow slider
 _wireExistingSlider('sl-glow', 'val-glow', 'glow', v => String(v));

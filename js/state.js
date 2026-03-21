@@ -6,6 +6,7 @@ export const state = {
   camZoom: 1, camPanX: 0, camPanY: 0,
   sym: false, folds: 8,
   colorMode: 'wb', tint: 'none', customTintRGB: [0, 170, 255],
+  bgColor: '#000000', fgColor: '#ffffff', glowColor: 'same',
   glow: 0, blur: 0, grain: 0, lineWeight: 1,
   transparent: false,
   // Julia

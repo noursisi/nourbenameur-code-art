@@ -88,16 +88,46 @@ export class Attractor extends Algorithm {
     ctx.scale(camZoom, camZoom);
     ctx.translate(-W / 2, -H / 2);
 
-    ctx.fillStyle = fg;
-    ctx.globalAlpha = 0.15;
+    // Density-based rendering: accumulate hits into a grid, then draw brightness
+    const gridW = Math.ceil(W);
+    const gridH = Math.ceil(H);
+    const density = new Uint32Array(gridW * gridH);
+    let maxDensity = 0;
 
     for (let i = 0; i < n; i++) {
-      const sx = xs[i] * scale + offsetX;
-      const sy = ys[i] * scale + offsetY;
-      ctx.fillRect(sx, sy, 1, 1);
+      let sx = Math.floor(xs[i] * scale + offsetX);
+      let sy = Math.floor(ys[i] * scale + offsetY);
+      // Apply camera zoom offset
+      sx = Math.floor((sx - W/2) * camZoom + W/2);
+      sy = Math.floor((sy - H/2) * camZoom + H/2);
+      if (sx >= 0 && sx < gridW && sy >= 0 && sy < gridH) {
+        const idx = sy * gridW + sx;
+        density[idx]++;
+        if (density[idx] > maxDensity) maxDensity = density[idx];
+      }
     }
 
-    ctx.globalAlpha = 1;
+    // Render density map
+    const imgData = ctx.getImageData(0, 0, W, H);
+    const fgR = parseInt(fg.slice(1,3), 16) || 255;
+    const fgG = parseInt(fg.slice(3,5), 16) || 255;
+    const fgB = parseInt(fg.slice(5,7), 16) || 255;
+    const logMax = Math.log(maxDensity + 1);
+
+    for (let y = 0; y < gridH && y < H; y++) {
+      for (let x = 0; x < gridW && x < W; x++) {
+        const d = density[y * gridW + x];
+        if (d === 0) continue;
+        // Log-scale brightness for better contrast
+        const brightness = Math.log(d + 1) / logMax;
+        const idx = (y * W + x) * 4;
+        imgData.data[idx]     = Math.min(255, imgData.data[idx] + Math.floor(fgR * brightness));
+        imgData.data[idx + 1] = Math.min(255, imgData.data[idx+1] + Math.floor(fgG * brightness));
+        imgData.data[idx + 2] = Math.min(255, imgData.data[idx+2] + Math.floor(fgB * brightness));
+        imgData.data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
     ctx.restore();
   }
 }

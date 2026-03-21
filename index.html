@@ -111,27 +111,46 @@
         <h2>Style</h2>
         <div class="controls">
 
-          <!-- Base color -->
-          <div class="slider-label"><span>Base Color</span></div>
-          <div class="swatches" id="color-swatches">
-            <div class="swatch active" data-color="wb" style="background: #ffffff;" title="White on Black"></div>
-            <div class="swatch" data-color="bw" style="background: #111111; border: 1px solid #333;" title="Black on White"></div>
-            <div class="swatch" data-color="silver" style="background: linear-gradient(135deg,#888,#ccc);" title="Silver"></div>
+          <!-- Background Color -->
+          <div class="slider-label"><span>Background</span></div>
+          <div class="color-row">
+            <input type="color" id="bg-color-picker" value="#000000" />
+            <div class="swatches" id="bg-presets">
+              <div class="swatch active" data-bg="#000000" style="background:#000;border:1px solid #333;" title="Black"></div>
+              <div class="swatch" data-bg="#f0efe8" style="background:#f0efe8;" title="Cream"></div>
+              <div class="swatch" data-bg="#0a0a0a" style="background:#0a0a0a;border:1px solid #222;" title="Near Black"></div>
+              <div class="swatch" data-bg="#1a1a2e" style="background:#1a1a2e;" title="Dark Blue"></div>
+              <div class="swatch" data-bg="#0d1b2a" style="background:#0d1b2a;" title="Navy"></div>
+            </div>
           </div>
 
-          <!-- Tint -->
-          <div class="slider-label" style="margin-top:6px;"><span>Tint</span></div>
-          <div class="swatches" id="tint-swatches">
-            <div class="swatch active" data-tint="none" style="background: #1a1a1a;" title="None"></div>
-            <div class="swatch" data-tint="cyan" style="background: #00aaff;" title="Cyan"></div>
-            <div class="swatch" data-tint="blue" style="background: #2244cc;" title="Blue"></div>
-            <div class="swatch" data-tint="magenta" style="background: #cc00aa;" title="Magenta"></div>
-            <div class="swatch" data-tint="red" style="background: #cc2200;" title="Red"></div>
-            <div class="swatch" data-tint="amber" style="background: #ffaa00;" title="Amber"></div>
-            <div class="swatch" data-tint="green" style="background: #44aa44;" title="Green"></div>
-            <div class="swatch swatch-custom" data-tint="custom" title="Custom">
-              <span>+</span>
-              <input type="color" id="custom-tint-picker" value="#00aaff" style="display:none;" />
+          <!-- Shape Color -->
+          <div class="slider-label" style="margin-top:6px;"><span>Shape</span></div>
+          <div class="color-row">
+            <input type="color" id="fg-color-picker" value="#ffffff" />
+            <div class="swatches" id="fg-presets">
+              <div class="swatch active" data-fg="#ffffff" style="background:#fff;" title="White"></div>
+              <div class="swatch" data-fg="#000000" style="background:#000;border:1px solid #333;" title="Black"></div>
+              <div class="swatch" data-fg="#bbbbbb" style="background:#bbb;" title="Silver"></div>
+              <div class="swatch" data-fg="#00aaff" style="background:#00aaff;" title="Cyan"></div>
+              <div class="swatch" data-fg="#cc00aa" style="background:#cc00aa;" title="Magenta"></div>
+              <div class="swatch" data-fg="#ffaa00" style="background:#ffaa00;" title="Amber"></div>
+              <div class="swatch" data-fg="#44ff44" style="background:#44ff44;" title="Green"></div>
+              <div class="swatch" data-fg="#ff4444" style="background:#ff4444;" title="Red"></div>
+            </div>
+          </div>
+
+          <!-- Glow Tint (optional, on top) -->
+          <div class="slider-label" style="margin-top:6px;"><span>Glow Color</span></div>
+          <div class="color-row">
+            <input type="color" id="glow-color-picker" value="#00aaff" />
+            <div class="swatches" id="glow-presets">
+              <div class="swatch active" data-glow="same" style="background:linear-gradient(135deg,#888,#fff);" title="Same as shape"></div>
+              <div class="swatch" data-glow="#00aaff" style="background:#00aaff;" title="Cyan"></div>
+              <div class="swatch" data-glow="#4444ff" style="background:#4444ff;" title="Blue"></div>
+              <div class="swatch" data-glow="#cc00aa" style="background:#cc00aa;" title="Magenta"></div>
+              <div class="swatch" data-glow="#ff4444" style="background:#ff4444;" title="Red"></div>
+              <div class="swatch" data-glow="#ffaa00" style="background:#ffaa00;" title="Amber"></div>
             </div>
           </div>
 

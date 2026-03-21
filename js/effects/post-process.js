@@ -21,13 +21,25 @@ function getTintColor(state) {
 }
 
 function bgColor(state) {
+  if (state.bgColor) return state.bgColor;
   if (state.colorMode === 'wb') return '#000';
   if (state.colorMode === 'bw') return '#f0efe8';
   return '#0a0a0a';
 }
 
+/** Parse hex color to [r,g,b] */
+function hexToRGB(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return [r, g, b];
+}
+
 export function postProcess(canvas, ctx, W, H, state) {
-  if (state.tint === 'none' && state.glow === 0 && state.blur === 0) return;
+  const hasTint = state.tint !== 'none';
+  const hasGlow = state.glow > 0;
+  const hasBlur = state.blur > 0;
+  if (!hasTint && !hasGlow && !hasBlur) return;
 
   // Use physical pixel dimensions for crisp post-processing on retina displays
   const pW = canvas.width;
@@ -74,30 +86,49 @@ export function postProcess(canvas, ctx, W, H, state) {
 
   // 4. Glow: neon bloom effect — multiple additive passes at increasing blur radii
   if (state.glow > 0) {
+    // If glow color is set (not 'same'), tint the art canvas for glow
+    let glowSource = artCanvas;
+    if (state.glowColor && state.glowColor !== 'same') {
+      const gc = hexToRGB(state.glowColor);
+      const glowCanvas = document.createElement('canvas');
+      glowCanvas.width = pW; glowCanvas.height = pH;
+      const gCtx = glowCanvas.getContext('2d');
+      gCtx.drawImage(artCanvas, 0, 0);
+      const gImg = gCtx.getImageData(0, 0, pW, pH);
+      for (let i = 0; i < gImg.data.length; i += 4) {
+        if (gImg.data[i + 3] === 0) continue;
+        const lum = (gImg.data[i] * 0.299 + gImg.data[i+1] * 0.587 + gImg.data[i+2] * 0.114) / 255;
+        gImg.data[i] = Math.min(255, Math.floor(lum * gc[0]));
+        gImg.data[i+1] = Math.min(255, Math.floor(lum * gc[1]));
+        gImg.data[i+2] = Math.min(255, Math.floor(lum * gc[2]));
+      }
+      gCtx.putImageData(gImg, 0, 0);
+      glowSource = glowCanvas;
+    }
     ctx.globalCompositeOperation = 'lighter';
 
     // Wide outer bloom (largest radius, lower alpha)
     const outerBlur = Math.round(state.glow * 3 * dpr);
     ctx.filter = `blur(${outerBlur}px)`;
     ctx.globalAlpha = 0.55;
-    ctx.drawImage(artCanvas, 0, 0);
+    ctx.drawImage(glowSource, 0, 0);
 
     // Mid bloom
     const midBlur = Math.round(state.glow * 1.8 * dpr);
     ctx.filter = `blur(${midBlur}px)`;
     ctx.globalAlpha = 0.65;
-    ctx.drawImage(artCanvas, 0, 0);
+    ctx.drawImage(glowSource, 0, 0);
 
     // Tight inner glow (tightest halo)
     const innerBlur = Math.round(state.glow * 0.8 * dpr);
     ctx.filter = `blur(${innerBlur}px)`;
     ctx.globalAlpha = 0.8;
-    ctx.drawImage(artCanvas, 0, 0);
+    ctx.drawImage(glowSource, 0, 0);
 
     // Extra hot-core pass for intense neon look
     ctx.filter = `blur(${Math.max(1, Math.round(state.glow * 0.3 * dpr))}px)`;
     ctx.globalAlpha = 0.9;
-    ctx.drawImage(artCanvas, 0, 0);
+    ctx.drawImage(glowSource, 0, 0);
 
     ctx.filter = 'none';
     ctx.globalCompositeOperation = 'source-over';
