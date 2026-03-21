@@ -1,49 +1,354 @@
-import { state, isDirty, markClean, markDirty } from './state.js';
+/**
+ * app.js — Entry point.
+ * Wires engine, UI panels, algorithm registry, and the render loop.
+ */
 
-// ── Canvas setup ──────────────────────────────────────────────────────────────
+import { state, set, markDirty, isDirty, markClean } from './state.js';
+import { engine } from './engine.js';
+import { registry } from './algorithms/registry.js';
+import { buildAlgoGrid } from './ui/algo-grid.js';
+import { buildParams } from './ui/params.js';
 
-const canvasArea = document.getElementById('canvas-area');
-const canvas = document.getElementById('art');
-const ctx = canvas.getContext('2d');
+// ── Initialise engine ──────────────────────────────────────────────────────────
 
-export { canvas, ctx };
+engine.resize();
+window.addEventListener('resize', () => {
+  engine.resize();
+  markDirty();
+});
 
-// ── Resize ────────────────────────────────────────────────────────────────────
+// ── Active algorithm ───────────────────────────────────────────────────────────
 
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvasArea.getBoundingClientRect();
-  canvas.width = Math.round(rect.width * dpr);
-  canvas.height = Math.round(rect.height * dpr);
-  canvas.style.width = rect.width + 'px';
-  canvas.style.height = rect.height + 'px';
-  ctx.scale(dpr, dpr);
+let activeAlgo = null;
+let algoGridCtrl = null;
+
+function selectAlgorithm(id) {
+  const algo = registry.get(id, engine);
+  if (!algo) return;
+
+  activeAlgo = algo;
+  engine.setAlgorithm(algo);
+  set('algo', id);
+
+  // Reset view
+  set('camZoom', 1);
+  set('camPanX', 0);
+  set('camPanY', 0);
+
+  // Rebuild params panel
+  const paramsContainer = document.getElementById('param-controls');
+  if (paramsContainer) buildParams(paramsContainer, algo, state);
+
+  // Update algo grid active state
+  if (algoGridCtrl) algoGridCtrl.setActive(id);
+
+  // Update HUD
+  updateHUD();
   markDirty();
 }
 
-window.addEventListener('resize', resize);
-resize();
+// ── Build algorithm grid ───────────────────────────────────────────────────────
+
+const algoGridEl = document.getElementById('algo-grid');
+if (algoGridEl) {
+  algoGridCtrl = buildAlgoGrid(algoGridEl, registry, selectAlgorithm);
+}
+
+// ── Boot with default algorithm ────────────────────────────────────────────────
+
+selectAlgorithm(state.algo || 'lsystem');
+
+// ── Wire Style controls ────────────────────────────────────────────────────────
+
+// Base color swatches
+document.querySelectorAll('#color-swatches .swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('#color-swatches .swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    set('colorMode', sw.dataset.color);
+  });
+});
+
+// Tint swatches
+document.querySelectorAll('#tint-swatches .swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    const tint = sw.dataset.tint;
+
+    if (tint === 'custom') {
+      const picker = document.getElementById('custom-tint-picker');
+      if (picker) picker.click();
+      return;
+    }
+
+    document.querySelectorAll('#tint-swatches .swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    set('tint', tint);
+  });
+});
+
+// Custom tint color picker
+const customPicker = document.getElementById('custom-tint-picker');
+if (customPicker) {
+  customPicker.addEventListener('change', () => {
+    const hex = customPicker.value;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    set('customTintRGB', [r, g, b]);
+    set('tint', 'custom');
+    // Activate the custom swatch
+    document.querySelectorAll('#tint-swatches .swatch').forEach(s => s.classList.remove('active'));
+    const customSw = document.querySelector('[data-tint="custom"]');
+    if (customSw) customSw.classList.add('active');
+  });
+}
+
+// Glow slider
+_wireExistingSlider('sl-glow', 'val-glow', 'glow', v => String(v));
+// Blur slider
+_wireExistingSlider('sl-blur', 'val-blur', 'blur', v => String(v));
+// Grain slider
+_wireExistingSlider('sl-grain', 'val-grain', 'grain', v => v.toFixed(2));
+// Line weight slider
+_wireExistingSlider('sl-lineWeight', 'val-lineWeight', 'lineWeight', v => v.toFixed(1));
+
+// Transparent toggle (existing in HTML)
+_wireExistingToggle('transparent-toggle', 'transparent', val => {
+  const cb = document.getElementById('checkerboard');
+  if (cb) cb.classList.toggle('visible', val);
+});
+
+// Symmetry toggle + folds slider
+_wireExistingToggle('sym-toggle', 'sym');
+_wireExistingSlider('sl-folds', 'val-folds', 'folds', v => String(Math.round(v)));
+
+// ── Interaction controls ───────────────────────────────────────────────────────
+
+// Scroll mode buttons
+document.getElementById('btn-scroll-detail')?.addEventListener('click', () => {
+  set('scrollMode', 'detail');
+  document.getElementById('btn-scroll-detail')?.classList.add('active');
+  document.getElementById('btn-scroll-zoom')?.classList.remove('active');
+});
+
+document.getElementById('btn-scroll-zoom')?.addEventListener('click', () => {
+  set('scrollMode', 'zoom');
+  document.getElementById('btn-scroll-zoom')?.classList.add('active');
+  document.getElementById('btn-scroll-detail')?.classList.remove('active');
+});
+
+// Cursor animation toggle
+_wireExistingToggle('cursor-toggle', 'cursorMode');
+
+// ── Image layer controls ──────────────────────────────────────────────────────
+
+document.getElementById('btn-import-image')?.addEventListener('click', () => {
+  document.getElementById('file-input')?.click();
+});
+
+document.getElementById('file-input')?.addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => {
+    engine.setImage(img);
+    document.getElementById('image-controls').style.display = '';
+    markDirty();
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+document.getElementById('btn-remove-image')?.addEventListener('click', () => {
+  engine.clearImage();
+  document.getElementById('image-controls').style.display = 'none';
+  markDirty();
+});
+
+// Image layer position
+document.getElementById('btn-img-behind')?.addEventListener('click', () => {
+  set('img_layer', 'behind');
+  document.getElementById('btn-img-behind')?.classList.add('active');
+  document.getElementById('btn-img-front')?.classList.remove('active');
+});
+document.getElementById('btn-img-front')?.addEventListener('click', () => {
+  set('img_layer', 'front');
+  document.getElementById('btn-img-front')?.classList.add('active');
+  document.getElementById('btn-img-behind')?.classList.remove('active');
+});
+
+// Image opacity / scale
+_wireExistingSlider('sl-img-opacity', 'val-img-opacity', 'img_opacity', v => v.toFixed(2));
+_wireExistingSlider('sl-img-scale',   'val-img-scale',   'img_scale',   v => v.toFixed(2));
+
+// Blend mode
+document.querySelectorAll('#blend-btns .btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#blend-btns .btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    set('img_blend', btn.dataset.blend);
+  });
+});
+
+// ── Action buttons ─────────────────────────────────────────────────────────────
+
+const playPauseBtn = document.getElementById('btn-play-pause');
+const playStatus   = document.getElementById('play-status');
+
+function updatePlayUI() {
+  if (state.playing) {
+    playPauseBtn.textContent = 'Pause';
+    playStatus.textContent = 'PLAYING';
+    playStatus.className = 'status-playing';
+  } else {
+    playPauseBtn.textContent = 'Play';
+    playStatus.textContent = 'PAUSED';
+    playStatus.className = 'status-paused';
+  }
+}
+
+playPauseBtn?.addEventListener('click', () => {
+  set('playing', !state.playing);
+  updatePlayUI();
+});
+
+document.getElementById('btn-randomize')?.addEventListener('click', () => {
+  if (activeAlgo && typeof activeAlgo.randomize === 'function') {
+    activeAlgo.randomize(state, set);
+    // Rebuild params to reflect new values
+    const paramsContainer = document.getElementById('param-controls');
+    if (paramsContainer) buildParams(paramsContainer, activeAlgo, state);
+  }
+});
+
+document.getElementById('btn-reset-view')?.addEventListener('click', () => {
+  set('camZoom', 1);
+  set('camPanX', 0);
+  set('camPanY', 0);
+});
+
+document.getElementById('btn-export-png')?.addEventListener('click', () => {
+  alert('Export PNG — coming soon');
+});
+
+document.getElementById('btn-export-svg')?.addEventListener('click', () => {
+  alert('Export SVG — coming soon');
+});
+
+document.getElementById('btn-record')?.addEventListener('click', () => {
+  alert('Record Video — coming soon');
+});
+
+// Record duration slider
+_wireExistingSlider('sl-rec-duration', 'val-rec-duration', 'rec_duration', v => `${Math.round(v)}s`);
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+
+function updateHUD() {
+  const meta = activeAlgo?.metadata;
+  document.getElementById('hud-algo').textContent     = meta?.name || '';
+  document.getElementById('hud-equation').textContent = meta?.eq   || '';
+  document.getElementById('hud-mode').textContent =
+    `${state.scrollMode.toUpperCase()} MODE`;
+  document.getElementById('hud-zoom').textContent =
+    `ZOOM ${(state.camZoom || 1).toFixed(2)}x`;
+  document.getElementById('hud-help').textContent =
+    'SCROLL: adjust  DRAG: pan';
+}
+
+// ── Camera pan (drag on canvas) ───────────────────────────────────────────────
+
+const canvasArea = document.getElementById('canvas-area');
+let dragging = false;
+let dragStartX = 0, dragStartY = 0;
+let panStartX = 0, panStartY = 0;
+
+canvasArea.addEventListener('mousedown', e => {
+  dragging = true;
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+  panStartX = state.camPanX;
+  panStartY = state.camPanY;
+});
+
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  state.camPanX = panStartX + dx;
+  state.camPanY = panStartY + dy;
+  markDirty();
+  updateHUD();
+});
+
+window.addEventListener('mouseup', () => { dragging = false; });
+
+// ── Scroll ─────────────────────────────────────────────────────────────────────
+
+canvasArea.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = -e.deltaY * 0.001;
+
+  if (state.scrollMode === 'zoom') {
+    const newZoom = Math.max(0.1, Math.min(20, (state.camZoom || 1) + delta * 2));
+    set('camZoom', newZoom);
+  } else {
+    // Detail mode: adjust the detailParam if set
+    if (activeAlgo?.detailParam) {
+      const p = activeAlgo.detailParam;
+      const cur = state[p.id] || p.min;
+      const next = Math.max(p.min, Math.min(p.max, cur + delta * (p.max - p.min) * 0.1));
+      const snapped = Math.round(next / p.step) * p.step;
+      set(p.id, parseFloat(snapped.toFixed(6)));
+    }
+  }
+
+  updateHUD();
+}, { passive: false });
 
 // ── Render loop ───────────────────────────────────────────────────────────────
 
 function tick() {
+  if (state.playing) {
+    state.time += 0.016 * state.speed;
+    if (activeAlgo) activeAlgo.animate(state);
+    markDirty();
+  }
+
   if (isDirty()) {
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.width / dpr;
-    const h = canvas.height / dpr;
-
-    // Clear to black (or transparent if that mode is active)
-    if (state.transparent) {
-      ctx.clearRect(0, 0, w, h);
-    } else {
-      ctx.fillStyle = '#020202';
-      ctx.fillRect(0, 0, w, h);
-    }
-
+    engine.render(state);
     markClean();
+    updateHUD();
   }
 
   requestAnimationFrame(tick);
 }
 
 requestAnimationFrame(tick);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Wire an existing HTML range input to state. */
+function _wireExistingSlider(inputId, valId, stateKey, fmt) {
+  const input = document.getElementById(inputId);
+  const valEl = document.getElementById(valId);
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const v = parseFloat(input.value);
+    set(stateKey, v);
+    if (valEl) valEl.textContent = fmt ? fmt(v) : String(v);
+    markDirty();
+  });
+}
+
+/** Wire an existing HTML toggle div to state. */
+function _wireExistingToggle(toggleId, stateKey, onToggle = null) {
+  const el = document.getElementById(toggleId);
+  if (!el) return;
+  el.addEventListener('click', () => {
+    const newVal = !state[stateKey];
+    set(stateKey, newVal);
+    el.classList.toggle('on', newVal);
+    markDirty();
+    if (onToggle) onToggle(newVal);
+  });
+}
