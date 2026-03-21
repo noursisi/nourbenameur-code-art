@@ -25,6 +25,12 @@ void main() {
 
 const DISTORTIONS = {
 
+  none: {
+    name: 'Original',
+    params: [],
+    frag: null,
+  },
+
   displacement: {
     name: 'Displacement Map',
     params: [
@@ -495,18 +501,26 @@ class ImageProcessor {
   render(engine, ctx, W, H, state) {
     if (!this._source) return;
 
-    // Try WebGL rendering, fall back to simple 2D canvas draw
-    const glCanvas = engine.getGLCanvas();
-    const gl = engine.getGL();
-    if (!gl) {
-      // Fallback: just draw the source image directly
+    // If no effect selected or effect is 'none', just draw the image as-is
+    const effect = state.ip_effect || 'none';
+    if (effect === 'none') {
       try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
       return;
     }
 
-    const effect = state.ip_effect || 'displacement';
+    // Try WebGL rendering, fall back to simple 2D canvas draw
+    const glCanvas = engine.getGLCanvas();
+    const gl = engine.getGL();
+    if (!gl) {
+      try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
+      return;
+    }
+
     const distortion = DISTORTIONS[effect];
-    if (!distortion) return;
+    if (!distortion) {
+      try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
+      return;
+    }
 
     // Ensure quad
     if (!this._quad || this._gl !== gl) {
