@@ -62,7 +62,7 @@ export const state = {
   // Interference
   intf_sources: 5, intf_wavelength: 0.03, intf_speed: 3,
   // Image Processor
-  ip_enabled: false, ip_effect: 'none', ip_mixWithAlgo: false,
+  ip_enabled: false, ip_effect: 'none', ip_mixWithAlgo: false, ip_scale: 1, ip_offsetX: 0, ip_offsetY: 0,
   ip_displace_amount: 0.05, ip_displace_scale: 4, ip_displace_speed: 0.3,
   ip_sort_threshold: 0.3, ip_sort_direction: 0, ip_sort_intensity: 30,
   ip_thresh_level: 0.5, ip_thresh_smooth: 0.02,

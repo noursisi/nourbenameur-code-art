@@ -131,9 +131,14 @@ class Engine {
       drawImageLayer(ctx, W, H, s);
     }
 
-    // ── 3. Image Processor (behind algorithm if mix mode) ────────────────────
-    if (s.ip_enabled && imageProcessor.hasSource() && !s.ip_mixWithAlgo) {
-      imageProcessor.render(this, ctx, W, H, s);
+    // ── 3. Image Processor (behind algorithm if not mix mode) ──────────────
+    // Always show image when source exists; distortion only when ip_enabled
+    if (imageProcessor.hasSource() && !s.ip_mixWithAlgo) {
+      if (s.ip_enabled && s.ip_effect !== 'none') {
+        imageProcessor.render(this, ctx, W, H, s);
+      } else {
+        imageProcessor._drawFitted(ctx, W, H, s);
+      }
     }
 
     // ── 4. Layers / Algorithm ───────────────────────────────────────────────
@@ -144,11 +149,15 @@ class Engine {
     }
 
     // ── 5. Image Processor (on top if mix mode) ─────────────────────────────
-    if (s.ip_enabled && imageProcessor.hasSource() && s.ip_mixWithAlgo) {
+    if (imageProcessor.hasSource() && s.ip_mixWithAlgo) {
       ctx.save();
       ctx.globalAlpha = 0.6;
       ctx.globalCompositeOperation = 'screen';
-      imageProcessor.render(this, ctx, W, H, s);
+      if (s.ip_enabled && s.ip_effect !== 'none') {
+        imageProcessor.render(this, ctx, W, H, s);
+      } else {
+        imageProcessor._drawFitted(ctx, W, H, s);
+      }
       ctx.restore();
       ctx.globalCompositeOperation = 'source-over';
     }

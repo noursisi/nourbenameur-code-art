@@ -121,10 +121,7 @@ document.getElementById('ip-file-input')?.addEventListener('change', e => {
   const file = e.target.files?.[0];
   if (!file) return;
   imageProcessor.loadImage(file).then(() => {
-    set('ip_enabled', true);
     if (ipControls) ipControls.style.display = '';
-    const toggle = document.getElementById('ip-enabled-toggle');
-    if (toggle) toggle.classList.add('on');
     markDirty();
   });
 });
@@ -145,7 +142,12 @@ document.getElementById('btn-ip-camera')?.addEventListener('click', async () => 
   markDirty();
 });
 
-// Enable/disable processing toggle
+// Image scale/position sliders
+_wireExistingSlider('sl-ip-scale', 'val-ip-scale', 'ip_scale', v => v.toFixed(2));
+_wireExistingSlider('sl-ip-x', 'val-ip-x', 'ip_offsetX', v => String(Math.round(v)));
+_wireExistingSlider('sl-ip-y', 'val-ip-y', 'ip_offsetY', v => String(Math.round(v)));
+
+// Enable/disable distortion toggle
 document.getElementById('ip-enabled-toggle')?.addEventListener('click', () => {
   const newVal = !state.ip_enabled;
   set('ip_enabled', newVal);

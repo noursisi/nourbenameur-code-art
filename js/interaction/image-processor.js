@@ -498,13 +498,34 @@ class ImageProcessor {
    * Render the processed image to the given 2D context.
    * Uses the engine's WebGL canvas for GPU processing.
    */
+  /**
+   * Draw source image centered with aspect ratio preserved.
+   * Uses ip_scale state for user-controlled scaling.
+   */
+  _drawFitted(ctx, W, H, state) {
+    if (!this._source) return;
+    try {
+      const iw = this._source.videoWidth || this._source.naturalWidth || this._source.width;
+      const ih = this._source.videoHeight || this._source.naturalHeight || this._source.height;
+      if (!iw || !ih) return;
+      const scale = (state.ip_scale || 1);
+      // Fit to canvas preserving aspect ratio, then apply user scale
+      const fitScale = Math.min(W / iw, H / ih) * scale;
+      const dw = iw * fitScale;
+      const dh = ih * fitScale;
+      const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
+      const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
+      ctx.drawImage(this._source, dx, dy, dw, dh);
+    } catch(e) {}
+  }
+
   render(engine, ctx, W, H, state) {
     if (!this._source) return;
 
-    // If no effect selected or effect is 'none', just draw the image as-is
+    // If no effect selected or effect is 'none', just draw the image fitted
     const effect = state.ip_effect || 'none';
     if (effect === 'none') {
-      try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
+      this._drawFitted(ctx, W, H, state);
       return;
     }
 
