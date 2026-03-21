@@ -138,4 +138,57 @@ export class Contour extends Algorithm {
 
     ctx.globalAlpha = 1;
   }
+
+  collectSVG(W, H, s) {
+    const levels  = Math.max(3, Math.min(40, Math.round(s.contour_levels)));
+    const scale   = Math.max(0.002, s.contour_scale);
+    const octaves = Math.max(1, Math.min(5, Math.round(s.contour_octaves)));
+    const animSpeed = Math.max(0, s.contour_animation_speed !== undefined ? s.contour_animation_speed : 0.5);
+    const timeOff = (s.time || 0) * animSpeed * 0.25;
+    const fg      = this.engine.fg();
+
+    const cols = Math.min(120, Math.floor(W / 8));
+    const rows = Math.min(120, Math.floor(H / 8));
+    const cw = W / cols;
+    const ch = H / rows;
+
+    const grid = new Float32Array((cols + 1) * (rows + 1));
+    for (let row = 0; row <= rows; row++) {
+      for (let col = 0; col <= cols; col++) {
+        grid[row * (cols + 1) + col] = fbm(col * cw * scale + timeOff, row * ch * scale + timeOff * 0.7, octaves);
+      }
+    }
+
+    let paths = '';
+    for (let lvl = 1; lvl < levels; lvl++) {
+      const threshold = lvl / levels;
+      let d = '';
+      for (let row = 0; row <= rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const v0 = grid[row * (cols + 1) + col];
+          const v1 = grid[row * (cols + 1) + col + 1];
+          if ((v0 < threshold) !== (v1 < threshold)) {
+            const t = (threshold - v0) / (v1 - v0);
+            const x = ((col + t) * cw).toFixed(1);
+            const y = (row * ch).toFixed(1);
+            d += `M${x},${(row * ch - 3).toFixed(1)}L${x},${(row * ch + 3).toFixed(1)}`;
+          }
+        }
+      }
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col <= cols; col++) {
+          const v0 = grid[row * (cols + 1) + col];
+          const v1 = grid[(row + 1) * (cols + 1) + col];
+          if ((v0 < threshold) !== (v1 < threshold)) {
+            const t = (threshold - v0) / (v1 - v0);
+            const x = (col * cw).toFixed(1);
+            const y = ((row + t) * ch).toFixed(1);
+            d += `M${(col * cw - 3).toFixed(1)},${y}L${(col * cw + 3).toFixed(1)},${y}`;
+          }
+        }
+      }
+      if (d) paths += `  <path d="${d}" stroke="${fg}" stroke-width="0.8" fill="none" opacity="0.7"/>\n`;
+    }
+    return paths;
+  }
 }
