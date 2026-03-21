@@ -495,9 +495,14 @@ class ImageProcessor {
   render(engine, ctx, W, H, state) {
     if (!this._source) return;
 
+    // Try WebGL rendering, fall back to simple 2D canvas draw
     const glCanvas = engine.getGLCanvas();
     const gl = engine.getGL();
-    if (!gl) return;
+    if (!gl) {
+      // Fallback: just draw the source image directly
+      try { ctx.drawImage(this._source, 0, 0, W, H); } catch(e) {}
+      return;
+    }
 
     const effect = state.ip_effect || 'displacement';
     const distortion = DISTORTIONS[effect];
