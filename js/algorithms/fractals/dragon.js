@@ -125,7 +125,7 @@ export class Dragon extends Algorithm {
     ctx.rotate(this._rotation);
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = Math.max(0.5, 1.5 * (1 / Math.sqrt(depth)));
+    ctx.lineWidth = Math.max(0.5, 1.5 * (1 / Math.sqrt(depth))) * (s.lineWeight || 1);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 

@@ -67,7 +67,9 @@ export class Filigree extends Algorithm {
     ctx.translate(-W / 2, -H / 2);
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = 0.8;
+    ctx.lineWidth = Math.max(0.8, s.lineWeight || 1);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
     this._svgPaths = [];
 
@@ -169,7 +171,7 @@ export class Filigree extends Algorithm {
     const pathData = paths.map(d => `<path d="${d}"/>`).join('\n');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
-  <g stroke="${fg}" stroke-width="0.8" fill="none">
+  <g stroke="${fg}" stroke-width="${Math.max(0.8, s.lineWeight || 1)}" stroke-linecap="round" stroke-linejoin="round" fill="none">
 ${pathData}
     <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(maxR * 0.05).toFixed(1)}"/>
     <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(maxR * 0.1).toFixed(1)}"/>

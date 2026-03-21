@@ -66,7 +66,7 @@ export class Spiral extends Algorithm {
     ctx.translate(-W / 2, -H / 2);
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = Math.max(1.2, s.lineWeight || 1);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -96,7 +96,7 @@ export class Spiral extends Algorithm {
     const bg = this.engine.bg(s);
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
-  <polyline points="${this._svgPoints.map(p => p.map(v => v.toFixed(2)).join(',')).join(' ')}" fill="none" stroke="${fg}" stroke-width="1.2"/>
+  <polyline points="${this._svgPoints.map(p => p.map(v => v.toFixed(2)).join(',')).join(' ')}" fill="none" stroke="${fg}" stroke-width="${Math.max(1.2, s.lineWeight || 1)}"/>
 </svg>`;
   }
 }

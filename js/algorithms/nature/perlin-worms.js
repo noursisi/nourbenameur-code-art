@@ -104,8 +104,8 @@ export class PerlinWorms extends Algorithm {
     }
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = thickness;
-    ctx.globalAlpha = 0.15;
+    ctx.lineWidth = Math.max(thickness, s.lineWeight || 1);
+    ctx.globalAlpha = 0.3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 

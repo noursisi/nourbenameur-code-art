@@ -80,11 +80,12 @@ export class Attractor extends Algorithm {
     // Draw points
     ctx.fillStyle = fg;
     ctx.globalAlpha = Math.max(0.03, Math.min(0.6, 8000 / n));
+    const dotSize = Math.max(1.5, s.lineWeight || 1);
 
     for (let i = 0; i < n; i++) {
       const sx = W / 2 + (xs[i] - cx) * scale + panX;
       const sy = H / 2 + (ys[i] - cy) * scale + panY;
-      ctx.fillRect(sx, sy, 1.5, 1.5);
+      ctx.fillRect(sx, sy, dotSize, dotSize);
     }
 
     ctx.globalAlpha = 1;

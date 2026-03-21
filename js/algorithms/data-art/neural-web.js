@@ -119,6 +119,8 @@ export class NeuralWeb extends Algorithm {
     ctx.translate(-W / 2 + (s.camPanX || 0), -H / 2 + (s.camPanY || 0));
 
     // Draw connections
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     for (const conn of this._connections) {
       const a = this._nodes[conn.a];
       const b = this._nodes[conn.b];
@@ -126,8 +128,8 @@ export class NeuralWeb extends Algorithm {
 
       const pulseVal = Math.sin(time * pulse + conn.phase) * 0.5 + 0.5;
       ctx.strokeStyle = fg;
-      ctx.globalAlpha = 0.1 + pulseVal * 0.4;
-      ctx.lineWidth = lw * (0.3 + pulseVal * 0.5);
+      ctx.globalAlpha = Math.max(0.3, 0.1 + pulseVal * 0.4);
+      ctx.lineWidth = Math.max(0.5, lw * (0.5 + pulseVal * 0.5));
 
       // Quadratic curve
       const mx = (a.x + b.x) / 2 + conn.curve * Math.sin(time * pulse * 0.5 + conn.phase);

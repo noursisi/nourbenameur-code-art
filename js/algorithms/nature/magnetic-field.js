@@ -104,7 +104,7 @@ export class MagneticField extends Algorithm {
     ctx.translate(-W / 2 + (s.camPanX || 0), -H / 2 + (s.camPanY || 0));
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = lw * 0.5;
+    ctx.lineWidth = Math.max(0.8, lw * 0.8);
     ctx.lineCap = 'round';
 
     // Trace field lines from random starting points
@@ -131,7 +131,7 @@ export class MagneticField extends Algorithm {
       }
 
       if (valid) {
-        ctx.globalAlpha = 0.15 + Math.random() * 0.2;
+        ctx.globalAlpha = 0.3 + Math.random() * 0.3;
         ctx.stroke();
       }
     }

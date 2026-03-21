@@ -136,12 +136,13 @@ export class Fern extends Algorithm {
 
     // Plot points — use small rect for performance
     ctx.fillStyle = fg;
+    const dotSize = Math.max(1.5, s.lineWeight || 1);
     let x = 0, y = 0;
     for (let i = 0; i < n; i++) {
       [x, y] = applyTransform(x, y, transforms, cum);
       const px = originX + x * scale;
       const py = originY - y * scale; // y flipped: IFS y grows up
-      ctx.fillRect(px, py, 1.5, 1.5);
+      ctx.fillRect(px, py, dotSize, dotSize);
     }
 
     ctx.restore();

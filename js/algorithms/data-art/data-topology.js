@@ -131,7 +131,9 @@ export class DataTopology extends Algorithm {
       let x = cx, y = cy;
       let angle = 0;
       const stepLen = elemSize * 1.5;
-      ctx.lineWidth = elemSize * 0.3;
+      ctx.lineWidth = Math.max(1, elemSize * 0.3 * (s.lineWeight || 1));
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.globalAlpha = 0.6;
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -173,14 +175,16 @@ export class DataTopology extends Algorithm {
         const x = cx + Math.cos(angle) * radius;
         const y = cy + Math.sin(angle) * radius;
         const size = (d / 9) * elemSize + 1;
-        ctx.globalAlpha = 0.2 + (d / 9) * 0.6;
+        ctx.globalAlpha = 0.3 + (d / 9) * 0.6;
         ctx.beginPath();
         ctx.arc(x, y, size / 2, 0, Math.PI * 2);
         ctx.fill();
       }
     } else {
       // Tree — binary-ish tree where each digit decides branch direction
-      ctx.lineWidth = elemSize * 0.3;
+      ctx.lineWidth = Math.max(1, elemSize * 0.3 * (s.lineWeight || 1));
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.globalAlpha = 0.4;
 
       const branches = [{ x: cx, y: H * 0.85, angle: -Math.PI / 2, depth: 0 }];

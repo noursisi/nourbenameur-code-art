@@ -103,7 +103,9 @@ export class Penrose extends Algorithm {
 
     // Draw
     ctx.strokeStyle = fg;
-    ctx.lineWidth = 0.6;
+    ctx.lineWidth = Math.max(0.8, s.lineWeight || 1);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.globalAlpha = 0.7;
 
     if (type === 0) {
@@ -121,7 +123,7 @@ export class Penrose extends Algorithm {
       // Filled with alternating shades
       for (const tri of triangles) {
         const [ttype, ax, ay, bx, by, cxp, cyp] = tri;
-        ctx.globalAlpha = ttype === THICK ? 0.15 : 0.05;
+        ctx.globalAlpha = ttype === THICK ? 0.35 : 0.15;
         ctx.fillStyle = fg;
         ctx.beginPath();
         ctx.moveTo(ax, ay);

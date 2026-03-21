@@ -41,7 +41,7 @@ export class Moire extends Algorithm {
 
   render(ctx, W, H, s) {
     const layers = Math.max(2, Math.min(5, Math.round(s.moire_layers || 3)));
-    const lineWidth = Math.max(0.5, Math.min(3, s.moire_lineWidth || 1));
+    const lineWidth = Math.max(0.5, Math.min(3, s.moire_lineWidth || 1)) * (s.lineWeight || 1);
     const spacing = Math.max(5, Math.min(30, s.moire_spacing || 12));
     const pattern = Math.max(0, Math.min(3, Math.round(s.moire_pattern || 0)));
     const angleOffset = Math.max(0, Math.min(30, s.moire_angleOffset || 5));

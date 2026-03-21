@@ -97,7 +97,8 @@ export class Contour extends Algorithm {
     }
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = 0.8;
+    ctx.lineWidth = Math.max(0.8, s.lineWeight || 1);
+    ctx.lineCap = 'round';
     ctx.globalAlpha = 0.7;
 
     // For each contour level, march along grid edges
@@ -187,7 +188,7 @@ export class Contour extends Algorithm {
           }
         }
       }
-      if (d) paths += `  <path d="${d}" stroke="${fg}" stroke-width="0.8" fill="none" opacity="0.7"/>\n`;
+      if (d) paths += `  <path d="${d}" stroke="${fg}" stroke-width="${Math.max(0.8, s.lineWeight || 1)}" fill="none" opacity="0.7"/>\n`;
     }
     return paths;
   }

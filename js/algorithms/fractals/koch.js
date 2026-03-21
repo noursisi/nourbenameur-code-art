@@ -125,6 +125,8 @@ export class Koch extends Algorithm {
 
     ctx.strokeStyle = fg;
     ctx.lineWidth = s.lineWeight || 1;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.stroke();
 
     // Cache SVG path
@@ -139,7 +141,7 @@ export class Koch extends Algorithm {
     const bg = this.engine.bg(s);
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
-  <path d="${this._svgPath}" stroke="${fg}" stroke-width="1" fill="none"/>
+  <path d="${this._svgPath}" stroke="${fg}" stroke-width="${s.lineWeight || 1}" fill="none"/>
 </svg>`;
   }
 }
