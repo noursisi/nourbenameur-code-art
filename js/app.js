@@ -8,6 +8,7 @@ import { engine } from './engine.js';
 import { registry } from './algorithms/registry.js';
 import { buildAlgoGrid } from './ui/algo-grid.js';
 import { buildParams } from './ui/params.js';
+import { initMouse, mouse } from './interaction/mouse.js';
 
 // ── Initialise engine ──────────────────────────────────────────────────────────
 
@@ -57,6 +58,19 @@ if (algoGridEl) {
 // ── Boot with default algorithm ────────────────────────────────────────────────
 
 selectAlgorithm(state.algo || 'lsystem');
+
+// ── Mouse interaction ─────────────────────────────────────────────────────────
+
+initMouse(
+  document.getElementById('canvas-area'),
+  engine,
+  registry,
+  () => activeAlgo,
+  (algo, s) => {
+    const paramsContainer = document.getElementById('param-controls');
+    if (paramsContainer) buildParams(paramsContainer, algo, s);
+  }
+);
 
 // ── Wire Style controls ────────────────────────────────────────────────────────
 
@@ -248,62 +262,15 @@ function updateHUD() {
   document.getElementById('hud-algo').textContent     = meta?.name || '';
   document.getElementById('hud-equation').textContent = meta?.eq   || '';
   document.getElementById('hud-mode').textContent =
-    `${state.scrollMode.toUpperCase()} MODE`;
+    `scroll: ${state.scrollMode}`;
   document.getElementById('hud-zoom').textContent =
-    `ZOOM ${(state.camZoom || 1).toFixed(2)}x`;
+    `zoom: ${(state.camZoom || 1).toFixed(2)}x`;
   document.getElementById('hud-help').textContent =
-    'SCROLL: adjust  DRAG: pan';
+    'scroll: adjust  drag: pan  dbl-click: reset';
 }
 
-// ── Camera pan (drag on canvas) ───────────────────────────────────────────────
-
-const canvasArea = document.getElementById('canvas-area');
-let dragging = false;
-let dragStartX = 0, dragStartY = 0;
-let panStartX = 0, panStartY = 0;
-
-canvasArea.addEventListener('mousedown', e => {
-  dragging = true;
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
-  panStartX = state.camPanX;
-  panStartY = state.camPanY;
-});
-
-window.addEventListener('mousemove', e => {
-  if (!dragging) return;
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartY;
-  state.camPanX = panStartX + dx;
-  state.camPanY = panStartY + dy;
-  markDirty();
-  updateHUD();
-});
-
-window.addEventListener('mouseup', () => { dragging = false; });
-
-// ── Scroll ─────────────────────────────────────────────────────────────────────
-
-canvasArea.addEventListener('wheel', e => {
-  e.preventDefault();
-  const delta = -e.deltaY * 0.001;
-
-  if (state.scrollMode === 'zoom') {
-    const newZoom = Math.max(0.1, Math.min(20, (state.camZoom || 1) + delta * 2));
-    set('camZoom', newZoom);
-  } else {
-    // Detail mode: adjust the detailParam if set
-    if (activeAlgo?.detailParam) {
-      const p = activeAlgo.detailParam;
-      const cur = state[p.id] || p.min;
-      const next = Math.max(p.min, Math.min(p.max, cur + delta * (p.max - p.min) * 0.1));
-      const snapped = Math.round(next / p.step) * p.step;
-      set(p.id, parseFloat(snapped.toFixed(6)));
-    }
-  }
-
-  updateHUD();
-}, { passive: false });
+// ── Mouse interaction is handled by js/interaction/mouse.js ──────────────────
+// initMouse() is called above after selectAlgorithm().
 
 // ── Render loop ───────────────────────────────────────────────────────────────
 
@@ -311,6 +278,12 @@ function tick() {
   if (state.playing) {
     state.time += 0.016 * state.speed;
     if (activeAlgo) activeAlgo.animate(state);
+    markDirty();
+  }
+
+  // Cursor mode: map current mouse position to algorithm params
+  if (state.cursorMode && activeAlgo?.cursorMap) {
+    activeAlgo.cursorMap(mouse.x, mouse.y, state);
     markDirty();
   }
 
