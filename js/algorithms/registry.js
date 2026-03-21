@@ -3,7 +3,8 @@
  * Instances are lazily created and cached per engine.
  */
 
-import { LSystem } from './fractals/lsystem.js';
+import { LSystem }   from './fractals/lsystem.js';
+import { JuliaSet }  from './fractals/julia.js';
 
 class Registry {
   constructor() {
@@ -67,3 +68,4 @@ export const registry = new Registry();
 
 // ── Register algorithms ──────────────────────────────────────────────────────
 registry.register('lsystem', LSystem);
+registry.register('julia',   JuliaSet);

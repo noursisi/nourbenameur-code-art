@@ -110,12 +110,10 @@ class Engine {
     }
 
     // ── 3. Algorithm ───────────────────────────────────────────────────────────
+    // WebGL algorithms composite their own GL canvas inside render() via
+    // ctx.drawImage(glCanvas, ...). See julia.js for the pattern.
     if (this._algorithm) {
       this._algorithm.render(ctx, W, H, s);
-      // If algo uses WebGL, composite it
-      if (this._glCanvas) {
-        ctx.drawImage(this._glCanvas, 0, 0, W, H);
-      }
     }
 
     // ── 4. Symmetry (stub — future) ────────────────────────────────────────────
