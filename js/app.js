@@ -13,6 +13,7 @@ import { loadImage, removeImage } from './interaction/image-layer.js';
 import { exportPNG } from './export/png.js';
 import { exportSVG } from './export/svg.js';
 import { startRecording, stopRecording, isRecording } from './export/video.js';
+import { initKeyboard } from './interaction/keyboard.js';
 
 // ── Initialise engine ──────────────────────────────────────────────────────────
 
@@ -294,7 +295,7 @@ function updateHUD() {
   document.getElementById('hud-zoom').textContent =
     `zoom: ${(state.camZoom || 1).toFixed(2)}x`;
   document.getElementById('hud-help').textContent =
-    'scroll: adjust  drag: pan  dbl-click: reset';
+    'scroll: adjust  drag: pan  dbl-click: reset  |  space=play · r=random · s=symmetry · d=scroll mode';
 }
 
 // ── Mouse interaction is handled by js/interaction/mouse.js ──────────────────
@@ -325,6 +326,21 @@ function tick() {
 }
 
 requestAnimationFrame(tick);
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+
+initKeyboard({
+  getActiveAlgo: () => activeAlgo,
+  rebuildParams: (algo, s) => {
+    const paramsContainer = document.getElementById('param-controls');
+    if (paramsContainer) buildParams(paramsContainer, algo, s);
+  },
+  updatePlayUI,
+});
+
+// ── Remove loading indicator ──────────────────────────────────────────────────
+
+document.getElementById('loading')?.remove();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
