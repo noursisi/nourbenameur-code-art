@@ -230,18 +230,6 @@ export class LSystem extends Algorithm {
     ctx.stroke();
     ctx.restore();
 
-    // ── Tint overlay ──────────────────────────────────────────────────────────
-    if (s.tint && s.tint !== 'none') {
-      const tintColor = this._tintColor(s);
-      if (tintColor) {
-        ctx.save();
-        ctx.globalAlpha = 0.15;
-        ctx.globalCompositeOperation = 'screen';
-        ctx.fillStyle = tintColor;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
-    }
   }
 
   collectSVG(W, H, s) {
@@ -265,19 +253,4 @@ ${lines}
 </svg>`;
   }
 
-  _tintColor(s) {
-    const map = {
-      cyan:    '#00aaff',
-      blue:    '#2244cc',
-      magenta: '#cc00aa',
-      red:     '#cc2200',
-      amber:   '#ffaa00',
-      green:   '#44aa44',
-    };
-    if (s.tint === 'custom') {
-      const [r, g, b] = s.customTintRGB || [0, 170, 255];
-      return `rgb(${r},${g},${b})`;
-    }
-    return map[s.tint] || null;
-  }
 }
