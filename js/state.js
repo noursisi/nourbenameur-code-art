@@ -9,7 +9,7 @@ export const state = {
   glow: 0, blur: 0, grain: 0, lineWeight: 1,
   transparent: false,
   // Julia
-  julia_cr: -0.7, julia_ci: 0.27, julia_iter: 80, julia_scale: 1,
+  julia_cr: -0.7, julia_ci: 0.27, julia_iter: 80, julia_scale: 2.5,
   // L-System
   lsystem_angle: 25, lsystem_depth: 7, lsystem_rule: 0,
   // Fern
