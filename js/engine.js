@@ -1,7 +1,8 @@
 /**
  * Engine — manages the full 2D render pipeline.
- * Pipeline per frame:
- *   clear → image-behind → algorithm.render() → symmetry → post-process → image-front → grain
+ * Pipeline per frame (multi-layer):
+ *   clear → for each layer: [image-processor → algorithm] with blend/opacity → post-process → grain
+ * Legacy single-layer pipeline still works when layers are not used.
  */
 
 import { state } from './state.js';
@@ -9,6 +10,8 @@ import { applySymmetry } from './effects/symmetry.js';
 import { postProcess } from './effects/post-process.js';
 import { applyGrain } from './effects/grain.js';
 import { drawImageLayer } from './interaction/image-layer.js';
+import { imageProcessor } from './interaction/image-processor.js';
+import { getLayers } from './layers.js';
 
 class Engine {
   constructor(canvas) {
@@ -19,6 +22,8 @@ class Engine {
     this._algorithm = null;
     this._glCanvas = null;
     this._glCtx = null;
+    /** @type {Map<number, object>} layer id → algorithm instance */
+    this._layerAlgos = new Map();
   }
 
   /** Update W/H to match the canvas-area container */
@@ -64,9 +69,19 @@ class Engine {
     return this._glCtx;
   }
 
-  /** Set the active algorithm instance */
+  /** Set the active algorithm instance (for the active layer / legacy) */
   setAlgorithm(algo) {
     this._algorithm = algo;
+  }
+
+  /** Set an algorithm for a specific layer */
+  setLayerAlgorithm(layerId, algo) {
+    this._layerAlgos.set(layerId, algo);
+  }
+
+  /** Get algorithm for a layer */
+  getLayerAlgorithm(layerId) {
+    return this._layerAlgos.get(layerId) || null;
   }
 
   /** Get background color — uses direct color if set, falls back to colorMode */
@@ -100,6 +115,9 @@ class Engine {
 
     if (W === 0 || H === 0) return;
 
+    const layers = getLayers();
+    const useMultiLayer = layers && layers.length > 1;
+
     // ── 1. Clear ───────────────────────────────────────────────────────────────
     if (s.transparent) {
       ctx.clearRect(0, 0, W, H);
@@ -108,52 +126,120 @@ class Engine {
       ctx.fillRect(0, 0, W, H);
     }
 
-    // ── 2. Image — behind layer ────────────────────────────────────────────────
+    // ── 2. Image — behind layer (legacy) ─────────────────────────────────────
     if (s.img_layer === 'behind') {
       drawImageLayer(ctx, W, H, s);
     }
 
-    // ── 3. Algorithm ───────────────────────────────────────────────────────────
-    if (this._algorithm) {
-      if (s.sym && s.folds > 1) {
-        // Render to offscreen canvas, then composite with symmetry
-        // Use CSS pixel dimensions for the offscreen (matches algorithm coordinate space)
-        const offscreen = document.createElement('canvas');
-        offscreen.width  = W;
-        offscreen.height = H;
-        const offCtx = offscreen.getContext('2d');
-        this._algorithm.render(offCtx, W, H, s);
-
-        // Clear main canvas before compositing
-        if (s.transparent) {
-          ctx.clearRect(0, 0, W, H);
-        } else {
-          ctx.fillStyle = this.bg();
-          ctx.fillRect(0, 0, W, H);
-        }
-
-        applySymmetry(offscreen, ctx, W, H, s.folds);
-      } else {
-        // Direct render to main context
-        this._algorithm.render(ctx, W, H, s);
-      }
+    // ── 3. Image Processor (behind algorithm if mix mode) ────────────────────
+    if (s.ip_enabled && imageProcessor.hasSource() && !s.ip_mixWithAlgo) {
+      imageProcessor.render(this, ctx, W, H, s);
     }
 
-    // ── 4. Post-process: tint, glow, blur ─────────────────────────────────────
+    // ── 4. Layers / Algorithm ───────────────────────────────────────────────
+    if (useMultiLayer) {
+      this._renderMultiLayer(ctx, W, H, s, layers);
+    } else {
+      this._renderSingleLayer(ctx, W, H, s);
+    }
+
+    // ── 5. Image Processor (on top if mix mode) ─────────────────────────────
+    if (s.ip_enabled && imageProcessor.hasSource() && s.ip_mixWithAlgo) {
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.globalCompositeOperation = 'screen';
+      imageProcessor.render(this, ctx, W, H, s);
+      ctx.restore();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // ── 6. Post-process: tint, glow, blur ─────────────────────────────────────
     postProcess(this.canvas, ctx, W, H, s);
 
-    // ── 5. Image — front layer ────────────────────────────────────────────────
+    // ── 7. Image — front layer (legacy) ────────────────────────────────────────
     if (s.img_layer === 'front') {
       drawImageLayer(ctx, W, H, s);
     }
 
-    // ── 6. Grain ──────────────────────────────────────────────────────────────
+    // ── 8. Grain ──────────────────────────────────────────────────────────────
     if (s.grain > 0) {
       applyGrain(ctx, W, H, s.grain);
     }
 
     // Clear any CSS filter previously applied
     this.canvas.style.filter = '';
+  }
+
+  /** Render a single algorithm (legacy path, also used for 1-layer setups) */
+  _renderSingleLayer(ctx, W, H, s) {
+    if (!this._algorithm) return;
+
+    if (s.sym && s.folds > 1) {
+      const offscreen = document.createElement('canvas');
+      offscreen.width  = W;
+      offscreen.height = H;
+      const offCtx = offscreen.getContext('2d');
+      this._algorithm.render(offCtx, W, H, s);
+
+      if (s.transparent) {
+        ctx.clearRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = this.bg();
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      applySymmetry(offscreen, ctx, W, H, s.folds);
+    } else {
+      this._algorithm.render(ctx, W, H, s);
+    }
+  }
+
+  /** Render multiple layers bottom-to-top */
+  _renderMultiLayer(ctx, W, H, s, layers) {
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+
+      const algo = this._layerAlgos.get(layer.id);
+      if (!algo) continue;
+
+      // Render to offscreen
+      const offscreen = document.createElement('canvas');
+      offscreen.width = W;
+      offscreen.height = H;
+      const offCtx = offscreen.getContext('2d');
+
+      // Render image processor for this layer if enabled
+      if (layer.useImageProcessor && s.ip_enabled && imageProcessor.hasSource()) {
+        imageProcessor.render(this, offCtx, W, H, s);
+      }
+
+      // Render algorithm
+      algo.render(offCtx, W, H, s);
+
+      // Apply symmetry if enabled
+      if (s.sym && s.folds > 1) {
+        const symCanvas = document.createElement('canvas');
+        symCanvas.width = W;
+        symCanvas.height = H;
+        const symCtx = symCanvas.getContext('2d');
+        applySymmetry(offscreen, symCtx, W, H, s.folds);
+        // Composite with blend mode and opacity
+        ctx.save();
+        ctx.globalCompositeOperation = layer.blend || 'source-over';
+        ctx.globalAlpha = layer.opacity ?? 1;
+        ctx.drawImage(symCanvas, 0, 0);
+        ctx.restore();
+      } else {
+        // Composite with blend mode and opacity
+        ctx.save();
+        ctx.globalCompositeOperation = layer.blend || 'source-over';
+        ctx.globalAlpha = layer.opacity ?? 1;
+        ctx.drawImage(offscreen, 0, 0);
+        ctx.restore();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
 }
 
