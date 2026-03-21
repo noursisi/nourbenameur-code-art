@@ -642,6 +642,21 @@ input[type="range"]::-moz-range-thumb:hover {
   background: #2a1515;
 }
 
+.layer-color {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #333;
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.layer-color::-webkit-color-swatch-wrapper { padding: 1px; }
+.layer-color::-webkit-color-swatch { border: none; border-radius: 2px; }
+
 .layer-opacity {
   width: 50px;
   flex-shrink: 0;

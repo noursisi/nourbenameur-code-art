@@ -5,6 +5,7 @@
  */
 
 import { state, set, markDirty, onChange } from '../state.js';
+import { getLayers, getActiveLayer, updateLayer } from '../layers.js';
 
 /**
  * Exported mouse position (normalised 0–1 over canvas area).
@@ -40,6 +41,7 @@ export function initMouse(canvasArea, engine, registry, getActiveAlgo, rebuildPa
 
   let dragging  = false;
   let dragStartX = 0, dragStartY = 0;
+  let prevDx = 0, prevDy = 0;
   let panStartX  = 0, panStartY  = 0;
 
   canvasArea.addEventListener('mousedown', e => {
@@ -49,14 +51,25 @@ export function initMouse(canvasArea, engine, registry, getActiveAlgo, rebuildPa
     dragStartY = e.clientY;
     panStartX  = state.camPanX;
     panStartY  = state.camPanY;
+    prevDx = 0; prevDy = 0;
   });
 
   window.addEventListener('mousemove', e => {
     if (!dragging) return;
     const dx = e.clientX - dragStartX;
     const dy = e.clientY - dragStartY;
-    set('camPanX', panStartX + dx);
-    set('camPanY', panStartY + dy);
+
+    const layers = getLayers();
+    const activeLayer = getActiveLayer();
+    if (layers && layers.length > 1 && activeLayer) {
+      // Move only the active layer
+      updateLayer(activeLayer.id, 'panX', (activeLayer.panX || 0) + (dx - (prevDx || 0)));
+      updateLayer(activeLayer.id, 'panY', (activeLayer.panY || 0) + (dy - (prevDy || 0)));
+      prevDx = dx; prevDy = dy;
+    } else {
+      set('camPanX', panStartX + dx);
+      set('camPanY', panStartY + dy);
+    }
   });
 
   window.addEventListener('mouseup', () => {

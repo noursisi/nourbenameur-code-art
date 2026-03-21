@@ -23,7 +23,7 @@ let nextId = 1;
 export function initLayers() {
   if (!state.layers || state.layers.length === 0) {
     state.layers = [
-      { id: 0, algo: state.algo || 'lsystem', visible: true, opacity: 1, blend: 'source-over', useImageProcessor: false },
+      { id: 0, algo: state.algo || 'lsystem', visible: true, opacity: 1, blend: 'source-over', useImageProcessor: false, fgColor: '#ffffff', panX: 0, panY: 0, zoom: 1 },
     ];
     state.activeLayer = 0;
     nextId = 1;
@@ -49,13 +49,20 @@ export function setActiveLayer(id) {
 /** Add a new layer (max 3) */
 export function addLayer(algo = 'lsystem') {
   if (state.layers.length >= 3) return null;
+  // Pick a different default color for each new layer
+  const colors = ['#00aaff', '#ff44aa', '#44ff44', '#ffaa00', '#aa44ff'];
+  const colorIdx = state.layers.length % colors.length;
   const layer = {
     id: nextId++,
     algo,
     visible: true,
     opacity: 0.8,
-    blend: 'source-over',
+    blend: 'screen',
     useImageProcessor: false,
+    fgColor: colors[colorIdx],
+    panX: 0,
+    panY: 0,
+    zoom: 1,
   };
   state.layers.push(layer);
   state.activeLayer = layer.id;

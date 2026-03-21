@@ -211,6 +211,14 @@ class Engine {
       const algo = this._layerAlgos.get(layer.id);
       if (!algo) continue;
 
+      // Create per-layer state override with this layer's colors and transform
+      const layerState = Object.assign({}, s, {
+        fgColor: layer.fgColor || s.fgColor,
+        camPanX: layer.panX ?? s.camPanX,
+        camPanY: layer.panY ?? s.camPanY,
+        camZoom: layer.zoom ?? s.camZoom,
+      });
+
       // Render to offscreen
       const offscreen = document.createElement('canvas');
       offscreen.width = W;
@@ -219,11 +227,11 @@ class Engine {
 
       // Render image processor for this layer if enabled
       if (layer.useImageProcessor && s.ip_enabled && imageProcessor.hasSource()) {
-        imageProcessor.render(this, offCtx, W, H, s);
+        imageProcessor.render(this, offCtx, W, H, layerState);
       }
 
-      // Render algorithm
-      algo.render(offCtx, W, H, s);
+      // Render algorithm with per-layer state
+      algo.render(offCtx, W, H, layerState);
 
       // Apply symmetry if enabled
       if (s.sym && s.folds > 1) {

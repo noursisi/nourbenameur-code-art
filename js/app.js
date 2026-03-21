@@ -298,7 +298,20 @@ function rebuildLayerUI() {
       rebuildLayerUI();
     });
 
+    // Per-layer color picker
+    const colorPick = document.createElement('input');
+    colorPick.type = 'color';
+    colorPick.className = 'layer-color';
+    colorPick.value = layer.fgColor || '#ffffff';
+    colorPick.title = 'Layer color';
+    colorPick.addEventListener('input', e => {
+      e.stopPropagation();
+      updateLayer(layer.id, 'fgColor', colorPick.value);
+    });
+    colorPick.addEventListener('click', e => e.stopPropagation());
+
     item.appendChild(vis);
+    item.appendChild(colorPick);
     item.appendChild(name);
     item.appendChild(opacity);
     item.appendChild(blend);
