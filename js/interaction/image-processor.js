@@ -428,6 +428,197 @@ void main() {
       u_iter: s.ip_fwarp_iter ?? 5,
     }),
   },
+
+  halftone: {
+    name: 'Halftone',
+    params: [
+      { id: 'ip_ht_dotsize', label: 'Dot Size', min: 2, max: 20, step: 1, default: 8 },
+      { id: 'ip_ht_angle',   label: 'Angle',    min: 0, max: 90, step: 1, default: 45 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_dotsize;
+uniform float u_angle;
+
+#define PI 3.14159265359
+
+float brightness(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+void main() {
+  // Build rotated grid
+  float rad = u_angle * PI / 180.0;
+  float cosA = cos(rad);
+  float sinA = sin(rad);
+
+  // Convert current UV to pixel space, rotate, then snap to dot grid
+  vec2 px = v_uv * u_resolution;
+  vec2 rotPx = vec2(cosA * px.x - sinA * px.y, sinA * px.x + cosA * px.y);
+
+  // Cell in the rotated grid
+  vec2 cell = floor(rotPx / u_dotsize);
+  vec2 cellCenter = (cell + 0.5) * u_dotsize;
+
+  // Rotate cell center back to UV space for sampling
+  vec2 samplePx = vec2(cosA * cellCenter.x + sinA * cellCenter.y,
+                      -sinA * cellCenter.x + cosA * cellCenter.y);
+  vec2 sampleUV = clamp(samplePx / u_resolution, 0.0, 1.0);
+
+  vec4 col = texture2D(u_image, sampleUV);
+  float bright = brightness(col.rgb);
+
+  // Distance from rotated cell center
+  vec2 localPos = rotPx - cellCenter;
+  float dist = length(localPos);
+
+  // Dot radius scales with brightness — brighter = bigger dot
+  float maxRadius = u_dotsize * 0.5;
+  float radius = bright * maxRadius;
+
+  // Antialiased circle
+  float edge = smoothstep(radius + 0.8, radius - 0.8, dist);
+
+  gl_FragColor = vec4(vec3(edge), 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_dotsize: s.ip_ht_dotsize ?? 8,
+      u_angle:   s.ip_ht_angle   ?? 45,
+    }),
+  },
+
+  asciiDistort: {
+    name: 'ASCII',
+    params: [
+      { id: 'ip_ascii_size',   label: 'Cell Size', min: 4,  max: 16, step: 1,   default: 8 },
+      { id: 'ip_ascii_levels', label: 'Levels',    min: 2,  max: 10, step: 1,   default: 5 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_cellsize;
+uniform float u_levels;
+
+float brightness(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+void main() {
+  vec2 px = v_uv * u_resolution;
+
+  // Snap to cell grid — sample the center of the cell
+  vec2 cell = floor(px / u_cellsize);
+  vec2 cellCenter = (cell + 0.5) * u_cellsize;
+  vec2 sampleUV = clamp(cellCenter / u_resolution, 0.0, 1.0);
+
+  float bright = brightness(texture2D(u_image, sampleUV).rgb);
+
+  // Quantize brightness to N levels
+  float level = floor(bright * u_levels) / u_levels;
+
+  // Local position within cell (0..1)
+  vec2 local = (px - cell * u_cellsize) / u_cellsize;
+  vec2 localC = local - 0.5; // centered
+
+  // Map level to a dot density pattern that approximates character density
+  // Level 0 = space (no fill), level 1 = full block
+  float density = level;
+
+  // Draw a square whose fill area = density
+  float halfFill = sqrt(density) * 0.5;
+  float inBlock = step(abs(localC.x), halfFill) * step(abs(localC.y), halfFill);
+
+  // Thin grid line between cells for readability
+  float lineW = 0.04;
+  float onBorder = 1.0 - step(lineW, local.x) * step(lineW, local.y) *
+                         step(local.x, 1.0 - lineW) * step(local.y, 1.0 - lineW);
+
+  float val = clamp(inBlock - onBorder * 0.5, 0.0, 1.0);
+  gl_FragColor = vec4(vec3(val), 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_cellsize: s.ip_ascii_size   ?? 8,
+      u_levels:   s.ip_ascii_levels ?? 5,
+    }),
+  },
+
+  dataMosaic: {
+    name: 'Data Mosaic',
+    params: [
+      { id: 'ip_dm_minBlock', label: 'Min Block', min: 2,  max: 10, step: 1,    default: 4  },
+      { id: 'ip_dm_maxBlock', label: 'Max Block', min: 10, max: 40, step: 2,    default: 20 },
+      { id: 'ip_dm_scatter',  label: 'Scatter',   min: 0,  max: 1,  step: 0.05, default: 0.3 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_minBlock;
+uniform float u_maxBlock;
+uniform float u_scatter;
+
+float brightness(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+// Simple hash
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  vec2 px = v_uv * u_resolution;
+
+  // First pass: determine block size from a coarse grid sample
+  float coarseSize = u_maxBlock;
+  vec2 coarseCell = floor(px / coarseSize);
+  vec2 coarseCenter = (coarseCell + 0.5) * coarseSize;
+  vec2 coarseUV = clamp(coarseCenter / u_resolution, 0.0, 1.0);
+
+  float coarseBright = brightness(texture2D(u_image, coarseUV).rgb);
+
+  // Block size: larger in dark areas, smaller in bright areas
+  float t = 1.0 - coarseBright;
+  float blockSize = mix(u_minBlock, u_maxBlock, t);
+
+  // Optional scatter — offset block grid per-cell by a hash
+  vec2 baseCell = floor(px / blockSize);
+  float scatterX = (hash(baseCell) - 0.5) * u_scatter * blockSize;
+  float scatterY = (hash(baseCell + vec2(7.3, 2.1)) - 0.5) * u_scatter * blockSize;
+
+  // Re-snap with scatter applied
+  vec2 cellOrigin = baseCell * blockSize + vec2(scatterX, scatterY);
+  vec2 cellCenter = cellOrigin + blockSize * 0.5;
+  vec2 sampleUV = clamp(cellCenter / u_resolution, 0.0, 1.0);
+
+  vec4 col = texture2D(u_image, sampleUV);
+
+  // Thin border between blocks for structure
+  vec2 local = px - cellOrigin;
+  float border = 0.06;
+  float onBorder = 1.0 - step(border * blockSize, local.x) *
+                         step(border * blockSize, local.y) *
+                         step(local.x, blockSize * (1.0 - border)) *
+                         step(local.y, blockSize * (1.0 - border));
+
+  col.rgb = mix(col.rgb, col.rgb * 0.25, onBorder * 0.8);
+  gl_FragColor = col;
+}
+`,
+    uniforms: (s) => ({
+      u_minBlock: s.ip_dm_minBlock ?? 4,
+      u_maxBlock: s.ip_dm_maxBlock ?? 20,
+      u_scatter:  s.ip_dm_scatter  ?? 0.3,
+    }),
+  },
 };
 
 // ── ImageProcessor class ────────────────────────────────────────────────────

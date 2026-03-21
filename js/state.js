@@ -73,6 +73,18 @@ export const state = {
   ip_feedback_decay: 0.85, ip_feedback_offset: 0.005,
   ip_vmosaic_cells: 30, ip_vmosaic_edge: 0.01,
   ip_fwarp_cr: -0.7, ip_fwarp_ci: 0.27, ip_fwarp_amount: 0.1, ip_fwarp_iter: 5,
+  // Dot Matrix
+  dm_cols: 30, dm_rows: 25, dm_maxSize: 12, dm_pattern: 0, dm_spacing: 1,
+  // Pixel Dissolve
+  pd_density: 80, pd_minSize: 3, pd_maxSize: 30, pd_scatter: 0.3, pd_fillRatio: 0.7,
+  // ASCII Art
+  ascii_cols: 60, ascii_charset: 0, ascii_pattern: 0, ascii_fontSize: 10,
+  // Halftone distortion
+  ip_ht_dotsize: 8, ip_ht_angle: 45,
+  // ASCII distortion
+  ip_ascii_size: 8, ip_ascii_levels: 5,
+  // Data Mosaic distortion
+  ip_dm_minBlock: 4, ip_dm_maxBlock: 20, ip_dm_scatter: 0.3,
   // Camera
   cameraActive: false,
   // Layers

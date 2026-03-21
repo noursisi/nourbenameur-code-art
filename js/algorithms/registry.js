@@ -27,6 +27,9 @@ import { NeuralWeb }           from './data-art/neural-web.js';
 import { CellularAutomata }    from './data-art/cellular-automata.js';
 import { MagneticField }       from './nature/magnetic-field.js';
 import { Interference }        from './physics/interference.js';
+import { DotMatrix }           from './data-art/dot-matrix.js';
+import { PixelDissolve }       from './data-art/pixel-dissolve.js';
+import { AsciiRender }         from './data-art/ascii-render.js';
 
 class Registry {
   constructor() {
@@ -132,3 +135,8 @@ registry.register('magnetic-field', MagneticField);
 
 // Physics (additions)
 registry.register('interference',   Interference);
+
+// Data Art (additions)
+registry.register('dot-matrix',     DotMatrix);
+registry.register('pixel-dissolve', PixelDissolve);
+registry.register('ascii-render',   AsciiRender);
