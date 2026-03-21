@@ -44,6 +44,43 @@
         <span class="status-paused" id="play-status">PAUSED</span>
       </div>
 
+      <!-- Image Processor -->
+      <div class="panel-section" id="section-image-processor">
+        <h2>Image Processor</h2>
+        <div class="controls">
+
+          <div class="btn-grid">
+            <button class="btn" id="btn-ip-upload">Upload Image</button>
+            <button class="btn" id="btn-ip-camera">Camera</button>
+          </div>
+          <input type="file" id="ip-file-input" accept="image/*" style="display:none;" />
+
+          <div id="ip-controls" style="display:none;">
+            <div class="toggle-row" style="margin-top:4px;">
+              <label for="ip-enabled-toggle">Enable Processing</label>
+              <div class="toggle on" id="ip-enabled-toggle"></div>
+            </div>
+
+            <div class="slider-label" style="margin-top:6px; margin-bottom:4px;"><span>Distortion Effect</span></div>
+            <div class="distortion-grid" id="ip-effect-grid">
+              <!-- Populated by JS -->
+            </div>
+
+            <div id="ip-param-controls" style="margin-top:6px;">
+              <!-- Dynamic params per distortion -->
+            </div>
+
+            <div class="toggle-row" style="margin-top:6px;">
+              <label for="ip-mix-toggle">Mix with Algorithm</label>
+              <div class="toggle" id="ip-mix-toggle"></div>
+            </div>
+
+            <button class="btn full" id="btn-ip-remove" style="margin-top:6px; color:#a77; border-color:#533;">Remove Source</button>
+          </div>
+
+        </div>
+      </div>
+
       <!-- Algorithm Grid -->
       <div class="panel-section" id="section-algo">
         <h2>Algorithm</h2>
@@ -85,6 +122,19 @@
         <h2>Parameters</h2>
         <div class="controls" id="param-controls">
           <!-- Populated by JS per algorithm -->
+        </div>
+      </div>
+
+      <!-- Layers -->
+      <div class="panel-section" id="section-layers">
+        <h2>Layers</h2>
+        <div class="controls">
+          <div id="layer-list">
+            <!-- Populated by JS -->
+          </div>
+          <div class="btn-grid" style="margin-top:4px;">
+            <button class="btn full" id="btn-add-layer">Add Layer</button>
+          </div>
         </div>
       </div>
 

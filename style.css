@@ -521,3 +521,148 @@ input[type="range"]::-moz-range-thumb:hover {
   text-transform: uppercase;
   letter-spacing: 1px;
 }
+
+/* ============================================================
+   Image Processor — Distortion Grid
+   ============================================================ */
+
+.distortion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+.distortion-btn {
+  background: #0c0c0c;
+  border: 1px solid #151515;
+  color: #444;
+  padding: 5px 4px;
+  font-size: 7px;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  text-align: center;
+}
+
+.distortion-btn:hover {
+  border-color: #333;
+  color: #888;
+}
+
+.distortion-btn.active {
+  border-color: #444;
+  color: #ccc;
+  background: #141414;
+}
+
+/* ============================================================
+   Layers
+   ============================================================ */
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 1px solid #151515;
+  border-radius: 3px;
+  margin-bottom: 3px;
+  background: #0c0c0c;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.layer-item:hover {
+  border-color: #2a2a2a;
+}
+
+.layer-item.active {
+  border-color: #444;
+  background: #141414;
+}
+
+.layer-item .layer-name {
+  flex: 1;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-item.active .layer-name {
+  color: #aaa;
+}
+
+.layer-item .layer-vis {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.layer-item .layer-vis.on {
+  background: #222;
+  color: #aaa;
+}
+
+.layer-item .layer-del {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: none;
+  border: 1px solid #2a1515;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #644;
+  flex-shrink: 0;
+  font-family: inherit;
+  padding: 0;
+}
+
+.layer-item .layer-del:hover {
+  border-color: #533;
+  color: #a77;
+}
+
+.layer-opacity {
+  width: 50px;
+  flex-shrink: 0;
+}
+
+.layer-blend {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 2px;
+  color: #666;
+  font-size: 7px;
+  font-family: inherit;
+  padding: 2px 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  width: 65px;
+}
+
+.layer-blend:focus {
+  outline: none;
+  border-color: #444;
+}
