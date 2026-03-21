@@ -2,11 +2,6 @@
  * app.js — Entry point.
  * Wires engine, UI panels, algorithm registry, layers, image processor, camera, and the render loop.
  */
-window.__codeArtDebug = true;
-window.onerror = (msg, src, line, col) => {
-  const el = document.getElementById('loading');
-  if (el) el.textContent = `ERROR: ${msg} at ${src}:${line}`;
-};
 
 import { state, set, markDirty, isDirty, markClean } from './state.js';
 import { engine } from './engine.js';
@@ -23,6 +18,16 @@ import { exportSVG } from './export/svg.js';
 import { startRecording, stopRecording, isRecording } from './export/video.js';
 import { initKeyboard } from './interaction/keyboard.js';
 import { createSlider } from './ui/panel.js';
+
+const BLEND_MODES = [
+  { value: 'source-over', label: 'Normal' },
+  { value: 'multiply', label: 'Multiply' },
+  { value: 'screen', label: 'Screen' },
+  { value: 'overlay', label: 'Overlay' },
+  { value: 'difference', label: 'Diff' },
+  { value: 'exclusion', label: 'Exclusion' },
+  { value: 'lighter', label: 'Add' },
+];
 
 // ── Initialise engine ──────────────────────────────────────────────────────────
 
@@ -204,16 +209,6 @@ function buildIPParams(effectKey) {
 buildIPParams(state.ip_effect || 'displacement');
 
 // ── Layer UI ─────────────────────────────────────────────────────────────────
-
-const BLEND_MODES = [
-  { value: 'source-over', label: 'Normal' },
-  { value: 'multiply', label: 'Multiply' },
-  { value: 'screen', label: 'Screen' },
-  { value: 'overlay', label: 'Overlay' },
-  { value: 'difference', label: 'Diff' },
-  { value: 'exclusion', label: 'Exclusion' },
-  { value: 'lighter', label: 'Add' },
-];
 
 function rebuildLayerUI() {
   const container = document.getElementById('layer-list');
