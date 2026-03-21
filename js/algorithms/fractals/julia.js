@@ -119,7 +119,7 @@ export class JuliaSet extends Algorithm {
       name: 'Julia Set',
       eq:   'z = z² + c',
       cat:  'Fractals',
-      desc: 'Infinite complexity from iterating z²+c. Each pixel's colour is determined by how quickly the orbit escapes to infinity.',
+      desc: 'Infinite complexity from iterating z²+c. Each pixel colour is determined by how quickly the orbit escapes to infinity.',
     };
   }
 
