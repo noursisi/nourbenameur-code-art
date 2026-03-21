@@ -1,5 +1,6 @@
 /**
  * Dragon Curve — paper-folding fractal via direction sequence.
+ * Animation: continuously rotates the curve.
  */
 
 import { Algorithm } from '../base.js';
@@ -43,6 +44,15 @@ function buildPoints(dirs) {
 }
 
 export class Dragon extends Algorithm {
+  constructor(engine) {
+    super(engine);
+    this._rotation = 0;
+    this._scalePulse = 1;
+    // Cache for the built points (expensive to recompute at high depths)
+    this._cachedDepth = -1;
+    this._cachedPts = null;
+  }
+
   get metadata() {
     return {
       name: 'Dragon Curve',
@@ -68,7 +78,11 @@ export class Dragon extends Algorithm {
     };
   }
 
-  animate(_s) {}
+  animate(s) {
+    // Rotate and pulse scale for dramatic animation
+    this._rotation = s.time * 0.35;
+    this._scalePulse = 0.85 + Math.sin(s.time * 0.5) * 0.15;
+  }
 
   render(ctx, W, H, s) {
     const depth = Math.max(5, Math.min(18, Math.round(s.dragon_depth)));
@@ -77,8 +91,13 @@ export class Dragon extends Algorithm {
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;
 
-    const dirs = buildDirections(depth);
-    const pts = buildPoints(dirs);
+    // Cache point building (expensive at depth 18)
+    if (this._cachedDepth !== depth) {
+      const dirs = buildDirections(depth);
+      this._cachedPts = buildPoints(dirs);
+      this._cachedDepth = depth;
+    }
+    const pts = this._cachedPts;
 
     // Calculate bounds
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -91,19 +110,19 @@ export class Dragon extends Algorithm {
     const bW = maxX - minX || 1;
     const bH = maxY - minY || 1;
 
-    // Fit to 80% of canvas
-    const fitW = W * 0.80;
-    const fitH = H * 0.80;
+    // Fit to 80% of canvas, with scale pulse
+    const fitW = W * 0.80 * this._scalePulse;
+    const fitH = H * 0.80 * this._scalePulse;
     const scale = Math.min(fitW / bW, fitH / bH);
 
-    // Center
-    const offsetX = W / 2 - ((minX + maxX) / 2) * scale + panX;
-    const offsetY = H / 2 - ((minY + maxY) / 2) * scale + panY;
+    const cxMid = (minX + maxX) / 2;
+    const cyMid = (minY + maxY) / 2;
 
     ctx.save();
-    ctx.translate(W / 2, H / 2);
+    ctx.translate(W / 2 + panX, H / 2 + panY);
     ctx.scale(camZoom, camZoom);
-    ctx.translate(-W / 2, -H / 2);
+    // Apply rotation animation
+    ctx.rotate(this._rotation);
 
     ctx.strokeStyle = fg;
     ctx.lineWidth = Math.max(0.5, 1.5 * (1 / Math.sqrt(depth)));
@@ -111,9 +130,9 @@ export class Dragon extends Algorithm {
     ctx.lineJoin = 'round';
 
     ctx.beginPath();
-    ctx.moveTo(pts[0][0] * scale + offsetX, pts[0][1] * scale + offsetY);
+    ctx.moveTo((pts[0][0] - cxMid) * scale, (pts[0][1] - cyMid) * scale);
     for (let i = 1; i < pts.length; i++) {
-      ctx.lineTo(pts[i][0] * scale + offsetX, pts[i][1] * scale + offsetY);
+      ctx.lineTo((pts[i][0] - cxMid) * scale, (pts[i][1] - cyMid) * scale);
     }
     ctx.stroke();
 

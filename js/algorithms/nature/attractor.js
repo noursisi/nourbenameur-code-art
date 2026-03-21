@@ -38,8 +38,12 @@ export class Attractor extends Algorithm {
   }
 
   animate(s) {
-    s.att_a = (s.att_a || -1.7) + Math.sin(s.time * 0.05) * 0.003;
-    s.att_b = (s.att_b ||  1.3) + Math.cos(s.time * 0.07) * 0.003;
+    // Dramatic drift across parameter space — creates wildly shifting attractor shapes
+    const t = s.time;
+    s.att_a = -1.7 + Math.sin(t * 0.11) * 1.5 + Math.cos(t * 0.07) * 0.6;
+    s.att_b =  1.3 + Math.cos(t * 0.09) * 1.4 + Math.sin(t * 0.13) * 0.5;
+    s.att_c = -0.1 + Math.sin(t * 0.17) * 1.2;
+    s.att_d = -1.21 + Math.cos(t * 0.13) * 1.1 + Math.sin(t * 0.19) * 0.4;
   }
 
   render(ctx, W, H, s) {

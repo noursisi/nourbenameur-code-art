@@ -32,6 +32,7 @@ export function postProcess(canvas, ctx, W, H, state) {
   // Use physical pixel dimensions for crisp post-processing on retina displays
   const pW = canvas.width;
   const pH = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
 
   // 1. Copy current canvas to offscreen (at full physical resolution)
   const artCanvas = document.createElement('canvas');
@@ -59,7 +60,6 @@ export function postProcess(canvas, ctx, W, H, state) {
   // 3. Clear main canvas and draw back using identity transform
   //    (the offscreen canvas is at physical pixel resolution, so we must
   //     bypass the DPR scale on the main ctx while compositing)
-  const dpr = window.devicePixelRatio || 1;
 
   // Reset to identity for physical-pixel compositing
   ctx.save();
@@ -72,14 +72,33 @@ export function postProcess(canvas, ctx, W, H, state) {
     ctx.fillRect(0, 0, pW, pH);
   }
 
-  // 4. Glow: draw blurred copy with additive blending FIRST (bloom behind)
+  // 4. Glow: neon bloom effect — multiple additive passes at increasing blur radii
   if (state.glow > 0) {
-    ctx.filter = `blur(${state.glow * dpr}px)`;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.7;
+
+    // Wide outer bloom (largest radius, lower alpha)
+    const outerBlur = Math.round(state.glow * 3 * dpr);
+    ctx.filter = `blur(${outerBlur}px)`;
+    ctx.globalAlpha = 0.55;
     ctx.drawImage(artCanvas, 0, 0);
-    ctx.globalAlpha = 0.4;
+
+    // Mid bloom
+    const midBlur = Math.round(state.glow * 1.8 * dpr);
+    ctx.filter = `blur(${midBlur}px)`;
+    ctx.globalAlpha = 0.65;
     ctx.drawImage(artCanvas, 0, 0);
+
+    // Tight inner glow (tightest halo)
+    const innerBlur = Math.round(state.glow * 0.8 * dpr);
+    ctx.filter = `blur(${innerBlur}px)`;
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(artCanvas, 0, 0);
+
+    // Extra hot-core pass for intense neon look
+    ctx.filter = `blur(${Math.max(1, Math.round(state.glow * 0.3 * dpr))}px)`;
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(artCanvas, 0, 0);
+
     ctx.filter = 'none';
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
@@ -87,7 +106,9 @@ export function postProcess(canvas, ctx, W, H, state) {
 
   // 5. Draw sharp (or blurred) art on top
   if (state.blur > 0) {
-    ctx.filter = `blur(${state.blur * dpr}px)`;
+    // Blur uses physical pixel radius for visible effect
+    const blurRadius = Math.round(state.blur * dpr);
+    ctx.filter = `blur(${blurRadius}px)`;
     ctx.drawImage(artCanvas, 0, 0);
     ctx.filter = 'none';
   } else {

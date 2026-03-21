@@ -42,7 +42,11 @@ export class Spirograph extends Algorithm {
   }
 
   animate(s) {
-    s.spiro_d = 5 + (Math.sin(s.time * 0.2) * 0.5 + 0.5) * 115;
+    // Animate pen distance and inner radius for morphing spirograph patterns
+    s.spiro_d = 5  + (Math.sin(s.time * 0.5) * 0.5 + 0.5) * 115;
+    s.spiro_r = 5  + (Math.cos(s.time * 0.3) * 0.5 + 0.5) * 95;
+    // Slowly vary outer radius for scale changes
+    s.spiro_R = 40 + (Math.sin(s.time * 0.18) * 0.5 + 0.5) * 110;
   }
 
   render(ctx, W, H, s) {

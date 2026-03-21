@@ -13,11 +13,11 @@ export const state = {
   // L-System
   lsystem_angle: 25, lsystem_depth: 7, lsystem_rule: 0,
   // Fern
-  fern_points: 80000,
+  fern_points: 80000, fern_variant: 0,
   // Koch
-  koch_depth: 4,
+  koch_depth: 4, koch_sides: 3,
   // Sierpinski
-  sierpinski_depth: 6,
+  sierpinski_depth: 6, sierpinski_scale: 1,
   // Dragon
   dragon_depth: 12,
   // Phyllotaxis
@@ -25,7 +25,7 @@ export const state = {
   // Reaction-Diffusion
   rd_feed: 0.055, rd_kill: 0.062,
   // Flow Field
-  flow_scale: 0.006, flow_particles: 4000, flow_length: 40,
+  flow_scale: 0.006, flow_particles: 4000, flow_length: 40, flow_angle_offset: 0,
   // Attractor
   att_a: -1.7, att_b: 1.3, att_c: -0.1, att_d: -1.21, att_points: 80000,
   // Voronoi
@@ -39,7 +39,7 @@ export const state = {
   // Spiral
   spiral_turns: 20, spiral_growth: 0.1, spiral_dots: 2000,
   // Contour
-  contour_levels: 15, contour_scale: 0.008, contour_octaves: 3,
+  contour_levels: 15, contour_scale: 0.008, contour_octaves: 3, contour_animation_speed: 0.5,
   // Filigree
   fil_petals: 8, fil_complexity: 5, fil_curve: 0.6,
   // Spirograph

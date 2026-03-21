@@ -1,6 +1,7 @@
 /**
  * Contour Map — noise field with isoline rendering via marching squares lite.
  * Finds contour crossings along grid rows and columns, draws short line segments.
+ * contour_animation_speed controls how fast the contours flow.
  */
 
 import { Algorithm } from '../base.js';
@@ -48,9 +49,10 @@ export class Contour extends Algorithm {
 
   get params() {
     return [
-      { id: 'contour_levels',  label: 'Levels',  min: 3,     max: 40,   step: 1     },
-      { id: 'contour_scale',   label: 'Scale',   min: 0.002, max: 0.02, step: 0.001 },
-      { id: 'contour_octaves', label: 'Octaves', min: 1,     max: 5,    step: 1     },
+      { id: 'contour_levels',           label: 'Levels',       min: 3,    max: 40,   step: 1     },
+      { id: 'contour_scale',            label: 'Scale',        min: 0.002, max: 0.02, step: 0.001 },
+      { id: 'contour_octaves',          label: 'Octaves',      min: 1,    max: 5,    step: 1     },
+      { id: 'contour_animation_speed',  label: 'Anim Speed',   min: 0,    max: 3,    step: 0.05  },
     ];
   }
 
@@ -64,14 +66,19 @@ export class Contour extends Algorithm {
     };
   }
 
-  animate(_s) {}
+  animate(s) {
+    // Time naturally advances in app.js; contour uses it directly in render.
+    // No extra mutation needed — the time offset in render drives the shift.
+  }
 
   render(ctx, W, H, s) {
-    const levels  = Math.max(3, Math.min(40, Math.round(s.contour_levels)));
-    const scale   = Math.max(0.002, s.contour_scale);
-    const octaves = Math.max(1, Math.min(5, Math.round(s.contour_octaves)));
-    const timeOff = (s.time || 0) * 0.15;
-    const fg      = this.engine.fg();
+    const levels    = Math.max(3, Math.min(40, Math.round(s.contour_levels)));
+    const scale     = Math.max(0.002, s.contour_scale);
+    const octaves   = Math.max(1, Math.min(5, Math.round(s.contour_octaves)));
+    const animSpeed = Math.max(0, s.contour_animation_speed !== undefined ? s.contour_animation_speed : 0.5);
+    // Time offset shifts both x and y for diagonal flowing motion
+    const timeOff   = (s.time || 0) * animSpeed * 0.25;
+    const fg        = this.engine.fg();
 
     // Grid resolution: ~80 columns/rows is enough for smooth contours
     const cols = Math.min(120, Math.floor(W / 8));
@@ -79,12 +86,12 @@ export class Contour extends Algorithm {
     const cw = W / cols;
     const ch = H / rows;
 
-    // Build noise grid
+    // Build noise grid — time offset in both x and y creates flowing diagonal motion
     const grid = new Float32Array((cols + 1) * (rows + 1));
     for (let row = 0; row <= rows; row++) {
       for (let col = 0; col <= cols; col++) {
         const nx = col * cw * scale + timeOff;
-        const ny = row * ch * scale;
+        const ny = row * ch * scale + timeOff * 0.7;
         grid[row * (cols + 1) + col] = fbm(nx, ny, octaves);
       }
     }

@@ -1,6 +1,7 @@
 /**
  * Flow Field — noise-based particle trails.
  * Uses a hash-based value noise function (no external dependency).
+ * flow_angle_offset rotates the entire field.
  */
 
 import { Algorithm } from '../base.js';
@@ -37,7 +38,7 @@ export class FlowField extends Algorithm {
   get metadata() {
     return {
       name: 'Flow Field',
-      eq: 'θ(x,y) = noise(x·s, y·s)',
+      eq: 'θ(x,y) = noise(x·s, y·s) + offset',
       cat: 'Nature',
       desc: 'Particles follow angles derived from a 2D value noise field, forming organic flow patterns that evolve over time.',
     };
@@ -45,9 +46,10 @@ export class FlowField extends Algorithm {
 
   get params() {
     return [
-      { id: 'flow_scale',     label: 'Noise Scale',  min: 0.001, max: 0.02,  step: 0.001 },
-      { id: 'flow_particles', label: 'Particles',    min: 500,   max: 10000, step: 200   },
-      { id: 'flow_length',    label: 'Trail Length', min: 5,     max: 100,   step: 1     },
+      { id: 'flow_scale',        label: 'Noise Scale',   min: 0.001, max: 0.02,   step: 0.001 },
+      { id: 'flow_particles',    label: 'Particles',     min: 500,   max: 10000,  step: 200   },
+      { id: 'flow_length',       label: 'Trail Length',  min: 5,     max: 100,    step: 1     },
+      { id: 'flow_angle_offset', label: 'Angle Offset',  min: 0,     max: 6.283,  step: 0.05  },
     ];
   }
 
@@ -61,13 +63,18 @@ export class FlowField extends Algorithm {
     };
   }
 
-  animate(_s) {}
+  animate(s) {
+    // Advance time offset noticeably — creates visible flowing movement
+    // flow_angle_offset also slowly rotates to sweep the entire field
+    s.flow_angle_offset = ((s.flow_angle_offset || 0) + 0.008) % (Math.PI * 2);
+  }
 
   render(ctx, W, H, s) {
-    const scale  = Math.max(0.001, s.flow_scale);
-    const nParts = Math.max(500, Math.min(10000, Math.round(s.flow_particles)));
-    const length = Math.max(5, Math.min(100, Math.round(s.flow_length)));
-    const timeOff = (s.time || 0) * 0.4;
+    const scale       = Math.max(0.001, s.flow_scale);
+    const nParts      = Math.max(500, Math.min(10000, Math.round(s.flow_particles)));
+    const length      = Math.max(5, Math.min(100, Math.round(s.flow_length)));
+    const timeOff     = (s.time || 0) * 0.6;  // faster time offset for visible movement
+    const angleOffset = s.flow_angle_offset || 0;
     const fg = this.engine.fg();
 
     ctx.strokeStyle = fg;
@@ -88,10 +95,10 @@ export class FlowField extends Algorithm {
       for (let j = 0; j < length; j++) {
         const nx = px * scale;
         const ny = py * scale;
-        // Use two noise calls for richer directional variety
-        const angle = noise(nx + timeOff, ny) * Math.PI * 2;
-        px += Math.cos(angle) * 2.5;
-        py += Math.sin(angle) * 2.5;
+        // Two noise calls for richer directional variety, plus rotating offset
+        const angle = noise(nx + timeOff, ny) * Math.PI * 2 + angleOffset;
+        px += Math.cos(angle) * 3.0;
+        py += Math.sin(angle) * 3.0;
         if (px < 0 || px > W || py < 0 || py > H) break;
         ctx.lineTo(px, py);
       }

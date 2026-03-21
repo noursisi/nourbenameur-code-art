@@ -1,5 +1,6 @@
 /**
- * Koch Snowflake — recursive subdivision of triangle sides.
+ * Koch Snowflake — recursive subdivision of polygon sides.
+ * koch_sides controls the number of sides (3 = triangle, 4 = square, etc.)
  */
 
 import { Algorithm } from '../base.js';
@@ -42,6 +43,7 @@ export class Koch extends Algorithm {
   constructor(engine) {
     super(engine);
     this._svgPath = '';
+    this._rotation = 0;
   }
 
   get metadata() {
@@ -49,13 +51,14 @@ export class Koch extends Algorithm {
       name: 'Koch Snowflake',
       eq: 'Recursive edge subdivision',
       cat: 'Fractals',
-      desc: 'Each edge of an equilateral triangle is recursively subdivided into four segments, creating infinite perimeter within finite area.',
+      desc: 'Each edge of an equilateral polygon is recursively subdivided into four segments, creating infinite perimeter within finite area.',
     };
   }
 
   get params() {
     return [
       { id: 'koch_depth', label: 'Depth', min: 0, max: 7, step: 1 },
+      { id: 'koch_sides', label: 'Sides', min: 3, max: 8, step: 1 },
     ];
   }
 
@@ -69,31 +72,44 @@ export class Koch extends Algorithm {
     };
   }
 
-  animate(_s) {}
+  animate(s) {
+    // Slowly rotate and cycle depth for dramatic animation
+    this._rotation = s.time * 0.3;
+  }
 
   render(ctx, W, H, s) {
     const depth = Math.max(0, Math.min(7, Math.round(s.koch_depth)));
+    const sides = Math.max(3, Math.min(8, Math.round(s.koch_sides || 3)));
     const fg = this.engine.fg();
     const camZoom = s.camZoom || 1;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;
 
-    // Equilateral triangle fitting in canvas
+    // Regular polygon fitting in canvas
     const size = Math.min(W, H) * 0.72;
+    const radius = size / 2;
     const cx = W / 2 + panX;
     const cy = H / 2 + panY;
 
-    // Triangle vertices (pointy-top)
-    const h = (size * Math.sqrt(3)) / 2;
-    const ax = cx,           ay = cy - h * 0.667;
-    const bx = cx + size / 2, by = cy + h * 0.333;
-    const cx2 = cx - size / 2, cy2 = cy + h * 0.333;
+    // Generate polygon vertices
+    const vertices = [];
+    for (let i = 0; i < sides; i++) {
+      const angle = this._rotation + (i / sides) * Math.PI * 2 - Math.PI / 2;
+      vertices.push([cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)]);
+    }
 
-    const side1 = kochPoints(ax, ay, bx, by, depth);
-    const side2 = kochPoints(bx, by, cx2, cy2, depth);
-    const side3 = kochPoints(cx2, cy2, ax, ay, depth);
-
-    const allPts = [...side1, ...side2.slice(1), ...side3.slice(1)];
+    // Build Koch curve for each side
+    const allPts = [];
+    for (let i = 0; i < sides; i++) {
+      const [ax, ay] = vertices[i];
+      const [bx, by] = vertices[(i + 1) % sides];
+      const sidePts = kochPoints(ax, ay, bx, by, depth);
+      if (i === 0) {
+        allPts.push(...sidePts);
+      } else {
+        allPts.push(...sidePts.slice(1));
+      }
+    }
 
     ctx.save();
     ctx.translate(W / 2, H / 2);

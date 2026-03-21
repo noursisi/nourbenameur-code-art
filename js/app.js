@@ -111,6 +111,8 @@ document.querySelectorAll('#tint-swatches .swatch').forEach(sw => {
 // Custom tint color picker
 const customPicker = document.getElementById('custom-tint-picker');
 if (customPicker) {
+  // Prevent click on the hidden input from bubbling up to the swatch click handler
+  customPicker.addEventListener('click', e => e.stopPropagation());
   customPicker.addEventListener('change', () => {
     const hex = customPicker.value;
     const r = parseInt(hex.slice(1, 3), 16);

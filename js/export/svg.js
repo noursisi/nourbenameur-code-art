@@ -9,7 +9,7 @@ export function exportSVG(engine, state, algorithm) {
   const svgData = algorithm.collectSVG ? algorithm.collectSVG(W, H, state) : null;
 
   if (!svgData) {
-    alert('This algorithm is pixel-based. Exporting PNG instead.');
+    // Pixel-based algorithm — silently fall back to PNG
     return false; // signal caller to do PNG
   }
 

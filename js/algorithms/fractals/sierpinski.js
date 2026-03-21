@@ -1,5 +1,6 @@
 /**
  * Sierpinski Triangle — recursive triangle removal.
+ * sierpinski_scale controls zoom level.
  */
 
 import { Algorithm } from '../base.js';
@@ -28,6 +29,11 @@ function drawSierpinski(ctx, ax, ay, bx, by, cx2, cy, depth) {
 }
 
 export class Sierpinski extends Algorithm {
+  constructor(engine) {
+    super(engine);
+    this._rotation = 0;
+  }
+
   get metadata() {
     return {
       name: 'Sierpinski Triangle',
@@ -39,7 +45,8 @@ export class Sierpinski extends Algorithm {
 
   get params() {
     return [
-      { id: 'sierpinski_depth', label: 'Depth', min: 1, max: 8, step: 1 },
+      { id: 'sierpinski_depth', label: 'Depth', min: 1, max: 8,   step: 1   },
+      { id: 'sierpinski_scale', label: 'Zoom',  min: 0.3, max: 3, step: 0.05 },
     ];
   }
 
@@ -53,27 +60,34 @@ export class Sierpinski extends Algorithm {
     };
   }
 
-  animate(_s) {}
+  animate(s) {
+    // Continuously rotate the triangle
+    this._rotation = s.time * 0.25;
+  }
 
   render(ctx, W, H, s) {
     const depth = Math.max(1, Math.min(8, Math.round(s.sierpinski_depth)));
+    const zoom = Math.max(0.3, Math.min(3, s.sierpinski_scale || 1));
     const fg = this.engine.fg();
-    const camZoom = s.camZoom || 1;
+    const camZoom = (s.camZoom || 1) * zoom;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;
 
     const size = Math.min(W, H) * 0.82;
+    const radius = size / 2;
     const cx = W / 2 + panX;
     const cy = H / 2 + panY;
-    const h = (size * Math.sqrt(3)) / 2;
 
-    // Pointy-top equilateral triangle
-    const ax = cx;
-    const ay = cy - h * 0.667;
-    const bx = cx + size / 2;
-    const by = cy + h * 0.333;
-    const cx2 = cx - size / 2;
-    const cy2 = cy + h * 0.333;
+    // Rotate triangle vertices by animation angle
+    const rot = this._rotation;
+    function vertex(i) {
+      const angle = rot + (i / 3) * Math.PI * 2 - Math.PI / 2;
+      return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+    }
+
+    const [ax, ay] = vertex(0);
+    const [bx, by] = vertex(1);
+    const [cx2, cy2] = vertex(2);
 
     ctx.save();
     ctx.translate(W / 2, H / 2);

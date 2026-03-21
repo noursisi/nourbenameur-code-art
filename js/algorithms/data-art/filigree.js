@@ -39,7 +39,12 @@ export class Filigree extends Algorithm {
   }
 
   animate(s) {
-    s.fil_curve = 0.1 + (Math.sin(s.time * 0.25) * 0.5 + 0.5) * 1.9;
+    // Animate both curvature and petal count for maximum visual drama
+    s.fil_curve   = 0.1 + (Math.sin(s.time * 0.6) * 0.5 + 0.5) * 1.9;
+    // Slowly morph petal count between 3 and 24
+    s.fil_petals  = Math.round(3 + (Math.sin(s.time * 0.15) * 0.5 + 0.5) * 21);
+    // Complexity pulses to add/remove layers
+    s.fil_complexity = Math.round(2 + (Math.cos(s.time * 0.2) * 0.5 + 0.5) * 10);
   }
 
   render(ctx, W, H, s) {
