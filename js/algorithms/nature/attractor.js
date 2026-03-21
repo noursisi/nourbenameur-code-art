@@ -48,7 +48,7 @@ export class Attractor extends Algorithm {
   render(ctx, W, H, s) {
     const a = s.att_a, b = s.att_b, c = s.att_c, d = s.att_d;
     const n = Math.max(10000, Math.min(300000, Math.round(s.att_points)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const zoom = s.camZoom || 1;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;

@@ -115,7 +115,7 @@ export class AsciiRender extends Algorithm {
     const pattern  = Math.max(0,   Math.min(3,   Math.round(s.ascii_pattern ?? 0)));
     const fontSize = Math.max(6,   Math.min(20,  Math.round(s.ascii_fontSize ?? 10)));
     const time     = s.time ?? 0;
-    const fg       = this.engine.fg();
+    const fg       = this.engine.fg(s);
     const charset  = CHARSETS[charsetI];
 
     // Derive rows from cols and aspect ratio

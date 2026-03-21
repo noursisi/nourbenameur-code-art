@@ -167,8 +167,8 @@ export class Interference extends Algorithm {
     const trLoc = gl.getUniformLocation(prog, 'u_transparent');
     if (trLoc !== null) gl.uniform1i(trLoc, s.transparent ? 1 : 0);
 
-    const fgC = parseHexColor(this.engine.fg());
-    const bgC = parseHexColor(this.engine.bg());
+    const fgC = parseHexColor(this.engine.fg(s));
+    const bgC = parseHexColor(this.engine.bg(s));
 
     this._quad.render(gl, prog, {
       u_resolution: [pW, pH],

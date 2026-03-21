@@ -103,8 +103,8 @@ export class NeuralWeb extends Algorithm {
       this._lastDensity = density;
     }
 
-    const bg = this.engine.bg();
-    const fg = this.engine.fg();
+    const bg = this.engine.bg(s);
+    const fg = this.engine.fg(s);
     const lw = s.lineWeight ?? 1;
     const camZoom = s.camZoom ?? 1;
 

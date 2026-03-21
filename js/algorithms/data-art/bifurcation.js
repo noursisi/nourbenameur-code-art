@@ -48,7 +48,7 @@ export class Bifurcation extends Algorithm {
     const rMax = Math.max(rMin + 0.01, Math.min(4.0, s.bif_rMax || 4.0));
     const iterations = Math.max(200, Math.min(2000, Math.round(s.bif_iterations || 500)));
     const skip = Math.max(100, Math.min(500, Math.round(s.bif_skip || 200)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
 
     const gridW = Math.min(W, 800);
     const gridH = Math.min(H, 800);

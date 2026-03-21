@@ -72,7 +72,7 @@ export class Penrose extends Algorithm {
     const depth = Math.max(3, Math.min(8, Math.round(s.pen_depth || 5)));
     const scale = Math.max(0.5, Math.min(3, s.pen_scale || 1.5));
     const type = Math.round(s.pen_type || 0);
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const t = (s.time || 0) * 0.05;
 
     const cx = W / 2;

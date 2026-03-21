@@ -107,8 +107,8 @@ export class DotMatrix extends Algorithm {
     const pattern = Math.max(0,  Math.min(4,   Math.round(s.dm_pattern ?? 0)));
     const spacing = Math.max(0.5, Math.min(2,  s.dm_spacing ?? 1));
     const time    = s.time ?? 0;
-    const fg      = this.engine.fg();
-    const bg      = this.engine.bg();
+    const fg      = this.engine.fg(s);
+    const bg      = this.engine.bg(s);
     const lw      = s.lineWeight ?? 1;
 
     const cellW = (W / cols) * spacing;

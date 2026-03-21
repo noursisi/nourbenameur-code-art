@@ -58,7 +58,7 @@ export class PixelDissolve extends Algorithm {
     const scatter   = Math.max(0,   Math.min(1,   s.pd_scatter   ?? 0.3));
     const fillRatio = Math.max(0.1, Math.min(1,   s.pd_fillRatio ?? 0.7));
     const time      = s.time ?? 0;
-    const fg        = this.engine.fg();
+    const fg        = this.engine.fg(s);
     const lw        = s.lineWeight ?? 1;
 
     // Use a seeded random so the layout is consistent frame-to-frame

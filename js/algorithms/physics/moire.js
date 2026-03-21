@@ -45,7 +45,7 @@ export class Moire extends Algorithm {
     const spacing = Math.max(5, Math.min(30, s.moire_spacing || 12));
     const pattern = Math.max(0, Math.min(3, Math.round(s.moire_pattern || 0)));
     const angleOffset = Math.max(0, Math.min(30, s.moire_angleOffset || 5));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const t = (s.time || 0) * 0.15;
 
     const cx = W / 2;

@@ -310,10 +310,25 @@ function rebuildLayerUI() {
     });
     colorPick.addEventListener('click', e => e.stopPropagation());
 
+    // Per-layer zoom slider
+    const zoomSlider = document.createElement('input');
+    zoomSlider.type = 'range';
+    zoomSlider.className = 'layer-opacity'; // reuse same small slider style
+    zoomSlider.min = '0.2';
+    zoomSlider.max = '3';
+    zoomSlider.step = '0.1';
+    zoomSlider.value = String(layer.zoom || 1);
+    zoomSlider.title = 'Layer scale';
+    zoomSlider.addEventListener('input', e => {
+      e.stopPropagation();
+      updateLayer(layer.id, 'zoom', parseFloat(zoomSlider.value));
+    });
+
     item.appendChild(vis);
     item.appendChild(colorPick);
     item.appendChild(name);
     item.appendChild(opacity);
+    item.appendChild(zoomSlider);
     item.appendChild(blend);
     if (layers.length > 1) item.appendChild(del);
 

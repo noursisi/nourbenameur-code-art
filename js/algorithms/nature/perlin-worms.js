@@ -94,7 +94,7 @@ export class PerlinWorms extends Algorithm {
     const length = Math.max(100, Math.min(2000, Math.round(s.pw_length || 500)));
     const noiseScale = Math.max(0.001, Math.min(0.01, s.pw_noiseScale || 0.004));
     const thickness = Math.max(0.5, Math.min(3, s.pw_thickness || 1));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const t = s.time || 0;
 
     const key = `${count}_${length}_${noiseScale}_${Math.floor(t * 2)}`;

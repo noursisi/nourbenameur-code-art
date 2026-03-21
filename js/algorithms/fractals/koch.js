@@ -80,7 +80,7 @@ export class Koch extends Algorithm {
   render(ctx, W, H, s) {
     const depth = Math.max(0, Math.min(7, Math.round(s.koch_depth)));
     const sides = Math.max(3, Math.min(8, Math.round(s.koch_sides || 3)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;
@@ -124,7 +124,7 @@ export class Koch extends Algorithm {
     ctx.closePath();
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = s.lineWeight || 1;
     ctx.stroke();
 
     // Cache SVG path
@@ -135,8 +135,8 @@ export class Koch extends Algorithm {
 
   collectSVG(W, H, s) {
     if (!this._svgPath) return null;
-    const fg = this.engine.fg();
-    const bg = this.engine.bg();
+    const fg = this.engine.fg(s);
+    const bg = this.engine.bg(s);
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
   <path d="${this._svgPath}" stroke="${fg}" stroke-width="1" fill="none"/>

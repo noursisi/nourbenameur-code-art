@@ -93,7 +93,7 @@ export class Fern extends Algorithm {
   render(ctx, W, H, s) {
     const n = Math.max(10000, Math.min(200000, Math.round(s.fern_points)));
     const variant = Math.max(0, Math.min(3, Math.round(s.fern_variant || 0)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
 
     // Build transforms — for variant 0 animate the sway
     let transforms = VARIANTS[variant].map(t => [...t]);

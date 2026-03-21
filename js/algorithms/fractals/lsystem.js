@@ -143,8 +143,8 @@ export class LSystem extends Algorithm {
     const str = generate(rule.axiom, rule.rules, depth);
 
     // ── Colour from mode ───────────────────────────────────────────────────────
-    const bg = this.engine.bg();
-    const fg = this.engine.fg();
+    const bg = this.engine.bg(s);
+    const fg = this.engine.fg(s);
 
     // ── Background ────────────────────────────────────────────────────────────
     if (!s.transparent) {
@@ -235,8 +235,8 @@ export class LSystem extends Algorithm {
   collectSVG(W, H, s) {
     if (!this._svgLines.length) return null;
 
-    const fg = this.engine.fg();
-    const bg = this.engine.bg();
+    const fg = this.engine.fg(s);
+    const bg = this.engine.bg(s);
     const lw = s.lineWeight || 1;
 
     const lines = this._svgLines

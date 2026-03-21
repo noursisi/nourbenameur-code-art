@@ -90,8 +90,8 @@ export class MagneticField extends Algorithm {
       this._generatePoles(poleCount, W, H);
     }
 
-    const bg = this.engine.bg();
-    const fg = this.engine.fg();
+    const bg = this.engine.bg(s);
+    const fg = this.engine.fg(s);
 
     if (!s.transparent) {
       ctx.fillStyle = bg;

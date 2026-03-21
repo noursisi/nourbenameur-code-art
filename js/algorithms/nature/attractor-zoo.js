@@ -142,7 +142,7 @@ export class AttractorZoo extends Algorithm {
     const b = s.az_b || 0;
     const c = s.az_c || 0;
     const d = s.az_d || 0;
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const t = (s.time || 0) * 0.3;
 
     const stepFn = stepFns[type];

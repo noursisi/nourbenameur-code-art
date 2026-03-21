@@ -123,8 +123,8 @@ export class CellularAutomata extends Algorithm {
       this._lastRes = res;
     }
 
-    const bg = this.engine.bg();
-    const fg = this.engine.fg();
+    const bg = this.engine.bg(s);
+    const fg = this.engine.fg(s);
     const camZoom = s.camZoom ?? 1;
 
     if (!s.transparent) {

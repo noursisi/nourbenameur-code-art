@@ -156,9 +156,9 @@ export class JuliaSet extends Algorithm {
 
     if (!gl) {
       // WebGL unavailable — fallback message
-      ctx.fillStyle = this.engine.bg();
+      ctx.fillStyle = this.engine.bg(s);
       ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = this.engine.fg();
+      ctx.fillStyle = this.engine.fg(s);
       ctx.font = '16px monospace';
       ctx.textAlign = 'center';
       ctx.fillText('WebGL not available', W / 2, H / 2);

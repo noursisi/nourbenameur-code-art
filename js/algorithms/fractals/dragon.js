@@ -86,7 +86,7 @@ export class Dragon extends Algorithm {
 
   render(ctx, W, H, s) {
     const depth = Math.max(5, Math.min(18, Math.round(s.dragon_depth)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;

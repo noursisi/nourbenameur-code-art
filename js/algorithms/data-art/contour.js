@@ -78,7 +78,7 @@ export class Contour extends Algorithm {
     const animSpeed = Math.max(0, s.contour_animation_speed !== undefined ? s.contour_animation_speed : 0.5);
     // Time offset shifts both x and y for diagonal flowing motion
     const timeOff   = (s.time || 0) * animSpeed * 0.25;
-    const fg        = this.engine.fg();
+    const fg        = this.engine.fg(s);
 
     // Grid resolution: ~80 columns/rows is enough for smooth contours
     const cols = Math.min(120, Math.floor(W / 8));
@@ -145,7 +145,7 @@ export class Contour extends Algorithm {
     const octaves = Math.max(1, Math.min(5, Math.round(s.contour_octaves)));
     const animSpeed = Math.max(0, s.contour_animation_speed !== undefined ? s.contour_animation_speed : 0.5);
     const timeOff = (s.time || 0) * animSpeed * 0.25;
-    const fg      = this.engine.fg();
+    const fg      = this.engine.fg(s);
 
     const cols = Math.min(120, Math.floor(W / 8));
     const rows = Math.min(120, Math.floor(H / 8));

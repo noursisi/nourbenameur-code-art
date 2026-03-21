@@ -85,9 +85,10 @@ class Engine {
   }
 
   /** Get background color — uses direct color if set, falls back to colorMode */
-  bg() {
-    if (state.bgColor) return state.bgColor;
-    switch (state.colorMode) {
+  bg(s) {
+    const st = s || state;
+    if (st.bgColor) return st.bgColor;
+    switch (st.colorMode) {
       case 'bw':     return '#f0efe8';
       case 'silver': return '#0a0a0a';
       default:       return '#000000';
@@ -95,9 +96,10 @@ class Engine {
   }
 
   /** Get foreground/shape color — uses direct color if set, falls back to colorMode */
-  fg() {
-    if (state.fgColor) return state.fgColor;
-    switch (state.colorMode) {
+  fg(s) {
+    const st = s || state;
+    if (st.fgColor) return st.fgColor;
+    switch (st.colorMode) {
       case 'bw':     return '#000000';
       case 'silver': return '#bbbbbb';
       default:       return '#ffffff';
@@ -184,10 +186,12 @@ class Engine {
     if (!this._algorithm) return;
 
     if (s.sym && s.folds > 1) {
+      const dpr = window.devicePixelRatio || 1;
       const offscreen = document.createElement('canvas');
-      offscreen.width  = W;
-      offscreen.height = H;
+      offscreen.width  = Math.round(W * dpr);
+      offscreen.height = Math.round(H * dpr);
       const offCtx = offscreen.getContext('2d');
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this._algorithm.render(offCtx, W, H, s);
 
       if (s.transparent) {
@@ -205,6 +209,7 @@ class Engine {
 
   /** Render multiple layers bottom-to-top */
   _renderMultiLayer(ctx, W, H, s, layers) {
+    const dpr = window.devicePixelRatio || 1;
     for (const layer of layers) {
       if (!layer.visible) continue;
 
@@ -219,11 +224,12 @@ class Engine {
         camZoom: layer.zoom ?? s.camZoom,
       });
 
-      // Render to offscreen
+      // Render to offscreen at physical pixel size for sharp rendering
       const offscreen = document.createElement('canvas');
-      offscreen.width = W;
-      offscreen.height = H;
+      offscreen.width = Math.round(W * dpr);
+      offscreen.height = Math.round(H * dpr);
       const offCtx = offscreen.getContext('2d');
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // Render image processor for this layer if enabled
       if (layer.useImageProcessor && s.ip_enabled && imageProcessor.hasSource()) {
@@ -236,22 +242,23 @@ class Engine {
       // Apply symmetry if enabled
       if (s.sym && s.folds > 1) {
         const symCanvas = document.createElement('canvas');
-        symCanvas.width = W;
-        symCanvas.height = H;
+        symCanvas.width = Math.round(W * dpr);
+        symCanvas.height = Math.round(H * dpr);
         const symCtx = symCanvas.getContext('2d');
+        symCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         applySymmetry(offscreen, symCtx, W, H, s.folds);
         // Composite with blend mode and opacity
         ctx.save();
         ctx.globalCompositeOperation = layer.blend || 'source-over';
         ctx.globalAlpha = layer.opacity ?? 1;
-        ctx.drawImage(symCanvas, 0, 0);
+        ctx.drawImage(symCanvas, 0, 0, W, H);
         ctx.restore();
       } else {
         // Composite with blend mode and opacity
         ctx.save();
         ctx.globalCompositeOperation = layer.blend || 'source-over';
         ctx.globalAlpha = layer.opacity ?? 1;
-        ctx.drawImage(offscreen, 0, 0);
+        ctx.drawImage(offscreen, 0, 0, W, H);
         ctx.restore();
       }
     }

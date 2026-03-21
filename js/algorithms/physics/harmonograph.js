@@ -52,7 +52,7 @@ export class Harmonograph extends Algorithm {
     const phase   = s.harm_phase;
     const damping = s.harm_damping;
     const n       = Math.max(5000, Math.min(200000, Math.round(s.harm_points)));
-    const fg      = this.engine.fg();
+    const fg      = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX    = s.camPanX || 0;
     const panY    = s.camPanY || 0;
@@ -92,10 +92,10 @@ export class Harmonograph extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, _s) {
+  collectSVG(W, H, s) {
     if (!this._svgPoints.length) return null;
-    const fg = this.engine.fg();
-    const bg = this.engine.bg();
+    const fg = this.engine.fg(s);
+    const bg = this.engine.bg(s);
     const d = 'M ' + this._svgPoints.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' L ');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>

@@ -47,7 +47,7 @@ export class Phyllotaxis extends Algorithm {
     const n = Math.max(50, Math.min(3000, Math.round(s.phyllo_n)));
     const divergence = (s.phyllo_divergence * Math.PI) / 180;
     const dotSize = Math.max(0.5, s.phyllo_dotsize);
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;
@@ -80,10 +80,10 @@ export class Phyllotaxis extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, _s) {
+  collectSVG(W, H, s) {
     if (!this._svgCircles.length) return null;
-    const fg = this.engine.fg();
-    const bg = this.engine.bg();
+    const fg = this.engine.fg(s);
+    const bg = this.engine.bg(s);
     const circles = this._svgCircles
       .map(([cx, cy, r]) => `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${r}"/>`)
       .join('\n');

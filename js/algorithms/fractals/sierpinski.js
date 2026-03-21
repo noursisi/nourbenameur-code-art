@@ -68,7 +68,7 @@ export class Sierpinski extends Algorithm {
   render(ctx, W, H, s) {
     const depth = Math.max(1, Math.min(8, Math.round(s.sierpinski_depth)));
     const zoom = Math.max(0.3, Math.min(3, s.sierpinski_scale || 1));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const camZoom = (s.camZoom || 1) * zoom;
     const panX = s.camPanX || 0;
     const panY = s.camPanY || 0;

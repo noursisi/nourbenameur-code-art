@@ -75,10 +75,10 @@ export class FlowField extends Algorithm {
     const length      = Math.max(5, Math.min(100, Math.round(s.flow_length)));
     const timeOff     = (s.time || 0) * 0.6;  // faster time offset for visible movement
     const angleOffset = s.flow_angle_offset || 0;
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
 
     ctx.strokeStyle = fg;
-    ctx.lineWidth = 0.8;
+    ctx.lineWidth = Math.max(0.8, s.lineWeight || 1);
     ctx.globalAlpha = 0.45;
     ctx.lineCap = 'round';
 

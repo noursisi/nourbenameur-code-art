@@ -51,7 +51,7 @@ export class Filigree extends Algorithm {
     const petals     = Math.max(3, Math.min(24, Math.round(s.fil_petals)));
     const complexity = Math.max(2, Math.min(12, Math.round(s.fil_complexity)));
     const curve      = Math.max(0.1, s.fil_curve);
-    const fg         = this.engine.fg();
+    const fg         = this.engine.fg(s);
     const camZoom    = s.camZoom || 1;
     const panX       = s.camPanX || 0;
     const panY       = s.camPanY || 0;
@@ -136,8 +136,8 @@ export class Filigree extends Algorithm {
 
   collectSVG(W, H, s) {
     // Re-render to collect SVG paths — simplified version returning a group element description
-    const fg = this.engine.fg();
-    const bg = this.engine.bg();
+    const fg = this.engine.fg(s);
+    const bg = this.engine.bg(s);
     // Minimal SVG: just pass back what was drawn in render via description
     // For a full SVG collectSVG would mirror the render logic but output path strings.
     // Here we output the key structural paths as <path> elements.

@@ -54,7 +54,7 @@ export class Spirograph extends Algorithm {
     let   r = Math.max(5,  Math.min(100, Math.round(s.spiro_r)));
     const d = Math.max(5,  Math.min(120, s.spiro_d));
     const n = Math.max(2000, Math.min(50000, Math.round(s.spiro_points)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX    = s.camPanX || 0;
     const panY    = s.camPanY || 0;
@@ -106,10 +106,10 @@ export class Spirograph extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, _s) {
+  collectSVG(W, H, s) {
     if (!this._svgPoints.length) return null;
-    const fg = this.engine.fg();
-    const bg = this.engine.bg();
+    const fg = this.engine.fg(s);
+    const bg = this.engine.bg(s);
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
   <polyline points="${this._svgPoints.map(p => p.map(v => v.toFixed(2)).join(',')).join(' ')}" fill="none" stroke="${fg}" stroke-width="1"/>

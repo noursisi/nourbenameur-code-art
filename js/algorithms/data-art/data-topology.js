@@ -116,7 +116,7 @@ export class DataTopology extends Algorithm {
     const mapping = Math.max(0, Math.min(3, Math.round(s.dt_mapping || 0)));
     const count = Math.max(100, Math.min(5000, Math.round(s.dt_count || 1000)));
     const elemSize = Math.max(2, Math.min(10, Math.round(s.dt_elementSize || 4)));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
     const t = (s.time || 0) * 0.1;
 
     const digits = getDigits(source, count);

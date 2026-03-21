@@ -116,7 +116,7 @@ export class DLA extends Algorithm {
     const targetParticles = Math.max(1000, Math.min(20000, Math.round(s.dla_particles || 5000)));
     const stickiness = Math.max(0.1, Math.min(1, s.dla_stickiness || 0.5));
     const branchWidth = Math.max(1, Math.min(5, s.dla_branchWidth || 2));
-    const fg = this.engine.fg();
+    const fg = this.engine.fg(s);
 
     if (!this._grid) {
       this._initGrid(W, H);
