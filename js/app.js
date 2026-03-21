@@ -2,6 +2,11 @@
  * app.js — Entry point.
  * Wires engine, UI panels, algorithm registry, layers, image processor, camera, and the render loop.
  */
+window.__codeArtDebug = true;
+window.onerror = (msg, src, line, col) => {
+  const el = document.getElementById('loading');
+  if (el) el.textContent = `ERROR: ${msg} at ${src}:${line}`;
+};
 
 import { state, set, markDirty, isDirty, markClean } from './state.js';
 import { engine } from './engine.js';
