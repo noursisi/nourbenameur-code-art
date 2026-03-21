@@ -5,6 +5,10 @@
  */
 
 import { state } from './state.js';
+import { applySymmetry } from './effects/symmetry.js';
+import { postProcess } from './effects/post-process.js';
+import { applyGrain } from './effects/grain.js';
+import { drawImageLayer } from './interaction/image-layer.js';
 
 class Engine {
   constructor(canvas) {
@@ -94,8 +98,6 @@ class Engine {
 
     if (W === 0 || H === 0) return;
 
-    ctx.save();
-
     // ── 1. Clear ───────────────────────────────────────────────────────────────
     if (s.transparent) {
       ctx.clearRect(0, 0, W, H);
@@ -105,79 +107,50 @@ class Engine {
     }
 
     // ── 2. Image — behind layer ────────────────────────────────────────────────
-    if (s.img_layer === 'behind' && this._imageEl) {
-      this._drawImage(ctx, W, H, s);
+    if (s.img_layer === 'behind') {
+      drawImageLayer(ctx, W, H, s);
     }
 
     // ── 3. Algorithm ───────────────────────────────────────────────────────────
-    // WebGL algorithms composite their own GL canvas inside render() via
-    // ctx.drawImage(glCanvas, ...). See julia.js for the pattern.
     if (this._algorithm) {
-      this._algorithm.render(ctx, W, H, s);
+      if (s.sym && s.folds > 1) {
+        // Render to offscreen canvas, then composite with symmetry
+        const offscreen = document.createElement('canvas');
+        offscreen.width  = W;
+        offscreen.height = H;
+        const offCtx = offscreen.getContext('2d');
+        this._algorithm.render(offCtx, W, H, s);
+
+        // Clear main canvas before compositing
+        if (s.transparent) {
+          ctx.clearRect(0, 0, W, H);
+        } else {
+          ctx.fillStyle = this.bg();
+          ctx.fillRect(0, 0, W, H);
+        }
+
+        applySymmetry(offscreen, ctx, W, H, s.folds);
+      } else {
+        // Direct render to main context
+        this._algorithm.render(ctx, W, H, s);
+      }
     }
 
-    // ── 4. Symmetry (stub — future) ────────────────────────────────────────────
-    // Symmetry post-processing goes here
+    // ── 4. Post-process: tint, glow, blur ─────────────────────────────────────
+    postProcess(this.canvas, ctx, W, H, s);
 
-    // ── 5. Post-process: glow / blur ──────────────────────────────────────────
-    if (s.blur > 0 || s.glow > 0) {
-      // Blur is applied via CSS filter on the canvas element
-      // We apply glow as a canvas shadow pass — stub for now
+    // ── 5. Image — front layer ────────────────────────────────────────────────
+    if (s.img_layer === 'front') {
+      drawImageLayer(ctx, W, H, s);
     }
 
-    // ── 6. Image — front layer ────────────────────────────────────────────────
-    if (s.img_layer === 'front' && this._imageEl) {
-      this._drawImage(ctx, W, H, s);
-    }
-
-    // ── 7. Grain ─────────────────────────────────────────────────────────────
+    // ── 6. Grain ──────────────────────────────────────────────────────────────
     if (s.grain > 0) {
-      this._drawGrain(ctx, W, H, s.grain);
+      applyGrain(ctx, W, H, s.grain);
     }
 
-    ctx.restore();
-
-    // CSS filter for blur/glow
-    const filterParts = [];
-    if (s.blur > 0) filterParts.push(`blur(${s.blur}px)`);
-    this.canvas.style.filter = filterParts.length ? filterParts.join(' ') : '';
-  }
-
-  /** Draw the user-imported image layer */
-  _drawImage(ctx, W, H, s) {
-    const img = this._imageEl;
-    if (!img) return;
-    ctx.save();
-    ctx.globalAlpha = s.img_opacity;
-    ctx.globalCompositeOperation = s.img_blend || 'source-over';
-    const scale = s.img_scale || 1;
-    const iw = img.naturalWidth * scale;
-    const ih = img.naturalHeight * scale;
-    ctx.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
-    ctx.restore();
-  }
-
-  /** Grain overlay */
-  _drawGrain(ctx, W, H, amount) {
-    const imageData = ctx.getImageData(0, 0, W, H);
-    const data = imageData.data;
-    const strength = amount * 60;
-    for (let i = 0; i < data.length; i += 4) {
-      const n = (Math.random() - 0.5) * strength;
-      data[i]     = Math.min(255, Math.max(0, data[i]     + n));
-      data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + n));
-      data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + n));
-    }
-    ctx.putImageData(imageData, 0, 0);
-  }
-
-  /** Store reference to imported image element */
-  setImage(imgEl) {
-    this._imageEl = imgEl;
-  }
-
-  clearImage() {
-    this._imageEl = null;
+    // Clear any CSS filter previously applied
+    this.canvas.style.filter = '';
   }
 }
 
