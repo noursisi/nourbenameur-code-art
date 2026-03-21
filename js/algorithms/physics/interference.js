@@ -1,0 +1,191 @@
+/**
+ * Wave Interference — multiple point sources create concentric ring overlaps.
+ * Rendered via WebGL for performance (per-pixel computation).
+ */
+
+import { Algorithm } from '../base.js';
+import { createProgram } from '../../webgl/context.js';
+import { Quad } from '../../webgl/quad.js';
+
+const VERT_SRC = /* glsl */`
+attribute vec2 a_position;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+const FRAG_SRC = /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+
+uniform vec2  u_resolution;
+uniform float u_time;
+uniform float u_sources;
+uniform float u_wavelength;
+uniform float u_speed;
+uniform vec2  u_pan;
+uniform float u_zoom;
+uniform vec3  u_fgColor;
+uniform vec3  u_bgColor;
+uniform bool  u_transparent;
+
+#define MAX_SOURCES 12
+#define PI 3.14159265359
+
+// Generate pseudo-random source positions
+vec2 sourcePos(int i) {
+  float fi = float(i);
+  float angle = fi * 2.399963; // golden angle
+  float r = 0.15 + 0.2 * sqrt(fi / u_sources);
+  return vec2(0.5 + cos(angle) * r, 0.5 + sin(angle) * r);
+}
+
+void main() {
+  vec2 uv = v_uv;
+  vec2 aspect = vec2(u_resolution.x / u_resolution.y, 1.0);
+  vec2 pos = (uv - 0.5) * aspect / u_zoom;
+  pos -= u_pan / u_resolution * aspect / u_zoom;
+  pos += 0.5;
+
+  float totalWave = 0.0;
+  int srcCount = int(u_sources);
+
+  for (int i = 0; i < MAX_SOURCES; i++) {
+    if (i >= srcCount) break;
+    vec2 src = sourcePos(i);
+    // Animate sources slightly
+    float fi = float(i);
+    src.x += sin(u_time * 0.3 + fi * 1.7) * 0.03;
+    src.y += cos(u_time * 0.25 + fi * 2.3) * 0.03;
+
+    float dist = distance(pos * aspect, src * aspect);
+    float wave = sin(dist / u_wavelength * 2.0 * PI - u_time * u_speed);
+    totalWave += wave;
+  }
+
+  // Normalize
+  totalWave /= u_sources;
+
+  // Map to brightness
+  float brightness = totalWave * 0.5 + 0.5;
+  brightness = pow(brightness, 1.5); // contrast boost
+
+  vec3 col = mix(u_bgColor, u_fgColor, brightness);
+
+  float alpha = 1.0;
+  if (u_transparent) {
+    alpha = brightness;
+  }
+
+  gl_FragColor = vec4(col * alpha, alpha);
+}
+`;
+
+function parseHexColor(hex) {
+  if (!hex || hex[0] !== '#') return [1, 1, 1];
+  const n = parseInt(hex.slice(1), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+export class Interference extends Algorithm {
+  constructor(engine) {
+    super(engine);
+    this._prog = null;
+    this._quad = null;
+    this._gl = null;
+  }
+
+  get metadata() {
+    return {
+      name: 'Interference',
+      eq: 'A*sin(kr - wt)',
+      cat: 'Physics',
+      desc: 'Wave interference from multiple point sources. Overlapping concentric ripples create beautiful moire patterns.',
+    };
+  }
+
+  get params() {
+    return [
+      { id: 'intf_sources',    label: 'Sources',    min: 2,    max: 12,   step: 1    },
+      { id: 'intf_wavelength', label: 'Wavelength',  min: 0.005, max: 0.1, step: 0.002 },
+      { id: 'intf_speed',      label: 'Speed',       min: 0,    max: 10,   step: 0.2  },
+    ];
+  }
+
+  get detailParam() {
+    return { id: 'intf_wavelength', min: 0.005, max: 0.1, step: 0.002 };
+  }
+
+  get cursorMap() {
+    return (mx, my, s) => {
+      s.intf_wavelength = 0.005 + mx * 0.095;
+      s.intf_speed = my * 10;
+    };
+  }
+
+  animate(s) {
+    // Time advances via s.time
+  }
+
+  render(ctx, W, H, s) {
+    const glCanvas = this.engine.getGLCanvas();
+    const gl = this.engine.getGL();
+
+    if (!gl) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('WebGL not available', W / 2, H / 2);
+      return;
+    }
+
+    if (!this._prog || this._gl !== gl) {
+      this._gl = gl;
+      this._prog = createProgram(gl, VERT_SRC, FRAG_SRC);
+      this._quad = new Quad(gl);
+    }
+
+    if (!this._prog) return;
+
+    const pW = glCanvas.width;
+    const pH = glCanvas.height;
+
+    gl.viewport(0, 0, pW, pH);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+    const prog = this._prog;
+    gl.useProgram(prog);
+
+    // Set bool/int uniforms manually
+    const trLoc = gl.getUniformLocation(prog, 'u_transparent');
+    if (trLoc !== null) gl.uniform1i(trLoc, s.transparent ? 1 : 0);
+
+    const fgC = parseHexColor(this.engine.fg());
+    const bgC = parseHexColor(this.engine.bg());
+
+    this._quad.render(gl, prog, {
+      u_resolution: [pW, pH],
+      u_time: s.time ?? 0,
+      u_sources: s.intf_sources ?? 5,
+      u_wavelength: s.intf_wavelength ?? 0.03,
+      u_speed: s.intf_speed ?? 3,
+      u_pan: [s.camPanX ?? 0, -(s.camPanY ?? 0)],
+      u_zoom: s.camZoom ?? 1,
+      u_fgColor: fgC,
+      u_bgColor: bgC,
+    });
+
+    ctx.drawImage(glCanvas, 0, 0, W, H);
+  }
+
+  collectSVG() {
+    return null; // pixel-based
+  }
+}

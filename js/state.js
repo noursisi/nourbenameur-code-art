@@ -53,6 +53,30 @@ export const state = {
   img_layer: 'behind', img_opacity: 0.5, img_scale: 1, img_blend: 'source-over',
   // Record
   rec_duration: 10,
+  // Neural Web
+  nweb_nodes: 30, nweb_density: 0.5, nweb_pulse: 1, nweb_nodeSize: 3,
+  // Cellular Automata
+  ca_resolution: 4, ca_rule: 0, ca_fill: 0.3, ca_speed: 3,
+  // Magnetic Field
+  mag_poles: 4, mag_strength: 200, mag_lines: 500, mag_lineLen: 60,
+  // Interference
+  intf_sources: 5, intf_wavelength: 0.03, intf_speed: 3,
+  // Image Processor
+  ip_enabled: false, ip_effect: 'displacement', ip_mixWithAlgo: false,
+  ip_displace_amount: 0.05, ip_displace_scale: 4, ip_displace_speed: 0.3,
+  ip_sort_threshold: 0.3, ip_sort_direction: 0, ip_sort_intensity: 30,
+  ip_thresh_level: 0.5, ip_thresh_smooth: 0.02,
+  ip_edge_strength: 1.5, ip_edge_invert: 0,
+  ip_kal_segments: 6, ip_kal_rotation: 0, ip_kal_zoom: 1,
+  ip_wave_amp: 0.02, ip_wave_freq: 10, ip_wave_speed: 1,
+  ip_polar_twist: 0, ip_polar_zoom: 1,
+  ip_feedback_decay: 0.85, ip_feedback_offset: 0.005,
+  ip_vmosaic_cells: 30, ip_vmosaic_edge: 0.01,
+  ip_fwarp_cr: -0.7, ip_fwarp_ci: 0.27, ip_fwarp_amount: 0.1, ip_fwarp_iter: 5,
+  // Camera
+  cameraActive: false,
+  // Layers
+  layers: null, activeLayer: 0,
 };
 
 let needsRender = true;

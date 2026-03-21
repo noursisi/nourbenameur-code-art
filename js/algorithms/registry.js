@@ -23,6 +23,10 @@ import { Filigree }            from './data-art/filigree.js';
 import { Spirograph }          from './data-art/spirograph.js';
 import { PixelOrganic }        from './data-art/pixel-organic.js';
 import { Rorschach }           from './data-art/rorschach.js';
+import { NeuralWeb }           from './data-art/neural-web.js';
+import { CellularAutomata }    from './data-art/cellular-automata.js';
+import { MagneticField }       from './nature/magnetic-field.js';
+import { Interference }        from './physics/interference.js';
 
 class Registry {
   constructor() {
@@ -120,3 +124,11 @@ registry.register('filigree',       Filigree);
 registry.register('spirograph',     Spirograph);
 registry.register('pixel-organic',  PixelOrganic);
 registry.register('rorschach',      Rorschach);
+registry.register('neural-web',     NeuralWeb);
+registry.register('cellular-automata', CellularAutomata);
+
+// Nature (additions)
+registry.register('magnetic-field', MagneticField);
+
+// Physics (additions)
+registry.register('interference',   Interference);
