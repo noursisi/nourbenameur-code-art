@@ -30,6 +30,14 @@ import { Interference }        from './physics/interference.js';
 import { DotMatrix }           from './data-art/dot-matrix.js';
 import { PixelDissolve }       from './data-art/pixel-dissolve.js';
 import { AsciiRender }         from './data-art/ascii-render.js';
+import { AttractorZoo }        from './nature/attractor-zoo.js';
+import { DLA }                 from './nature/dla.js';
+import { PerlinWorms }         from './nature/perlin-worms.js';
+import { Moire }               from './physics/moire.js';
+import { Bifurcation }         from './data-art/bifurcation.js';
+import { Penrose }             from './data-art/penrose.js';
+import { Langton }             from './data-art/langton.js';
+import { DataTopology }        from './data-art/data-topology.js';
 
 class Registry {
   constructor() {
@@ -140,3 +148,13 @@ registry.register('interference',   Interference);
 registry.register('dot-matrix',     DotMatrix);
 registry.register('pixel-dissolve', PixelDissolve);
 registry.register('ascii-render',   AsciiRender);
+
+// Deep Math — chaos, emergence, topology
+registry.register('attractor-zoo',  AttractorZoo);
+registry.register('dla',            DLA);
+registry.register('perlin-worms',   PerlinWorms);
+registry.register('moire',          Moire);
+registry.register('bifurcation',    Bifurcation);
+registry.register('penrose',        Penrose);
+registry.register('langton',        Langton);
+registry.register('data-topology',  DataTopology);

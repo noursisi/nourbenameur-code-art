@@ -85,6 +85,22 @@ export const state = {
   ip_ascii_size: 8, ip_ascii_levels: 5,
   // Data Mosaic distortion
   ip_dm_minBlock: 4, ip_dm_maxBlock: 20, ip_dm_scatter: 0.3,
+  // Attractor Zoo
+  az_type: 0, az_points: 100000, az_a: 0, az_b: 0, az_c: 0, az_d: 0,
+  // DLA
+  dla_particles: 5000, dla_stickiness: 0.5, dla_branchWidth: 2,
+  // Perlin Worms
+  pw_count: 150, pw_length: 500, pw_noiseScale: 0.004, pw_thickness: 1,
+  // Moire
+  moire_layers: 3, moire_lineWidth: 1, moire_spacing: 12, moire_pattern: 0, moire_angleOffset: 5,
+  // Bifurcation
+  bif_rMin: 2.5, bif_rMax: 4.0, bif_iterations: 500, bif_skip: 200,
+  // Penrose
+  pen_depth: 5, pen_scale: 1.5, pen_type: 0,
+  // Langton's Ant
+  lang_steps: 11000, lang_rule: 0, lang_cellSize: 3,
+  // Data Topology
+  dt_source: 0, dt_mapping: 0, dt_count: 1000, dt_elementSize: 4,
   // Camera
   cameraActive: false,
   // Layers
