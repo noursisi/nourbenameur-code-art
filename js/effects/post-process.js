@@ -29,10 +29,14 @@ function bgColor(state) {
 export function postProcess(canvas, ctx, W, H, state) {
   if (state.tint === 'none' && state.glow === 0 && state.blur === 0) return;
 
-  // 1. Copy current canvas to offscreen
+  // Use physical pixel dimensions for crisp post-processing on retina displays
+  const pW = canvas.width;
+  const pH = canvas.height;
+
+  // 1. Copy current canvas to offscreen (at full physical resolution)
   const artCanvas = document.createElement('canvas');
-  artCanvas.width = W;
-  artCanvas.height = H;
+  artCanvas.width = pW;
+  artCanvas.height = pH;
   const artCtx = artCanvas.getContext('2d');
   artCtx.drawImage(canvas, 0, 0);
 
@@ -40,7 +44,7 @@ export function postProcess(canvas, ctx, W, H, state) {
   if (state.tint !== 'none') {
     const tc = getTintColor(state);
     if (tc) {
-      const img = artCtx.getImageData(0, 0, W, H);
+      const img = artCtx.getImageData(0, 0, pW, pH);
       for (let i = 0; i < img.data.length; i += 4) {
         if (img.data[i + 3] === 0) continue;
         const lum = (img.data[i] * 0.299 + img.data[i + 1] * 0.587 + img.data[i + 2] * 0.114) / 255;
@@ -52,36 +56,44 @@ export function postProcess(canvas, ctx, W, H, state) {
     }
   }
 
-  // 3. Clear main canvas
+  // 3. Clear main canvas and draw back using identity transform
+  //    (the offscreen canvas is at physical pixel resolution, so we must
+  //     bypass the DPR scale on the main ctx while compositing)
+  const dpr = window.devicePixelRatio || 1;
+
+  // Reset to identity for physical-pixel compositing
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
   if (state.transparent) {
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(0, 0, pW, pH);
   } else {
     ctx.fillStyle = bgColor(state);
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, pW, pH);
   }
 
   // 4. Glow: draw blurred copy with additive blending FIRST (bloom behind)
   if (state.glow > 0) {
-    ctx.save();
-    ctx.filter = `blur(${state.glow}px)`;
+    ctx.filter = `blur(${state.glow * dpr}px)`;
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.7;
     ctx.drawImage(artCanvas, 0, 0);
     ctx.globalAlpha = 0.4;
     ctx.drawImage(artCanvas, 0, 0);
-    ctx.restore();
     ctx.filter = 'none';
     ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
 
   // 5. Draw sharp (or blurred) art on top
   if (state.blur > 0) {
-    ctx.save();
-    ctx.filter = `blur(${state.blur}px)`;
+    ctx.filter = `blur(${state.blur * dpr}px)`;
     ctx.drawImage(artCanvas, 0, 0);
-    ctx.restore();
     ctx.filter = 'none';
   } else {
     ctx.drawImage(artCanvas, 0, 0);
   }
+
+  // Restore original DPR-scaled transform
+  ctx.restore();
 }

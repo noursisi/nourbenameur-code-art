@@ -55,9 +55,8 @@ export function initMouse(canvasArea, engine, registry, getActiveAlgo, rebuildPa
     if (!dragging) return;
     const dx = e.clientX - dragStartX;
     const dy = e.clientY - dragStartY;
-    state.camPanX = panStartX + dx;
-    state.camPanY = panStartY + dy;
-    markDirty();
+    set('camPanX', panStartX + dx);
+    set('camPanY', panStartY + dy);
   });
 
   window.addEventListener('mouseup', () => {
@@ -98,6 +97,44 @@ export function initMouse(canvasArea, engine, registry, getActiveAlgo, rebuildPa
     set('camPanX', 0);
     set('camPanY', 0);
   });
+
+  // ── Touch support ────────────────────────────────────────────────────────
+
+  canvasArea.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const rect = canvasArea.getBoundingClientRect();
+    mouse.x = (t.clientX - rect.left) / rect.width;
+    mouse.y = (t.clientY - rect.top)  / rect.height;
+
+    if (!state.cursorMode) {
+      dragging   = true;
+      dragStartX = t.clientX;
+      dragStartY = t.clientY;
+      panStartX  = state.camPanX;
+      panStartY  = state.camPanY;
+    }
+  }, { passive: true });
+
+  canvasArea.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const rect = canvasArea.getBoundingClientRect();
+    mouse.x = (t.clientX - rect.left) / rect.width;
+    mouse.y = (t.clientY - rect.top)  / rect.height;
+
+    if (dragging) {
+      e.preventDefault();
+      const dx = t.clientX - dragStartX;
+      const dy = t.clientY - dragStartY;
+      set('camPanX', panStartX + dx);
+      set('camPanY', panStartY + dy);
+    }
+  }, { passive: false });
+
+  canvasArea.addEventListener('touchend', () => {
+    dragging = false;
+  }, { passive: true });
 
   // ── Cursor mode: hide cursor over canvas area ─────────────────────────────
 

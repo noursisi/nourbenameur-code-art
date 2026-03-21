@@ -8,11 +8,12 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   background: #0a0a0a;
   color: #e0e0e0;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   overflow: hidden;
+  height: 100vh;
 }
 
 /* ============================================================
@@ -34,6 +35,7 @@ body {
   overflow: hidden;
   cursor: grab;
   background: #020202;
+  min-height: 0;
 }
 
 .canvas-area:active {

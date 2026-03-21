@@ -110,7 +110,7 @@ export class PixelOrganic extends Algorithm {
 
   get detailParam() {
     // Smaller pixel size = more detail, so reversed step
-    return { id: 'pixel_res', min: 3, max: 20, step: -1 };
+    return { id: 'pixel_res', min: 3, max: 20, step: 1 };
   }
 
   get cursorMap() {

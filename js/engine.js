@@ -115,6 +115,7 @@ class Engine {
     if (this._algorithm) {
       if (s.sym && s.folds > 1) {
         // Render to offscreen canvas, then composite with symmetry
+        // Use CSS pixel dimensions for the offscreen (matches algorithm coordinate space)
         const offscreen = document.createElement('canvas');
         offscreen.width  = W;
         offscreen.height = H;
