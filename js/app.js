@@ -9,6 +9,10 @@ import { registry } from './algorithms/registry.js';
 import { buildAlgoGrid } from './ui/algo-grid.js';
 import { buildParams } from './ui/params.js';
 import { initMouse, mouse } from './interaction/mouse.js';
+import { loadImage, removeImage } from './interaction/image-layer.js';
+import { exportPNG } from './export/png.js';
+import { exportSVG } from './export/svg.js';
+import { startRecording, stopRecording, isRecording } from './export/video.js';
 
 // ── Initialise engine ──────────────────────────────────────────────────────────
 
@@ -163,17 +167,14 @@ document.getElementById('btn-import-image')?.addEventListener('click', () => {
 document.getElementById('file-input')?.addEventListener('change', e => {
   const file = e.target.files?.[0];
   if (!file) return;
-  const img = new Image();
-  img.onload = () => {
-    engine.setImage(img);
+  loadImage(file).then(() => {
     document.getElementById('image-controls').style.display = '';
     markDirty();
-  };
-  img.src = URL.createObjectURL(file);
+  });
 });
 
 document.getElementById('btn-remove-image')?.addEventListener('click', () => {
-  engine.clearImage();
+  removeImage();
   document.getElementById('image-controls').style.display = 'none';
   markDirty();
 });
@@ -241,15 +242,42 @@ document.getElementById('btn-reset-view')?.addEventListener('click', () => {
 });
 
 document.getElementById('btn-export-png')?.addEventListener('click', () => {
-  alert('Export PNG — coming soon');
+  exportPNG(engine, state);
 });
 
 document.getElementById('btn-export-svg')?.addEventListener('click', () => {
-  alert('Export SVG — coming soon');
+  const didSVG = exportSVG(engine, state, activeAlgo);
+  if (!didSVG) {
+    exportPNG(engine, state);
+  }
 });
 
-document.getElementById('btn-record')?.addEventListener('click', () => {
-  alert('Record Video — coming soon');
+const recordBtn = document.getElementById('btn-record');
+recordBtn?.addEventListener('click', () => {
+  if (isRecording()) {
+    stopRecording();
+  } else {
+    startRecording(
+      engine.canvas,
+      state.rec_duration,
+      state,
+      () => {
+        // onStart
+        if (recordBtn) {
+          recordBtn.textContent = 'Stop';
+          recordBtn.classList.add('active');
+        }
+        updatePlayUI();
+      },
+      () => {
+        // onStop
+        if (recordBtn) {
+          recordBtn.textContent = 'Record';
+          recordBtn.classList.remove('active');
+        }
+      }
+    );
+  }
 });
 
 // Record duration slider
