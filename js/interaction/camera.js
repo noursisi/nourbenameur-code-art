@@ -5,6 +5,7 @@
 
 import { state, set, markDirty } from '../state.js';
 import { imageProcessor } from './image-processor.js';
+import { engine } from '../engine.js';
 
 let video = null;
 let stream = null;
@@ -28,6 +29,8 @@ export async function startCamera() {
 
     // Feed video to the image processor
     imageProcessor.setVideoSource(video);
+    // Feed video to the world camera for pixel analysis
+    engine.world.camera.setVideo(video);
     active = true;
     set('cameraActive', true);
     markDirty();
@@ -54,6 +57,9 @@ export function stopCamera() {
 
   active = false;
   set('cameraActive', false);
+
+  // Clear world camera
+  engine.world.camera.clearVideo();
 
   // Clear image processor source only if it was using camera
   if (imageProcessor._sourceType === 'video') {

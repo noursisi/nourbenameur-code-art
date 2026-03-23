@@ -4,6 +4,8 @@
  */
 
 import { Space } from './space.js';
+import { Camera } from './camera.js';
+import { Renderer } from './renderer.js';
 
 export class World {
   constructor(engine) {
@@ -14,10 +16,10 @@ export class World {
 
     // Modules (added as they're built)
     this.space = new Space();
-    this.camera = null;
+    this.camera = new Camera(engine);
     this.physics = null;
     this.gesture = null;
-    this.renderer = null;
+    this.renderer = new Renderer();
     this.time = null;
   }
 
