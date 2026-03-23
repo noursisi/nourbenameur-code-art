@@ -83,7 +83,7 @@ export class Camera {
     console.log('[Camera] Loading MediaPipe...');
     try {
       const { FilesetResolver, HandLandmarker, PoseLandmarker } =
-        await import(/* webpackIgnore: true */ `${MP_CDN}/vision_bundle.mjs`);
+        await import(`${MP_CDN}/vision_bundle.mjs`);
 
       const vision = await FilesetResolver.forVisionTasks(MP_WASM);
 
