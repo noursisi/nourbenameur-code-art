@@ -45,27 +45,23 @@ export class Algorithm {
 
   /**
    * Called every frame while state.playing === true, before render.
-   * @param {object} state
+   * @param {import('../world/index.js').World} world
    */
-  animate(state) {}
+  animate(world) {}
 
   /**
    * Draw the algorithm to the 2D canvas context.
    * @param {CanvasRenderingContext2D} ctx
-   * @param {number} W  - CSS pixel width
-   * @param {number} H  - CSS pixel height
-   * @param {object} state
+   * @param {import('../world/index.js').World} world
    */
-  render(ctx, W, H, state) {}
+  render(ctx, world) {}
 
   /**
    * Return an SVG string representing the current render, or null.
-   * @param {number} W
-   * @param {number} H
-   * @param {object} state
+   * @param {import('../world/index.js').World} world
    * @returns {string|null}
    */
-  collectSVG(W, H, state) {
+  collectSVG(world) {
     return null;
   }
 

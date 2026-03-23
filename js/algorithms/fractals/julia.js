@@ -143,14 +143,14 @@ export class JuliaSet extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Orbit c through interesting parameter space
     const t = s.time * 0.3;
     s.julia_cr = Math.cos(t * 1.1) * 0.8 - 0.2;
     s.julia_ci = Math.sin(t * 0.7) * 0.6 + 0.27;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const glCanvas = this.engine.getGLCanvas();
     const gl       = this.engine.getGL();
 
@@ -208,7 +208,7 @@ export class JuliaSet extends Algorithm {
     ctx.drawImage(glCanvas, 0, 0, W, H);
   }
 
-  collectSVG() {
+  collectSVG(world) {
     return null; // pixel-based, no SVG export
   }
 }

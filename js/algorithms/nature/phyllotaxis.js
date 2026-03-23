@@ -38,12 +38,12 @@ export class Phyllotaxis extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Oscillate divergence around the golden angle
     s.phyllo_divergence = 137.508 + Math.sin(s.time * 0.3) * 5;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const n = Math.max(50, Math.min(3000, Math.round(s.phyllo_n)));
     const divergence = (s.phyllo_divergence * Math.PI) / 180;
     const dotSize = Math.max(0.5, s.phyllo_dotsize);
@@ -80,7 +80,7 @@ export class Phyllotaxis extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgCircles.length) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);

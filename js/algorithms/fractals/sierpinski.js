@@ -60,12 +60,12 @@ export class Sierpinski extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Continuously rotate the triangle
     this._rotation = s.time * 0.25;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const depth = Math.max(1, Math.min(8, Math.round(s.sierpinski_depth)));
     const zoom = Math.max(0.3, Math.min(3, s.sierpinski_scale || 1));
     const fg = this.engine.fg(s);

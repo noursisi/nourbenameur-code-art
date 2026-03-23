@@ -72,12 +72,12 @@ export class Koch extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Slowly rotate and cycle depth for dramatic animation
     this._rotation = s.time * 0.3;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const depth = Math.max(0, Math.min(7, Math.round(s.koch_depth)));
     const sides = Math.max(3, Math.min(8, Math.round(s.koch_sides || 3)));
     const fg = this.engine.fg(s);
@@ -135,7 +135,7 @@ export class Koch extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgPath) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);

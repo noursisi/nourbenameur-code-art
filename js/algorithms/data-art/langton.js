@@ -91,14 +91,14 @@ export class Langton extends Algorithm {
     this._stepsDone++;
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     const rule = Math.max(0, Math.min(3, Math.round(s.lang_rule || 0)));
     if (rule !== this._lastRule) {
       this._grid = null;
     }
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const targetSteps = Math.max(1000, Math.min(200000, Math.round(s.lang_steps || 11000)));
     const rule = Math.max(0, Math.min(3, Math.round(s.lang_rule || 0)));
     const cellSize = Math.max(2, Math.min(8, Math.round(s.lang_cellSize || 3)));

@@ -129,12 +129,12 @@ export class LSystem extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Gently oscillate angle while playing
     s.lsystem_angle = 25 + Math.sin(s.time * 0.5) * 15;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const ruleIdx = Math.max(0, Math.min(4, Math.round(s.lsystem_rule)));
     const rule = RULES[ruleIdx];
     const depth = Math.max(1, Math.min(12, Math.round(s.lsystem_depth)));
@@ -232,7 +232,7 @@ export class LSystem extends Algorithm {
 
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgLines.length) return null;
 
     const fg = this.engine.fg(s);

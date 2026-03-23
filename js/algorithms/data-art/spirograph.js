@@ -41,7 +41,7 @@ export class Spirograph extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Animate pen distance and inner radius for morphing spirograph patterns
     s.spiro_d = 5  + (Math.sin(s.time * 0.5) * 0.5 + 0.5) * 115;
     s.spiro_r = 5  + (Math.cos(s.time * 0.3) * 0.5 + 0.5) * 95;
@@ -49,7 +49,7 @@ export class Spirograph extends Algorithm {
     s.spiro_R = 40 + (Math.sin(s.time * 0.18) * 0.5 + 0.5) * 110;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const R = Math.max(20, Math.min(150, Math.round(s.spiro_R)));
     let   r = Math.max(5,  Math.min(100, Math.round(s.spiro_r)));
     const d = Math.max(5,  Math.min(120, s.spiro_d));
@@ -106,7 +106,7 @@ export class Spirograph extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgPoints.length) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);

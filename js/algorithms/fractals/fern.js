@@ -85,12 +85,12 @@ export class Fern extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Slowly sway the leaf curvature (b and c of main stem transform)
     this._animOffset = Math.sin(s.time * 0.4) * 0.06;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const n = Math.max(10000, Math.min(200000, Math.round(s.fern_points)));
     const variant = Math.max(0, Math.min(3, Math.round(s.fern_variant || 0)));
     const fg = this.engine.fg(s);

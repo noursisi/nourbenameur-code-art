@@ -35,11 +35,11 @@ export class Moire extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Time-based rotation handled in render
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const layers = Math.max(2, Math.min(5, Math.round(s.moire_layers || 3)));
     const lineWidth = Math.max(0.5, Math.min(3, s.moire_lineWidth || 1)) * (s.lineWeight || 1);
     const spacing = Math.max(5, Math.min(30, s.moire_spacing || 12));

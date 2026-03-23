@@ -76,7 +76,7 @@ export class NeuralWeb extends Algorithm {
     }
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     const t = s.time;
     const pulse = s.nweb_pulse ?? 1;
     // Drift nodes slightly
@@ -89,7 +89,7 @@ export class NeuralWeb extends Algorithm {
     }
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const nodeCount = Math.round(s.nweb_nodes ?? 30);
     const density = s.nweb_density ?? 0.5;
     const pulse = s.nweb_pulse ?? 1;

@@ -66,12 +66,12 @@ export class Contour extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Time naturally advances in app.js; contour uses it directly in render.
     // No extra mutation needed — the time offset in render drives the shift.
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const levels    = Math.max(3, Math.min(40, Math.round(s.contour_levels)));
     const scale     = Math.max(0.002, s.contour_scale);
     const octaves   = Math.max(1, Math.min(5, Math.round(s.contour_octaves)));
@@ -140,7 +140,7 @@ export class Contour extends Algorithm {
     ctx.globalAlpha = 1;
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     const levels  = Math.max(3, Math.min(40, Math.round(s.contour_levels)));
     const scale   = Math.max(0.002, s.contour_scale);
     const octaves = Math.max(1, Math.min(5, Math.round(s.contour_octaves)));

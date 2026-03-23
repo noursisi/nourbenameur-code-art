@@ -104,7 +104,7 @@ export class DLA extends Algorithm {
     return added;
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     const paramKey = `${s.dla_particles}_${s.dla_stickiness}_${s.dla_branchWidth}`;
     if (paramKey !== this._lastParams) {
       this._grid = null;
@@ -112,7 +112,7 @@ export class DLA extends Algorithm {
     }
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const targetParticles = Math.max(1000, Math.min(20000, Math.round(s.dla_particles || 5000)));
     const stickiness = Math.max(0.1, Math.min(1, s.dla_stickiness || 0.5));
     const branchWidth = Math.max(1, Math.min(5, s.dla_branchWidth || 2));

@@ -39,11 +39,11 @@ export class Bifurcation extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Subtle time-based shift of the view range
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const rMin = Math.max(2.5, Math.min(3.99, s.bif_rMin || 2.5));
     const rMax = Math.max(rMin + 0.01, Math.min(4.0, s.bif_rMax || 4.0));
     const iterations = Math.max(200, Math.min(2000, Math.round(s.bif_iterations || 500)));

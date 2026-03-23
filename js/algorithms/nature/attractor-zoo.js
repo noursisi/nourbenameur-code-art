@@ -131,11 +131,11 @@ export class AttractorZoo extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Time advances externally; used for rotation angle
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const type = Math.max(0, Math.min(6, Math.round(s.az_type || 0)));
     const numPts = Math.max(50000, Math.min(500000, Math.round(s.az_points || 100000)));
     const a = s.az_a || 0;

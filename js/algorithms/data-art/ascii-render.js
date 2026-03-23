@@ -105,11 +105,11 @@ export class AsciiRender extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // time drives pattern drift
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const cols     = Math.max(20,  Math.min(120, Math.round(s.ascii_cols    ?? 60)));
     const charsetI = Math.max(0,   Math.min(3,   Math.round(s.ascii_charset ?? 0)));
     const pattern  = Math.max(0,   Math.min(3,   Math.round(s.ascii_pattern ?? 0)));

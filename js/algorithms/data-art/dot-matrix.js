@@ -67,7 +67,7 @@ export class DotMatrix extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // time is advanced externally; used in render as offset
   }
 
@@ -100,7 +100,7 @@ export class DotMatrix extends Algorithm {
     }
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const cols    = Math.max(10, Math.min(80,  Math.round(s.dm_cols    ?? 30)));
     const rows    = Math.max(10, Math.min(60,  Math.round(s.dm_rows    ?? 25)));
     const maxSize = Math.max(2,  Math.min(30,  Math.round(s.dm_maxSize ?? 12)));

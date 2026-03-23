@@ -38,11 +38,11 @@ export class Spiral extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     s.spiral_growth = 0.02 + (Math.sin(s.time * 0.2) * 0.5 + 0.5) * 0.28;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const turns  = Math.max(3, Math.min(50, Math.round(s.spiral_turns)));
     const growth = Math.max(0.02, s.spiral_growth);
     const n      = Math.max(200, Math.min(8000, Math.round(s.spiral_dots)));
@@ -90,7 +90,7 @@ export class Spiral extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgPoints.length) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);

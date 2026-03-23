@@ -42,11 +42,11 @@ export class Harmonograph extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     s.harm_phase = (s.harm_phase + 0.002) % (Math.PI * 2);
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const f1      = s.harm_f1;
     const f2      = s.harm_f2;
     const phase   = s.harm_phase;
@@ -92,7 +92,7 @@ export class Harmonograph extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgPoints.length) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);

@@ -37,7 +37,7 @@ export class Attractor extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     const t = s.time;
     s.att_a = -1.7 + Math.sin(t * 0.11) * 1.5 + Math.cos(t * 0.07) * 0.6;
     s.att_b =  1.3 + Math.cos(t * 0.09) * 1.4 + Math.sin(t * 0.13) * 0.5;
@@ -45,7 +45,7 @@ export class Attractor extends Algorithm {
     s.att_d = -1.21 + Math.cos(t * 0.13) * 1.1 + Math.sin(t * 0.19) * 0.4;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const a = s.att_a, b = s.att_b, c = s.att_c, d = s.att_d;
     const n = Math.max(10000, Math.min(300000, Math.round(s.att_points)));
     const fg = this.engine.fg(s);

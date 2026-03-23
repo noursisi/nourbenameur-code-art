@@ -125,11 +125,11 @@ export class Interference extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Time advances via s.time
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const glCanvas = this.engine.getGLCanvas();
     const gl = this.engine.getGL();
 
@@ -185,7 +185,7 @@ export class Interference extends Algorithm {
     ctx.drawImage(glCanvas, 0, 0, W, H);
   }
 
-  collectSVG() {
+  collectSVG(world) {
     return null; // pixel-based
   }
 }

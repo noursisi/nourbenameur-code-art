@@ -120,11 +120,11 @@ export class PixelOrganic extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Drift is driven by s.time in the shader — just mark dirty
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const glCanvas = this.engine.getGLCanvas();
     const gl       = this.engine.getGL();
 
@@ -170,5 +170,5 @@ export class PixelOrganic extends Algorithm {
     ctx.drawImage(glCanvas, 0, 0, W, H);
   }
 
-  collectSVG() { return null; }
+  collectSVG(world) { return null; }
 }

@@ -82,14 +82,14 @@ export class PerlinWorms extends Algorithm {
     return trails;
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Regenerate trails when playing (time changes the noise offset)
     if (s.playing) {
       this._trails = null;
     }
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const count = Math.max(50, Math.min(500, Math.round(s.pw_count || 150)));
     const length = Math.max(100, Math.min(2000, Math.round(s.pw_length || 500)));
     const noiseScale = Math.max(0.001, Math.min(0.01, s.pw_noiseScale || 0.004));

@@ -146,12 +146,12 @@ export class Voronoi extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Seeds move on their own; just mark dirty so render keeps running
     // (animate is called each frame while playing)
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const glCanvas = this.engine.getGLCanvas();
     const gl       = this.engine.getGL();
 
@@ -202,5 +202,5 @@ export class Voronoi extends Algorithm {
     ctx.drawImage(glCanvas, 0, 0, W, H);
   }
 
-  collectSVG() { return null; }
+  collectSVG(world) { return null; }
 }

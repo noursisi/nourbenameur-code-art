@@ -53,7 +53,7 @@ export class MagneticField extends Algorithm {
     this._lastPoleCount = count;
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     const t = s.time;
     // Gently drift poles
     for (let i = 0; i < this._poles.length; i++) {
@@ -77,7 +77,7 @@ export class MagneticField extends Algorithm {
     return { x: fx, y: fy };
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const poleCount = Math.round(s.mag_poles ?? 4);
     const strength = s.mag_strength ?? 200;
     const lineCount = Math.round(s.mag_lines ?? 500);

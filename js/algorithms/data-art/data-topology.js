@@ -107,11 +107,11 @@ export class DataTopology extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Static visualization — time can add subtle rotation
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const source = Math.max(0, Math.min(4, Math.round(s.dt_source || 0)));
     const mapping = Math.max(0, Math.min(3, Math.round(s.dt_mapping || 0)));
     const count = Math.max(100, Math.min(5000, Math.round(s.dt_count || 1000)));

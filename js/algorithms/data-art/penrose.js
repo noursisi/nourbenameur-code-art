@@ -64,11 +64,11 @@ export class Penrose extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Subtle rotation over time
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const depth = Math.max(3, Math.min(8, Math.round(s.pen_depth || 5)));
     const scale = Math.max(0.5, Math.min(3, s.pen_scale || 1.5));
     const type = Math.round(s.pen_type || 0);

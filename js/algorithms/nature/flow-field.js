@@ -63,13 +63,13 @@ export class FlowField extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Advance time offset noticeably — creates visible flowing movement
     // flow_angle_offset also slowly rotates to sweep the entire field
     s.flow_angle_offset = ((s.flow_angle_offset || 0) + 0.008) % (Math.PI * 2);
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const scale       = Math.max(0.001, s.flow_scale);
     const nParts      = Math.max(500, Math.min(10000, Math.round(s.flow_particles)));
     const length      = Math.max(5, Math.min(100, Math.round(s.flow_length)));

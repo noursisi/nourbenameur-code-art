@@ -189,7 +189,7 @@ export class ReactionDiffusion extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Simulation runs every render frame — just mark dirty
   }
 
@@ -309,7 +309,7 @@ export class ReactionDiffusion extends Algorithm {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const glCanvas = this.engine.getGLCanvas();
     const gl       = this.engine.getGL();
 
@@ -405,5 +405,5 @@ export class ReactionDiffusion extends Algorithm {
     ctx.drawImage(glCanvas, 0, 0, W, H);
   }
 
-  collectSVG() { return null; }
+  collectSVG(world) { return null; }
 }

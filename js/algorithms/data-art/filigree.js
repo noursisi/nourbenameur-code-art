@@ -38,7 +38,7 @@ export class Filigree extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Animate both curvature and petal count for maximum visual drama
     s.fil_curve   = 0.1 + (Math.sin(s.time * 0.6) * 0.5 + 0.5) * 1.9;
     // Slowly morph petal count between 3 and 24
@@ -47,7 +47,7 @@ export class Filigree extends Algorithm {
     s.fil_complexity = Math.round(2 + (Math.cos(s.time * 0.2) * 0.5 + 0.5) * 10);
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const petals     = Math.max(3, Math.min(24, Math.round(s.fil_petals)));
     const complexity = Math.max(2, Math.min(12, Math.round(s.fil_complexity)));
     const curve      = Math.max(0.1, s.fil_curve);
@@ -136,7 +136,7 @@ export class Filigree extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     // Re-render to collect SVG paths — simplified version returning a group element description
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);

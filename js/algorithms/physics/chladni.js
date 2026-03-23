@@ -115,14 +115,14 @@ export class Chladni extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Slowly drift through mode space
     const t = s.time * 0.15;
     s.chladni_m = Math.max(1, Math.min(15, Math.round(8 + Math.sin(t * 0.7) * 6)));
     s.chladni_n = Math.max(1, Math.min(15, Math.round(8 + Math.cos(t * 1.1) * 6)));
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const glCanvas = this.engine.getGLCanvas();
     const gl       = this.engine.getGL();
 
@@ -165,5 +165,5 @@ export class Chladni extends Algorithm {
     ctx.drawImage(glCanvas, 0, 0, W, H);
   }
 
-  collectSVG() { return null; }
+  collectSVG(world) { return null; }
 }

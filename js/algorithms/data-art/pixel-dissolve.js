@@ -47,11 +47,11 @@ export class PixelDissolve extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // time drives per-block drift in render
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const density   = Math.max(10,  Math.min(200, Math.round(s.pd_density   ?? 80)));
     const minSize   = Math.max(2,   Math.min(10,  Math.round(s.pd_minSize   ?? 3)));
     const maxSize   = Math.max(10,  Math.min(60,  Math.round(s.pd_maxSize   ?? 30)));

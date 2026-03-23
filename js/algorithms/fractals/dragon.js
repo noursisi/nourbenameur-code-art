@@ -78,13 +78,13 @@ export class Dragon extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     // Rotate and pulse scale for dramatic animation
     this._rotation = s.time * 0.35;
     this._scalePulse = 0.85 + Math.sin(s.time * 0.5) * 0.15;
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const depth = Math.max(5, Math.min(18, Math.round(s.dragon_depth)));
     const fg = this.engine.fg(s);
     const camZoom = s.camZoom || 1;

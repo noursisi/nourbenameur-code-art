@@ -91,7 +91,7 @@ export class CellularAutomata extends Algorithm {
     [this._grid, this._nextGrid] = [this._nextGrid, this._grid];
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     if (!this._grid) return;
     const speed = Math.round(s.ca_speed ?? 3);
     const ruleIdx = Math.round(s.ca_rule ?? 0);
@@ -107,7 +107,7 @@ export class CellularAutomata extends Algorithm {
     super.randomize(state, setFn);
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const res = Math.max(2, Math.round(s.ca_resolution ?? 4));
     const ruleIdx = Math.round(s.ca_rule ?? 0);
     const fill = s.ca_fill ?? 0.3;

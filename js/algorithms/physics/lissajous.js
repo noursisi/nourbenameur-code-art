@@ -40,11 +40,11 @@ export class Lissajous extends Algorithm {
     };
   }
 
-  animate(s) {
+  animate(world) { const { state: s } = world;
     s.liss_delta = ((s.liss_delta || 0) + 0.005) % (Math.PI * 2);
   }
 
-  render(ctx, W, H, s) {
+  render(ctx, world) { const { W, H, state: s } = world;
     const a     = s.liss_a;
     const b     = s.liss_b;
     const delta = s.liss_delta;
@@ -88,7 +88,7 @@ export class Lissajous extends Algorithm {
     ctx.restore();
   }
 
-  collectSVG(W, H, s) {
+  collectSVG(world) { const { W, H, state: s } = world;
     if (!this._svgPoints.length) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);
