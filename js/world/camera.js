@@ -55,7 +55,12 @@ export class Camera {
     }
 
     this._prevPixels = this._pixels;
+    // Mirror horizontally so webcam feels like a mirror (left=left)
+    this._ctx.save();
+    this._ctx.translate(w, 0);
+    this._ctx.scale(-1, 1);
     this._ctx.drawImage(v, 0, 0, w, h);
+    this._ctx.restore();
     this._pixels = this._ctx.getImageData(0, 0, w, h);
     this._computeEdges();
   }
@@ -131,7 +136,12 @@ export class Camera {
     }
     this._edgeCanvas.width = w;
     this._edgeCanvas.height = h;
+    // Mirror to match main capture
+    this._edgeCtx.save();
+    this._edgeCtx.translate(w, 0);
+    this._edgeCtx.scale(-1, 1);
     this._edgeCtx.drawImage(this._video, 0, 0, w, h);
+    this._edgeCtx.restore();
     const small = this._edgeCtx.getImageData(0, 0, w, h).data;
 
     if (!this._edgeData || this._edgeData.length !== w * h) {

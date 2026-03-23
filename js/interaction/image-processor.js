@@ -14,9 +14,12 @@ import { NOISE_2D, FBM, ROTATION } from '../webgl/shader-lib.js';
 
 const VERT = /* glsl */`
 attribute vec2 a_position;
+uniform float u_mirror;
 varying vec2 v_uv;
 void main() {
-  v_uv = a_position * 0.5 + 0.5;
+  vec2 uv = a_position * 0.5 + 0.5;
+  // Flip Y for WebGL texture orientation, mirror X for webcam
+  v_uv = vec2(u_mirror > 0.5 ? 1.0 - uv.x : uv.x, 1.0 - uv.y);
   gl_Position = vec4(a_position, 0.0, 1.0);
 }
 `;
@@ -706,7 +709,16 @@ class ImageProcessor {
       const dh = ih * fitScale;
       const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
       const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
-      ctx.drawImage(this._source, dx, dy, dw, dh);
+      // Mirror webcam so it feels like a mirror
+      if (this._sourceType === 'video') {
+        ctx.save();
+        ctx.translate(W, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(this._source, W - dx - dw, dy, dw, dh);
+        ctx.restore();
+      } else {
+        ctx.drawImage(this._source, dx, dy, dw, dh);
+      }
     } catch(e) {}
   }
 
@@ -772,6 +784,10 @@ class ImageProcessor {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(prog);
+
+    // Mirror X for webcam (video sources)
+    const mirrorLoc = gl.getUniformLocation(prog, 'u_mirror');
+    if (mirrorLoc !== null) gl.uniform1f(mirrorLoc, this._sourceType === 'video' ? 1.0 : 0.0);
 
     // Bind image texture to unit 0
     gl.activeTexture(gl.TEXTURE0);
