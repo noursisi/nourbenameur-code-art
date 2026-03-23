@@ -105,6 +105,8 @@ export const state = {
   ts_cols: 40, ts_rows: 30, ts_threshold: 0.3, ts_fontSize: 12, ts_scatter: 0.2, ts_dotMode: 0,
   // Pixel Mosaic
   pm_cols: 20, pm_rows: 15, pm_gap: 2, pm_textDensity: 0.15, pm_sizeVariation: 0.3, pm_roundness: 0,
+  // Body Particles
+  bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
   // Camera
   cameraActive: false,
   // Layers

@@ -40,6 +40,7 @@ import { Langton }             from './data-art/langton.js';
 import { DataTopology }        from './data-art/data-topology.js';
 import { TextSilhouette }      from './camera-art/text-silhouette.js';
 import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
+import { BodyParticles }       from './camera-art/body-particles.js';
 
 class Registry {
   constructor() {
@@ -164,3 +165,4 @@ registry.register('data-topology',  DataTopology);
 // Camera Art
 registry.register('text-silhouette', TextSilhouette);
 registry.register('pixel-mosaic',    PixelMosaic);
+registry.register('body-particles',  BodyParticles);

@@ -70,8 +70,28 @@ export class TextSilhouette extends Algorithm {
 
         if (bright < threshold) continue;
 
-        const sx = nx * W + (Math.random() - 0.5) * cellW * scatter;
-        const sy = ny * H + (Math.random() - 0.5) * cellH * scatter;
+        let sx = nx * W + (Math.random() - 0.5) * cellW * scatter;
+        let sy = ny * H + (Math.random() - 0.5) * cellH * scatter;
+
+        // Repel text from hand positions (if hands detected)
+        if (cam && cam.hands) {
+          for (const hand of cam.hands) {
+            const wrist = hand.landmarks[0];
+            if (!wrist) continue;
+            const hx = wrist.x * W;
+            const hy = wrist.y * H;
+            const dx = sx - hx;
+            const dy = sy - hy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const repelRadius = W * 0.12;
+            if (dist < repelRadius && dist > 0) {
+              const force = (1 - dist / repelRadius) * repelRadius * 0.8;
+              sx += (dx / dist) * force;
+              sy += (dy / dist) * force;
+            }
+          }
+        }
+
         const size = fontSize * (0.5 + bright * 0.8);
 
         let color;

@@ -1,8 +1,16 @@
 /**
- * Camera Intelligence — Tier 1: pixel analysis.
- * Reads from the active video element (webcam or uploaded video).
- * Provides brightness, color, edge, motion sampling at normalized coordinates.
+ * Camera Intelligence — Tier 1 + 2 + 3.
+ * Tier 1: pixel analysis (brightness, color, edge, motion)
+ * Tier 2: body understanding via MediaPipe (pose, hands)
+ * Tier 3: derived intelligence (velocity, gesture detection)
  */
+
+// MediaPipe CDN config
+const MP_VERSION = '0.10.18';
+const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
+const MP_WASM = `${MP_CDN}/wasm`;
+const MP_HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task';
+const MP_POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task';
 
 export class Camera {
   constructor(engine) {
@@ -22,8 +30,27 @@ export class Camera {
     this._edgeH = 0;
     this._edgeCanvas = null;
     this._edgeCtx = null;
-    // Downscale factor for edge analysis (1/4 resolution)
     this._analysisScale = 0.25;
+
+    // ── Tier 2: MediaPipe ──
+    this._handLandmarker = null;
+    this._poseLandmarker = null;
+    this._mpLoading = false;
+    this._mpReady = false;
+    this._lastDetectTime = 0;
+    this._detectInterval = 66; // ~15fps
+    this._detectHands = true;  // alternate hand/pose each detect frame
+
+    // Tier 2 results (normalized 0-1 coords, mirrored to match video)
+    this.hands = [];       // array of hands, each { landmarks: [{x,y,z,visibility}...21], handedness: 'Left'|'Right' }
+    this.pose = null;      // { landmarks: [{x,y,z,visibility}...33] } or null
+
+    // ── Tier 3: Derived ──
+    this._prevHands = [];
+    this._prevPose = null;
+    this.handVelocity = []; // per hand: { x, y, speed } (normalized units per second)
+    this.poseVelocity = []; // per landmark: { x, y, speed }
+    this.presence = 0;      // 0-1, how much of frame has a person
   }
 
   get active() { return this._active && this._video && !this._video.paused; }
@@ -31,6 +58,10 @@ export class Camera {
   setVideo(video) {
     this._video = video;
     this._active = !!video;
+    // Start loading MediaPipe when camera activates
+    if (video && !this._mpReady && !this._mpLoading) {
+      this._loadMediaPipe();
+    }
   }
 
   clearVideo() {
@@ -38,6 +69,43 @@ export class Camera {
     this._active = false;
     this._pixels = null;
     this._prevPixels = null;
+    this.hands = [];
+    this.pose = null;
+    this.handVelocity = [];
+    this.poseVelocity = [];
+    this.presence = 0;
+  }
+
+  /** Load MediaPipe hand + pose landmarkers from CDN */
+  async _loadMediaPipe() {
+    if (this._mpLoading || this._mpReady) return;
+    this._mpLoading = true;
+    console.log('[Camera] Loading MediaPipe...');
+    try {
+      const { FilesetResolver, HandLandmarker, PoseLandmarker } =
+        await import(/* webpackIgnore: true */ `${MP_CDN}/vision_bundle.mjs`);
+
+      const vision = await FilesetResolver.forVisionTasks(MP_WASM);
+
+      this._handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: MP_HAND_MODEL, delegate: 'GPU' },
+        runningMode: 'VIDEO',
+        numHands: 2,
+      });
+
+      this._poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: MP_POSE_MODEL, delegate: 'GPU' },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+      });
+
+      this._mpReady = true;
+      this._mpLoading = false;
+      console.log('[Camera] MediaPipe ready');
+    } catch (e) {
+      console.error('[Camera] MediaPipe failed to load:', e);
+      this._mpLoading = false;
+    }
   }
 
   update() {
@@ -63,6 +131,93 @@ export class Camera {
     this._ctx.restore();
     this._pixels = this._ctx.getImageData(0, 0, w, h);
     this._computeEdges();
+
+    // ── Tier 2: MediaPipe detection (throttled to ~15fps, alternating) ──
+    if (this._mpReady) {
+      const now = performance.now();
+      if (now - this._lastDetectTime >= this._detectInterval) {
+        this._runDetection(now);
+        this._lastDetectTime = now;
+      }
+    }
+  }
+
+  /** Run MediaPipe detection — alternates hand/pose each call */
+  _runDetection(timestamp) {
+    if (!this._video || this._video.videoWidth === 0) return;
+    try {
+      if (this._detectHands && this._handLandmarker) {
+        const result = this._handLandmarker.detectForVideo(this._video, timestamp);
+        this._prevHands = this.hands;
+        this.hands = (result.landmarks || []).map((lm, i) => ({
+          landmarks: lm.map(p => ({
+            // Mirror X to match our mirrored video capture
+            x: 1 - p.x, y: p.y, z: p.z, visibility: p.visibility ?? 1,
+          })),
+          handedness: result.handedness?.[i]?.[0]?.categoryName || 'Unknown',
+        }));
+      } else if (this._poseLandmarker) {
+        const result = this._poseLandmarker.detectForVideo(this._video, timestamp);
+        this._prevPose = this.pose;
+        if (result.landmarks && result.landmarks.length > 0) {
+          this.pose = {
+            landmarks: result.landmarks[0].map(p => ({
+              x: 1 - p.x, y: p.y, z: p.z, visibility: p.visibility ?? 1,
+            })),
+          };
+          // Compute presence from pose bounding box
+          const xs = this.pose.landmarks.map(l => l.x);
+          const ys = this.pose.landmarks.map(l => l.y);
+          const bboxArea = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+          this.presence = Math.min(1, bboxArea * 4); // scale up, clamp
+        } else {
+          this.pose = null;
+          this.presence = 0;
+        }
+      }
+      this._detectHands = !this._detectHands;
+
+      // ── Tier 3: Compute velocities ──
+      this._computeVelocities();
+    } catch (e) {
+      // Detection can fail if video frame isn't ready
+    }
+  }
+
+  /** Compute hand and pose velocities from frame-to-frame changes */
+  _computeVelocities() {
+    const dt = this._detectInterval / 1000; // seconds between detections
+
+    // Hand velocity (wrist position change)
+    this.handVelocity = this.hands.map((hand, i) => {
+      const prev = this._prevHands[i];
+      if (!prev) return { x: 0, y: 0, speed: 0 };
+      // Use wrist (landmark 0) for overall hand velocity
+      const dx = hand.landmarks[0].x - prev.landmarks[0].x;
+      const dy = hand.landmarks[0].y - prev.landmarks[0].y;
+      return {
+        x: dx / dt,
+        y: dy / dt,
+        speed: Math.sqrt(dx * dx + dy * dy) / dt,
+      };
+    });
+
+    // Pose velocity (per-landmark)
+    if (this.pose && this._prevPose) {
+      this.poseVelocity = this.pose.landmarks.map((lm, i) => {
+        const prev = this._prevPose.landmarks[i];
+        if (!prev) return { x: 0, y: 0, speed: 0 };
+        const dx = lm.x - prev.x;
+        const dy = lm.y - prev.y;
+        return {
+          x: dx / dt,
+          y: dy / dt,
+          speed: Math.sqrt(dx * dx + dy * dy) / dt,
+        };
+      });
+    } else {
+      this.poseVelocity = [];
+    }
   }
 
   get pixels() { return this._pixels; }
