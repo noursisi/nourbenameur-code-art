@@ -3,6 +3,8 @@
  * Assembles all infrastructure modules.
  */
 
+import { Space } from './space.js';
+
 export class World {
   constructor(engine) {
     this.engine = engine;
@@ -11,7 +13,7 @@ export class World {
     this.state = null;
 
     // Modules (added as they're built)
-    this.space = null;
+    this.space = new Space();
     this.camera = null;
     this.physics = null;
     this.gesture = null;
