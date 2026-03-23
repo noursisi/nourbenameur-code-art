@@ -101,6 +101,10 @@ export const state = {
   lang_steps: 11000, lang_rule: 0, lang_cellSize: 3,
   // Data Topology
   dt_source: 0, dt_mapping: 0, dt_count: 1000, dt_elementSize: 4,
+  // Text Silhouette
+  ts_cols: 40, ts_rows: 30, ts_threshold: 0.3, ts_fontSize: 12, ts_scatter: 0.2, ts_dotMode: 0,
+  // Pixel Mosaic
+  pm_cols: 20, pm_rows: 15, pm_gap: 2, pm_textDensity: 0.15, pm_sizeVariation: 0.3, pm_roundness: 0,
   // Camera
   cameraActive: false,
   // Layers

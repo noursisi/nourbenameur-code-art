@@ -38,6 +38,8 @@ import { Bifurcation }         from './data-art/bifurcation.js';
 import { Penrose }             from './data-art/penrose.js';
 import { Langton }             from './data-art/langton.js';
 import { DataTopology }        from './data-art/data-topology.js';
+import { TextSilhouette }      from './camera-art/text-silhouette.js';
+import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 
 class Registry {
   constructor() {
@@ -158,3 +160,7 @@ registry.register('bifurcation',    Bifurcation);
 registry.register('penrose',        Penrose);
 registry.register('langton',        Langton);
 registry.register('data-topology',  DataTopology);
+
+// Camera Art
+registry.register('text-silhouette', TextSilhouette);
+registry.register('pixel-mosaic',    PixelMosaic);
