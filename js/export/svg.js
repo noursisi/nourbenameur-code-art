@@ -6,7 +6,7 @@
 export function exportSVG(engine, state, algorithm) {
   const W = engine.W;
   const H = engine.H;
-  const svgData = algorithm.collectSVG ? algorithm.collectSVG(W, H, state) : null;
+  const svgData = algorithm.collectSVG ? algorithm.collectSVG(engine.world) : null;
 
   if (!svgData) {
     // Pixel-based algorithm — silently fall back to PNG

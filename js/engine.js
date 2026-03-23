@@ -12,6 +12,7 @@ import { applyGrain } from './effects/grain.js';
 import { drawImageLayer } from './interaction/image-layer.js';
 import { imageProcessor } from './interaction/image-processor.js';
 import { getLayers } from './layers.js';
+import { World } from './world/index.js';
 
 class Engine {
   constructor(canvas) {
@@ -24,6 +25,7 @@ class Engine {
     this._glCtx = null;
     /** @type {Map<number, object>} layer id → algorithm instance */
     this._layerAlgos = new Map();
+    this.world = new World(this);
   }
 
   /** Update W/H to match the canvas-area container */
@@ -117,6 +119,8 @@ class Engine {
 
     if (W === 0 || H === 0) return;
 
+    this.world.update(W, H, s);
+
     const layers = getLayers();
     const useMultiLayer = layers && layers.length > 1;
 
@@ -192,7 +196,7 @@ class Engine {
       offscreen.height = Math.round(H * dpr);
       const offCtx = offscreen.getContext('2d');
       offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      this._algorithm.render(offCtx, W, H, s);
+      this._algorithm.render(offCtx, this.world);
 
       if (s.transparent) {
         ctx.clearRect(0, 0, W, H);
@@ -203,7 +207,7 @@ class Engine {
 
       applySymmetry(offscreen, ctx, W, H, s.folds);
     } else {
-      this._algorithm.render(ctx, W, H, s);
+      this._algorithm.render(ctx, this.world);
     }
   }
 
@@ -237,7 +241,9 @@ class Engine {
       }
 
       // Render algorithm with per-layer state
-      algo.render(offCtx, W, H, layerState);
+      const layerWorld = Object.create(this.world);
+      layerWorld.state = layerState;
+      algo.render(offCtx, layerWorld);
 
       // Apply symmetry if enabled
       if (s.sym && s.folds > 1) {

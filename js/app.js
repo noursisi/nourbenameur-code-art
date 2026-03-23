@@ -52,6 +52,7 @@ function selectAlgorithm(id) {
 
   activeAlgo = algo;
   engine.setAlgorithm(algo);
+  engine.world.resetForAlgo();
   set('algo', id);
 
   // Update active layer's algo
@@ -593,7 +594,7 @@ function updateHUD() {
 function tick() {
   if (state.playing) {
     state.time += 0.016 * state.speed;
-    if (activeAlgo) activeAlgo.animate(state);
+    if (activeAlgo) activeAlgo.animate(engine.world);
 
     // Animate all layer algorithms
     const layers = getLayers();
@@ -601,7 +602,7 @@ function tick() {
       for (const layer of layers) {
         if (!layer.visible) continue;
         const algo = engine.getLayerAlgorithm(layer.id);
-        if (algo && algo !== activeAlgo) algo.animate(state);
+        if (algo && algo !== activeAlgo) algo.animate(engine.world);
       }
     }
 
@@ -615,7 +616,7 @@ function tick() {
 
   // Cursor mode: map current mouse position to algorithm params
   if (state.cursorMode && activeAlgo?.cursorMap) {
-    activeAlgo.cursorMap(mouse.x, mouse.y, state);
+    activeAlgo.cursorMap(mouse.x, mouse.y, engine.world.state);
     markDirty();
   }
 
