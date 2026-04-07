@@ -26,7 +26,7 @@ export const state = {
   // Attractor
   att_a: -1.7, att_b: 1.3, att_c: -0.1, att_d: -1.21, att_points: 80000,
   // Chladni
-  chladni_m: 5, chladni_n: 3,
+  chladni_m: 5, chladni_n: 3, chladni_palette: 0, chladni_lineWidth: 0.06, chladni_invert: 0,
   // Harmonograph
   harm_f1: 2.01, harm_f2: 3, harm_phase: 0.7, harm_damping: 0.003, harm_points: 100000,
   // Lissajous
