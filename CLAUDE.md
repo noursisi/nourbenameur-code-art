@@ -13,10 +13,11 @@ Generative art studio — interactive canvas with 20 mathematical algorithms, re
 ### Algorithms (`js/algorithms/`)
 - `base.js` — Algorithm interface (metadata, params, render, animate, cursorMap, detailParam, collectSVG)
 - `registry.js` — Algorithm registry, lazy instantiation
-- `fractals/` — julia (WebGL), lsystem, fern, koch, sierpinski, dragon
-- `nature/` — phyllotaxis, flow-field, attractor, reaction-diffusion (WebGL), voronoi (WebGL)
-- `physics/` — harmonograph, lissajous, spiral, chladni (WebGL)
-- `data-art/` — contour, filigree, spirograph, pixel-organic (WebGL), rorschach (WebGL)
+- `fractals/` — julia (WebGL, power/palettes/orbit traps), lsystem (10 rules, tapering, leaves, wind), koch (variable angle, fill, invert), dragon (color gradient, multi-fold)
+- `nature/` — phyllotaxis, flow-field (color by direction), attractor (color modes, trails), attractor-zoo (3D rotation, velocity color), magnetic-field (directional color, line styles)
+- `physics/` — harmonograph (color gradient, compound), lissajous (amplitude per axis), spiral (multi-arm), chladni (WebGL, palettes, SVG export), interference (WebGL, layouts, decay), moire (scale, contrast, center)
+- `data-art/` — contour (SVG export), spirograph, pixel-organic (WebGL), dot-matrix (colors, shapes, 8 patterns, SVG), ascii-render (color modes), penrose (color modes, gap width)
+- `camera-art/` — text-silhouette, pixel-mosaic, body-particles
 
 ### Effects (`js/effects/`)
 - `symmetry.js` — Universal radial symmetry (offscreen + rotate)
