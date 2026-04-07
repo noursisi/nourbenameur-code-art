@@ -5,39 +5,25 @@
 
 import { LSystem }             from './fractals/lsystem.js';
 import { JuliaSet }            from './fractals/julia.js';
-import { Fern }                from './fractals/fern.js';
 import { Koch }                from './fractals/koch.js';
-import { Sierpinski }          from './fractals/sierpinski.js';
 import { Dragon }              from './fractals/dragon.js';
 import { Phyllotaxis }         from './nature/phyllotaxis.js';
 import { FlowField }           from './nature/flow-field.js';
 import { Attractor }           from './nature/attractor.js';
-import { ReactionDiffusion }   from './nature/reaction-diffusion.js';
-import { Voronoi }             from './nature/voronoi.js';
 import { Harmonograph }        from './physics/harmonograph.js';
 import { Lissajous }           from './physics/lissajous.js';
 import { Spiral }              from './physics/spiral.js';
 import { Chladni }             from './physics/chladni.js';
 import { Contour }             from './data-art/contour.js';
-import { Filigree }            from './data-art/filigree.js';
 import { Spirograph }          from './data-art/spirograph.js';
 import { PixelOrganic }        from './data-art/pixel-organic.js';
-import { Rorschach }           from './data-art/rorschach.js';
-import { NeuralWeb }           from './data-art/neural-web.js';
-import { CellularAutomata }    from './data-art/cellular-automata.js';
 import { MagneticField }       from './nature/magnetic-field.js';
 import { Interference }        from './physics/interference.js';
 import { DotMatrix }           from './data-art/dot-matrix.js';
-import { PixelDissolve }       from './data-art/pixel-dissolve.js';
 import { AsciiRender }         from './data-art/ascii-render.js';
 import { AttractorZoo }        from './nature/attractor-zoo.js';
-import { DLA }                 from './nature/dla.js';
-import { PerlinWorms }         from './nature/perlin-worms.js';
 import { Moire }               from './physics/moire.js';
-import { Bifurcation }         from './data-art/bifurcation.js';
 import { Penrose }             from './data-art/penrose.js';
-import { Langton }             from './data-art/langton.js';
-import { DataTopology }        from './data-art/data-topology.js';
 import { TextSilhouette }      from './camera-art/text-silhouette.js';
 import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 import { BodyParticles }       from './camera-art/body-particles.js';
@@ -114,17 +100,13 @@ export const registry = new Registry();
 // Fractals
 registry.register('lsystem',    LSystem);
 registry.register('julia',      JuliaSet);
-registry.register('fern',       Fern);
 registry.register('koch',       Koch);
-registry.register('sierpinski', Sierpinski);
 registry.register('dragon',     Dragon);
 
 // Nature
 registry.register('phyllotaxis',         Phyllotaxis);
 registry.register('flow-field',          FlowField);
 registry.register('attractor',           Attractor);
-registry.register('reaction-diffusion',  ReactionDiffusion);
-registry.register('voronoi',             Voronoi);
 
 // Physics
 registry.register('harmonograph', Harmonograph);
@@ -134,12 +116,8 @@ registry.register('chladni',      Chladni);
 
 // Data Art
 registry.register('contour',        Contour);
-registry.register('filigree',       Filigree);
 registry.register('spirograph',     Spirograph);
 registry.register('pixel-organic',  PixelOrganic);
-registry.register('rorschach',      Rorschach);
-registry.register('neural-web',     NeuralWeb);
-registry.register('cellular-automata', CellularAutomata);
 
 // Nature (additions)
 registry.register('magnetic-field', MagneticField);
@@ -149,18 +127,12 @@ registry.register('interference',   Interference);
 
 // Data Art (additions)
 registry.register('dot-matrix',     DotMatrix);
-registry.register('pixel-dissolve', PixelDissolve);
 registry.register('ascii-render',   AsciiRender);
 
 // Deep Math — chaos, emergence, topology
 registry.register('attractor-zoo',  AttractorZoo);
-registry.register('dla',            DLA);
-registry.register('perlin-worms',   PerlinWorms);
 registry.register('moire',          Moire);
-registry.register('bifurcation',    Bifurcation);
 registry.register('penrose',        Penrose);
-registry.register('langton',        Langton);
-registry.register('data-topology',  DataTopology);
 
 // Camera Art
 registry.register('text-silhouette', TextSilhouette);

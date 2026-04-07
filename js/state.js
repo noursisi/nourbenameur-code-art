@@ -13,24 +13,16 @@ export const state = {
   julia_cr: -0.7, julia_ci: 0.27, julia_iter: 80, julia_scale: 2.5,
   // L-System
   lsystem_angle: 25, lsystem_depth: 7, lsystem_rule: 0,
-  // Fern
-  fern_points: 80000, fern_variant: 0,
   // Koch
   koch_depth: 4, koch_sides: 3,
-  // Sierpinski
-  sierpinski_depth: 6, sierpinski_scale: 1,
   // Dragon
   dragon_depth: 12,
   // Phyllotaxis
   phyllo_n: 1200, phyllo_divergence: 137.508, phyllo_dotsize: 3,
-  // Reaction-Diffusion
-  rd_feed: 0.055, rd_kill: 0.062,
   // Flow Field
   flow_scale: 0.006, flow_particles: 4000, flow_length: 40, flow_angle_offset: 0,
   // Attractor
   att_a: -1.7, att_b: 1.3, att_c: -0.1, att_d: -1.21, att_points: 80000,
-  // Voronoi
-  voronoi_cells: 50,
   // Chladni
   chladni_m: 5, chladni_n: 3,
   // Harmonograph
@@ -41,22 +33,14 @@ export const state = {
   spiral_turns: 20, spiral_growth: 0.1, spiral_dots: 2000,
   // Contour
   contour_levels: 15, contour_scale: 0.008, contour_octaves: 3, contour_animation_speed: 0.5,
-  // Filigree
-  fil_petals: 8, fil_complexity: 5, fil_curve: 0.6,
   // Spirograph
   spiro_R: 60, spiro_r: 30, spiro_d: 45, spiro_points: 20000,
   // Pixel Organic
   pixel_res: 8, pixel_threshold: 0.5, pixel_scale: 0.01,
-  // Rorschach
-  ror_scale: 0.015, ror_threshold: 0.48, ror_detail: 3,
   // Image layer
   img_layer: 'behind', img_opacity: 0.5, img_scale: 1, img_blend: 'source-over',
   // Record
   rec_duration: 10,
-  // Neural Web
-  nweb_nodes: 30, nweb_density: 0.5, nweb_pulse: 1, nweb_nodeSize: 3,
-  // Cellular Automata
-  ca_resolution: 4, ca_rule: 0, ca_fill: 0.3, ca_speed: 3,
   // Magnetic Field
   mag_poles: 4, mag_strength: 200, mag_lines: 500, mag_lineLen: 60,
   // Interference
@@ -75,8 +59,6 @@ export const state = {
   ip_fwarp_cr: -0.7, ip_fwarp_ci: 0.27, ip_fwarp_amount: 0.1, ip_fwarp_iter: 5,
   // Dot Matrix
   dm_cols: 30, dm_rows: 25, dm_maxSize: 12, dm_pattern: 0, dm_spacing: 1,
-  // Pixel Dissolve
-  pd_density: 80, pd_minSize: 3, pd_maxSize: 30, pd_scatter: 0.3, pd_fillRatio: 0.7,
   // ASCII Art
   ascii_cols: 60, ascii_charset: 0, ascii_pattern: 0, ascii_fontSize: 10,
   // Halftone distortion
@@ -87,20 +69,10 @@ export const state = {
   ip_dm_minBlock: 4, ip_dm_maxBlock: 20, ip_dm_scatter: 0.3,
   // Attractor Zoo
   az_type: 0, az_points: 100000, az_a: 0, az_b: 0, az_c: 0, az_d: 0,
-  // DLA
-  dla_particles: 5000, dla_stickiness: 0.5, dla_branchWidth: 2,
-  // Perlin Worms
-  pw_count: 150, pw_length: 500, pw_noiseScale: 0.004, pw_thickness: 1,
   // Moire
   moire_layers: 3, moire_lineWidth: 1, moire_spacing: 12, moire_pattern: 0, moire_angleOffset: 5,
-  // Bifurcation
-  bif_rMin: 2.5, bif_rMax: 4.0, bif_iterations: 500, bif_skip: 200,
   // Penrose
   pen_depth: 5, pen_scale: 1.5, pen_type: 0,
-  // Langton's Ant
-  lang_steps: 11000, lang_rule: 0, lang_cellSize: 3,
-  // Data Topology
-  dt_source: 0, dt_mapping: 0, dt_count: 1000, dt_elementSize: 4,
   // Text Silhouette
   ts_cols: 40, ts_rows: 30, ts_threshold: 0.3, ts_fontSize: 12, ts_scatter: 0.2, ts_dotMode: 0,
   // Pixel Mosaic
