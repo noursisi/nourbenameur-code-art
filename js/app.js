@@ -589,6 +589,13 @@ function updateHUD() {
 // ── Mouse interaction is handled by js/interaction/mouse.js ──────────────────
 // initMouse() is called above after selectAlgorithm().
 
+// ── Collapsible sections ─────────────────────────────────────────────────────
+document.querySelectorAll('.panel-section h2').forEach(h2 => {
+  h2.addEventListener('click', () => {
+    h2.parentElement.classList.toggle('collapsed');
+  });
+});
+
 // ── Render loop ───────────────────────────────────────────────────────────────
 
 function tick() {

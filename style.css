@@ -22,7 +22,7 @@ html, body {
 
 .studio {
   display: grid;
-  grid-template-columns: 1fr 310px;
+  grid-template-columns: 1fr 360px;
   height: 100vh;
 }
 
@@ -128,8 +128,8 @@ html, body {
    ============================================================ */
 
 .panel {
-  background: #080808;
-  border-left: 1px solid #131313;
+  background: #0a0a0a;
+  border-left: 1px solid #1a1a1a;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -165,27 +165,48 @@ html, body {
 }
 
 .panel-header h1 {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 3px;
-  color: #555;
+  color: #666;
 }
 
 /* Panel Sections */
 .panel-section {
-  padding: 12px 18px;
-  border-bottom: 1px solid #0d0d0d;
+  padding: 14px 20px;
+  border-bottom: 1px solid #151515;
   flex-shrink: 0;
 }
 
 .panel-section h2 {
-  font-size: 8px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 2px;
+  color: #555;
+  margin-bottom: 10px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-section h2::after {
+  content: '\2212';
+  font-size: 14px;
   color: #333;
-  margin-bottom: 8px;
+  font-weight: 300;
+}
+
+.panel-section.collapsed h2::after {
+  content: '+';
+}
+
+.panel-section.collapsed .controls,
+.panel-section.collapsed .algo-grid {
+  display: none;
 }
 
 .controls {
@@ -205,14 +226,14 @@ html, body {
 }
 
 .algo-btn {
-  background: #0c0c0c;
-  border: 1px solid #151515;
-  color: #444;
-  padding: 5px 4px;
-  font-size: 8px;
+  background: #0e0e0e;
+  border: 1px solid #1a1a1a;
+  color: #555;
+  padding: 8px 6px;
+  font-size: 10px;
   font-family: inherit;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   border-radius: 2px;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
@@ -220,24 +241,25 @@ html, body {
 }
 
 .algo-btn:hover {
-  border-color: #333;
-  color: #888;
+  border-color: #444;
+  color: #999;
+  background: #141414;
 }
 
 .algo-btn.active {
-  border-color: #444;
-  color: #ccc;
+  border-color: #555;
+  color: #ddd;
   background: #141414;
 }
 
 .cat-label {
   grid-column: span 2;
-  font-size: 7px;
+  font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: #222;
-  padding-top: 5px;
-  border-top: 1px solid #0e0e0e;
+  letter-spacing: 2px;
+  color: #333;
+  padding-top: 8px;
+  border-top: 1px solid #181818;
 }
 
 .cat-label:first-child {
@@ -259,22 +281,22 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
-  color: #444;
+  font-size: 11px;
+  color: #555;
 }
 
 .slider-label .val {
-  color: #555;
+  color: #666;
   font-family: "Courier New", Courier, monospace;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 2px;
-  background: #1a1a1a;
+  height: 3px;
+  background: #222;
   border-radius: 1px;
   outline: none;
   cursor: pointer;
@@ -283,30 +305,30 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #555;
+  background: #666;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  background: #888;
+  background: #999;
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #555;
+  background: #666;
   cursor: pointer;
   border: none;
   transition: background 0.15s;
 }
 
 input[type="range"]::-moz-range-thumb:hover {
-  background: #888;
+  background: #999;
 }
 
 /* ============================================================
@@ -320,8 +342,8 @@ input[type="range"]::-moz-range-thumb:hover {
 }
 
 .toggle-row label {
-  font-size: 10px;
-  color: #444;
+  font-size: 11px;
+  color: #555;
   user-select: none;
 }
 
@@ -368,14 +390,14 @@ input[type="range"]::-moz-range-thumb:hover {
 }
 
 .btn {
-  background: #0c0c0c;
-  border: 1px solid #181818;
-  color: #555;
-  padding: 7px;
-  font-size: 9px;
+  background: #0e0e0e;
+  border: 1px solid #1e1e1e;
+  color: #666;
+  padding: 8px 10px;
+  font-size: 10px;
   font-family: inherit;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   border-radius: 3px;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
@@ -384,12 +406,12 @@ input[type="range"]::-moz-range-thumb:hover {
 }
 
 .btn:hover {
-  border-color: #333;
-  color: #999;
+  border-color: #444;
+  color: #aaa;
 }
 
 .btn.active {
-  border-color: #555;
+  border-color: #666;
   color: #aaa;
   background: #1a1a1a;
 }
@@ -537,7 +559,7 @@ input[type="range"]::-moz-range-thumb:hover {
   border: 1px solid #151515;
   color: #444;
   padding: 5px 4px;
-  font-size: 7px;
+  font-size: 9px;
   font-family: inherit;
   text-transform: uppercase;
   letter-spacing: 0.5px;
