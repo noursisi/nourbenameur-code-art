@@ -24,6 +24,8 @@ export class Phyllotaxis extends Algorithm {
       { id: 'phyllo_n',          label: 'Points',      min: 50,   max: 3000, step: 10   },
       { id: 'phyllo_divergence', label: 'Divergence°', min: 100,  max: 175,  step: 0.01 },
       { id: 'phyllo_dotsize',    label: 'Dot Size',    min: 0.5,  max: 8,    step: 0.5  },
+      { id: 'phyllo_sizeVar',    label: 'Size Pulse',  min: 0,    max: 1,    step: 0.05 },
+      { id: 'phyllo_breathe',    label: 'Breathe',     min: 0,    max: 1,    step: 0.05 },
     ];
   }
 
@@ -64,18 +66,39 @@ export class Phyllotaxis extends Algorithm {
     ctx.translate(-W / 2, -H / 2);
 
     ctx.fillStyle = fg;
+    const sizeVar = s.phyllo_sizeVar ?? 0;
+    const breathe = s.phyllo_breathe ?? 0;
+    const t = s.time || 0;
 
     this._svgCircles = [];
     for (let i = 1; i <= n; i++) {
+      const frac = i / n; // 0→1 from center to edge
       const r = c * Math.sqrt(i);
       const theta = i * divergence;
-      const px = cx + r * Math.cos(theta);
-      const py = cy + r * Math.sin(theta);
+
+      // Breathe: radial oscillation — dots pulse in/out like breathing
+      const breatheOffset = breathe > 0 ? (1 + breathe * 0.15 * Math.sin(t * 2 + frac * 12)) : 1;
+      const rr = r * breatheOffset;
+
+      const px = cx + rr * Math.cos(theta);
+      const py = cy + rr * Math.sin(theta);
+
+      // Size varies: outer dots smaller, with a wave pulsing through
+      let ds = dotSize;
+      if (sizeVar > 0) {
+        const wave = Math.sin(frac * 20 - t * 3) * 0.5 + 0.5; // wave travels outward
+        ds = dotSize * (0.3 + 0.7 * (1 - frac * 0.6) + sizeVar * wave * 0.5);
+      }
+
+      // Opacity: subtle fade at edges
+      const alpha = 0.4 + 0.6 * (1 - frac * 0.5);
+      ctx.globalAlpha = alpha;
       ctx.beginPath();
-      ctx.arc(px, py, dotSize, 0, Math.PI * 2);
+      ctx.arc(px, py, ds, 0, Math.PI * 2);
       ctx.fill();
-      this._svgCircles.push([px, py, dotSize]);
+      this._svgCircles.push([px, py, ds]);
     }
+    ctx.globalAlpha = 1;
 
     ctx.restore();
   }

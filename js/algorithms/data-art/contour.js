@@ -86,12 +86,34 @@ export class Contour extends Algorithm {
     const cw = W / cols;
     const ch = H / rows;
 
+    // Mouse warp: cursor distorts the noise field locally
+    const mx = (s.mouseX ?? 0.5) * W;
+    const my = (s.mouseY ?? 0.5) * H;
+    const warpRadius = Math.min(W, H) * 0.2;
+    const warpStrength = s.cursorMode ? 0.15 : 0;
+
     // Build noise grid — time offset in both x and y creates flowing diagonal motion
     const grid = new Float32Array((cols + 1) * (rows + 1));
     for (let row = 0; row <= rows; row++) {
       for (let col = 0; col <= cols; col++) {
-        const nx = col * cw * scale + timeOff;
-        const ny = row * ch * scale + timeOff * 0.7;
+        let px = col * cw;
+        let py = row * ch;
+
+        // Warp coordinates near mouse
+        if (warpStrength > 0) {
+          const dx = px - mx;
+          const dy = py - my;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < warpRadius && dist > 0) {
+            const falloff = 1 - dist / warpRadius;
+            const push = falloff * falloff * warpStrength * warpRadius;
+            px += (dx / dist) * push;
+            py += (dy / dist) * push;
+          }
+        }
+
+        const nx = px * scale + timeOff;
+        const ny = py * scale + timeOff * 0.7;
         grid[row * (cols + 1) + col] = fbm(nx, ny, octaves);
       }
     }

@@ -28,6 +28,7 @@ export class Lissajous extends Algorithm {
       { id: 'liss_points', label: 'Points',   min: 500, max: 30000, step: 100  },
       { id: 'liss_ampX',   label: 'Amp X',    min: 0.1, max: 2.0,   step: 0.05 },
       { id: 'liss_ampY',   label: 'Amp Y',    min: 0.1, max: 2.0,   step: 0.05 },
+      { id: 'liss_echoes',  label: 'Echoes',  min: 0,   max: 12,    step: 1    },
     ];
   }
 
@@ -67,27 +68,38 @@ export class Lissajous extends Algorithm {
     ctx.scale(camZoom, camZoom);
     ctx.translate(-W / 2, -H / 2);
 
-    ctx.strokeStyle = fg;
     ctx.lineWidth = s.lineWeight || 1;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    ctx.beginPath();
+    const echoes = Math.round(s.liss_echoes ?? 0);
+    const period = Math.PI * 2;
     this._svgPoints = [];
 
-    const period = Math.PI * 2;
-    for (let i = 0; i <= n; i++) {
-      const t = (i / n) * period;
-      const x = cx + Math.sin(a * t + delta) * radius * ampX;
-      const y = cy + Math.sin(b * t) * radius * ampY;
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
+    // Draw echo copies first (behind, faded)
+    for (let e = echoes; e >= 0; e--) {
+      const echoPhase = delta + e * 0.12; // slight phase offset per echo
+      const echoScale = 1 - e * 0.03; // slightly smaller
+      const alpha = e === 0 ? 1 : Math.max(0.03, 0.3 * (1 - e / (echoes + 1)));
+
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = fg;
+      ctx.beginPath();
+
+      for (let i = 0; i <= n; i++) {
+        const t = (i / n) * period;
+        const x = cx + Math.sin(a * t + echoPhase) * radius * ampX * echoScale;
+        const y = cy + Math.sin(b * t) * radius * ampY * echoScale;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+        if (e === 0 && i % 5 === 0) this._svgPoints.push([x, y]);
       }
-      if (i % 5 === 0) this._svgPoints.push([x, y]);
+      ctx.stroke();
     }
-    ctx.stroke();
+    ctx.globalAlpha = 1;
 
     ctx.restore();
   }
