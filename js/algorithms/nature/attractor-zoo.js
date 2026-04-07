@@ -1,7 +1,8 @@
 /**
  * Strange Attractor Zoo — a gallery of the weirdest attractors in chaos theory.
  * Lorenz, Rossler, Aizawa, Thomas, Halvorsen, Dadras, Chen.
- * 3D→2D projection with rotation, density-based rendering.
+ * 3D→2D projection with dual-axis rotation, density-based rendering,
+ * velocity-based coloring, and adaptive resolution.
  */
 
 import { Algorithm } from '../base.js';
@@ -99,6 +100,25 @@ const initScale = [
 ];
 const viewScale = [0.02, 0.03, 0.25, 0.2, 0.03, 0.03, 0.015];
 
+// Convert HSL (h in [0,360], s and l in [0,1]) to RGB [0,255]
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60)      { r = c; g = x; b = 0; }
+  else if (h < 120){ r = x; g = c; b = 0; }
+  else if (h < 180){ r = 0; g = c; b = x; }
+  else if (h < 240){ r = 0; g = x; b = c; }
+  else if (h < 300){ r = x; g = 0; b = c; }
+  else             { r = c; g = 0; b = x; }
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
 export class AttractorZoo extends Algorithm {
   get metadata() {
     return {
@@ -111,12 +131,15 @@ export class AttractorZoo extends Algorithm {
 
   get params() {
     return [
-      { id: 'az_type',   label: 'Attractor',  min: 0,     max: 6,      step: 1      },
-      { id: 'az_points', label: 'Points',      min: 50000, max: 500000, step: 10000  },
-      { id: 'az_a',      label: 'Param A',     min: -2,    max: 2,      step: 0.05   },
-      { id: 'az_b',      label: 'Param B',     min: -2,    max: 2,      step: 0.05   },
-      { id: 'az_c',      label: 'Param C',     min: -2,    max: 2,      step: 0.05   },
-      { id: 'az_d',      label: 'Param D',     min: -2,    max: 2,      step: 0.05   },
+      { id: 'az_type',       label: 'Attractor',   min: 0,     max: 6,      step: 1      },
+      { id: 'az_points',     label: 'Points',       min: 50000, max: 500000, step: 10000  },
+      { id: 'az_a',          label: 'Param A',      min: -2,    max: 2,      step: 0.05   },
+      { id: 'az_b',          label: 'Param B',      min: -2,    max: 2,      step: 0.05   },
+      { id: 'az_c',          label: 'Param C',      min: -2,    max: 2,      step: 0.05   },
+      { id: 'az_d',          label: 'Param D',      min: -2,    max: 2,      step: 0.05   },
+      { id: 'az_rotX',       label: 'X Rotation',   min: -3.14, max: 3.14,   step: 0.05   },
+      { id: 'az_colorMode',  label: 'Color',        min: 0,     max: 1,      step: 1      },
+      { id: 'az_resolution', label: 'Resolution',   min: 0.5,   max: 2,      step: 0.25   },
     ];
   }
 
@@ -142,6 +165,9 @@ export class AttractorZoo extends Algorithm {
     const b = s.az_b || 0;
     const c = s.az_c || 0;
     const d = s.az_d || 0;
+    const rotX = s.az_rotX || 0;
+    const colorMode = Math.round(s.az_colorMode || 0);
+    const resScale = s.az_resolution != null ? s.az_resolution : 1;
     const fg = this.engine.fg(s);
     const t = (s.time || 0) * 0.3;
 
@@ -150,6 +176,10 @@ export class AttractorZoo extends Algorithm {
     const init = initScale[type]();
     const vs = viewScale[type];
 
+    // Adaptive density buffer resolution (no more 800 cap)
+    const bufW = Math.min(Math.round(W * resScale), 1600);
+    const bufH = Math.min(Math.round(H * resScale), 1200);
+
     // Compute attractor points
     let px = init[0], py = init[1], pz = init[2];
     // Skip transient
@@ -157,63 +187,101 @@ export class AttractorZoo extends Algorithm {
       [px, py, pz] = stepFn(px, py, pz, dt, a, b, c, d);
     }
 
-    // Density accumulation buffer
-    const gridW = Math.min(W, 800);
-    const gridH = Math.min(H, 800);
-    const density = new Float32Array(gridW * gridH);
+    // Density accumulation buffer + velocity buffer (parallel Float32Arrays)
+    const density = new Float32Array(bufW * bufH);
+    const velBuf  = new Float32Array(bufW * bufH);
     let maxDensity = 0;
 
-    const cosT = Math.cos(t);
-    const sinT = Math.sin(t);
-    const cx = gridW / 2;
-    const cy = gridH / 2;
-    const scale = Math.min(gridW, gridH) * vs;
+    // Precompute rotation trig
+    const rotY = t;
+    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+
+    const cx = bufW / 2;
+    const cy = bufH / 2;
+    const projScale = Math.min(bufW, bufH) * vs;
 
     for (let i = 0; i < numPts; i++) {
+      const ox = px, oy = py, oz = pz;
       [px, py, pz] = stepFn(px, py, pz, dt, a, b, c, d);
       if (!isFinite(px) || !isFinite(py) || !isFinite(pz)) {
         px = init[0]; py = init[1]; pz = init[2];
         continue;
       }
-      // 3D rotation around Y axis
-      const rx = px * cosT - pz * sinT;
-      const ry = py;
-      // Project
-      const sx = Math.floor(cx + rx * scale);
-      const sy = Math.floor(cy - ry * scale);
-      if (sx >= 0 && sx < gridW && sy >= 0 && sy < gridH) {
-        const idx = sy * gridW + sx;
+
+      // Velocity magnitude
+      const dx = px - ox, dy = py - oy, dz = pz - oz;
+      const vel = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      // Y rotation (time-driven)
+      const rx  = px * cosY - pz * sinY;
+      const rz1 = px * sinY + pz * cosY;
+      // X rotation (parameter-driven)
+      const ry  = py * cosX - rz1 * sinX;
+      // rz = py * sinX + rz1 * cosX; // depth, unused for orthographic
+
+      // Project orthographically
+      const sx = Math.floor(cx + rx * projScale);
+      const sy = Math.floor(cy - ry * projScale);
+      if (sx >= 0 && sx < bufW && sy >= 0 && sy < bufH) {
+        const idx = sy * bufW + sx;
         density[idx]++;
+        velBuf[idx] += vel;
         if (density[idx] > maxDensity) maxDensity = density[idx];
       }
     }
 
     if (maxDensity === 0) return;
 
-    // Parse fg color
+    // Compute max average velocity across occupied pixels (for normalization)
+    let maxAvgVel = 0;
+    for (let i = 0; i < bufW * bufH; i++) {
+      if (density[i] > 0) {
+        const avg = velBuf[i] / density[i];
+        if (avg > maxAvgVel) maxAvgVel = avg;
+      }
+    }
+
+    // Parse fg color for mono mode
     const r0 = parseInt(fg.slice(1, 3), 16) || 255;
     const g0 = parseInt(fg.slice(3, 5), 16) || 255;
     const b0 = parseInt(fg.slice(5, 7), 16) || 255;
 
-    const imgData = ctx.createImageData(gridW, gridH);
+    const imgData = ctx.createImageData(bufW, bufH);
     const data = imgData.data;
     const logMax = Math.log(maxDensity + 1);
 
-    for (let i = 0; i < gridW * gridH; i++) {
+    for (let i = 0; i < bufW * bufH; i++) {
       if (density[i] > 0) {
         const brightness = Math.log(density[i] + 1) / logMax;
         const alpha = Math.min(255, Math.floor(brightness * 255 * 1.5));
-        data[i * 4] = r0;
-        data[i * 4 + 1] = g0;
-        data[i * 4 + 2] = b0;
-        data[i * 4 + 3] = alpha;
+
+        if (colorMode === 1) {
+          // Velocity-based coloring: slow = blue (240), fast = red (0)
+          const avgVel = velBuf[i] / density[i];
+          const velNorm = maxAvgVel > 0 ? Math.min(avgVel / maxAvgVel, 1) : 0;
+          // Map 0..1 → hue 240..0 (blue to red), lightness tied to brightness
+          const hue = 240 - velNorm * 240;
+          const lightness = 0.2 + brightness * 0.5;
+          const [r, g, b] = hslToRgb(hue, 1.0, lightness);
+          data[i * 4]     = r;
+          data[i * 4 + 1] = g;
+          data[i * 4 + 2] = b;
+          data[i * 4 + 3] = alpha;
+        } else {
+          // Mono brightness mode
+          data[i * 4]     = r0;
+          data[i * 4 + 1] = g0;
+          data[i * 4 + 2] = b0;
+          data[i * 4 + 3] = alpha;
+        }
       }
     }
 
     // Scale to full canvas
-    const offscreen = new OffscreenCanvas(gridW, gridH);
+    const offscreen = new OffscreenCanvas(bufW, bufH);
     const octx = offscreen.getContext('2d');
     octx.putImageData(imgData, 0, 0);
-    ctx.drawImage(offscreen, (W - gridW) / 2, (H - gridH) / 2);
+    ctx.drawImage(offscreen, 0, 0, W, H);
   }
 }

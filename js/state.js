@@ -71,6 +71,7 @@ export const state = {
   ip_dm_minBlock: 4, ip_dm_maxBlock: 20, ip_dm_scatter: 0.3,
   // Attractor Zoo
   az_type: 0, az_points: 100000, az_a: 0, az_b: 0, az_c: 0, az_d: 0,
+  az_rotX: 0, az_colorMode: 0, az_resolution: 1,
   // Moire
   moire_layers: 3, moire_lineWidth: 1, moire_spacing: 12, moire_pattern: 0, moire_angleOffset: 5,
   // Penrose
