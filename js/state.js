@@ -62,6 +62,7 @@ export const state = {
   ip_fwarp_cr: -0.7, ip_fwarp_ci: 0.27, ip_fwarp_amount: 0.1, ip_fwarp_iter: 5,
   // Dot Matrix
   dm_cols: 30, dm_rows: 25, dm_maxSize: 12, dm_pattern: 0, dm_spacing: 1,
+  dm_colorMode: 0, dm_shape: 0, dm_invert: 0, dm_animSpeed: 1,
   // ASCII Art
   ascii_cols: 60, ascii_charset: 0, ascii_pattern: 0, ascii_fontSize: 10,
   // Halftone distortion
