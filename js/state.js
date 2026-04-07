@@ -25,6 +25,7 @@ export const state = {
   flow_scale: 0.006, flow_particles: 4000, flow_length: 40, flow_angle_offset: 0,
   // Attractor
   att_a: -1.7, att_b: 1.3, att_c: -0.1, att_d: -1.21, att_points: 80000,
+  att_colorMode: 0, att_pointShape: 0, att_trail: 0,
   // Chladni
   chladni_m: 5, chladni_n: 3, chladni_palette: 0, chladni_lineWidth: 0.06, chladni_invert: 0,
   // Harmonograph
