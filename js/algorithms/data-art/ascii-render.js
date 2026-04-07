@@ -87,10 +87,11 @@ export class AsciiRender extends Algorithm {
 
   get params() {
     return [
-      { id: 'ascii_cols',    label: 'Columns',   min: 20,  max: 120, step: 5,  default: 60 },
-      { id: 'ascii_charset', label: 'Charset',   min: 0,   max: 3,   step: 1,  default: 0  },
-      { id: 'ascii_pattern', label: 'Pattern',   min: 0,   max: 3,   step: 1,  default: 0  },
-      { id: 'ascii_fontSize',label: 'Font Size', min: 6,   max: 20,  step: 1,  default: 10 },
+      { id: 'ascii_cols',      label: 'Columns',    min: 20,  max: 120, step: 5,  default: 60 },
+      { id: 'ascii_charset',   label: 'Charset',    min: 0,   max: 3,   step: 1,  default: 0  },
+      { id: 'ascii_pattern',   label: 'Pattern',    min: 0,   max: 3,   step: 1,  default: 0  },
+      { id: 'ascii_fontSize',  label: 'Font Size',  min: 6,   max: 20,  step: 1,  default: 10 },
+      { id: 'ascii_colorMode', label: 'Color Mode', min: 0,   max: 3,   step: 1,  default: 0  },
     ];
   }
 
@@ -110,13 +111,14 @@ export class AsciiRender extends Algorithm {
   }
 
   render(ctx, world) { const { W, H, state: s } = world;
-    const cols     = Math.max(20,  Math.min(120, Math.round(s.ascii_cols    ?? 60)));
-    const charsetI = Math.max(0,   Math.min(3,   Math.round(s.ascii_charset ?? 0)));
-    const pattern  = Math.max(0,   Math.min(3,   Math.round(s.ascii_pattern ?? 0)));
-    const fontSize = Math.max(6,   Math.min(20,  Math.round(s.ascii_fontSize ?? 10)));
-    const time     = s.time ?? 0;
-    const fg       = this.engine.fg(s);
-    const charset  = CHARSETS[charsetI];
+    const cols      = Math.max(20,  Math.min(120, Math.round(s.ascii_cols      ?? 60)));
+    const charsetI  = Math.max(0,   Math.min(3,   Math.round(s.ascii_charset   ?? 0)));
+    const pattern   = Math.max(0,   Math.min(3,   Math.round(s.ascii_pattern   ?? 0)));
+    const fontSize  = Math.max(6,   Math.min(20,  Math.round(s.ascii_fontSize  ?? 10)));
+    const colorMode = Math.max(0,   Math.min(3,   Math.round(s.ascii_colorMode ?? 0)));
+    const time      = s.time ?? 0;
+    const fg        = this.engine.fg(s);
+    const charset   = CHARSETS[charsetI];
 
     // Derive rows from cols and aspect ratio
     const charAspect = 0.55; // typical monospace character width/height ratio
@@ -128,7 +130,16 @@ export class AsciiRender extends Algorithm {
     ctx.font = `${fontSize}px 'Courier New', Courier, monospace`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = fg;
+
+    // Set base fill color for modes that don't change per-character
+    if (colorMode === 0) {
+      ctx.fillStyle = fg;
+    } else if (colorMode === 1) {
+      ctx.fillStyle = '#33ff33';
+    } else if (colorMode === 2) {
+      ctx.fillStyle = '#ffaa33';
+    }
+    // mode 3 (rainbow) sets fillStyle per character below
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -141,6 +152,12 @@ export class AsciiRender extends Algorithm {
 
         const x = col * charW;
         const y = row * charH;
+
+        if (colorMode === 3) {
+          const hue = ((col / cols + row / rows * 0.5) * 360) % 360;
+          ctx.fillStyle = `hsl(${hue.toFixed(1)},80%,65%)`;
+        }
+
         ctx.globalAlpha = 0.5 + clamped * 0.5;
         ctx.fillText(ch, x, y);
       }

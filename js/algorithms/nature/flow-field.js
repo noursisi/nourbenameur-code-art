@@ -46,10 +46,12 @@ export class FlowField extends Algorithm {
 
   get params() {
     return [
-      { id: 'flow_scale',        label: 'Noise Scale',   min: 0.001, max: 0.02,   step: 0.001 },
-      { id: 'flow_particles',    label: 'Particles',     min: 500,   max: 10000,  step: 200   },
-      { id: 'flow_length',       label: 'Trail Length',  min: 5,     max: 100,    step: 1     },
-      { id: 'flow_angle_offset', label: 'Angle Offset',  min: 0,     max: 6.283,  step: 0.05  },
+      { id: 'flow_scale',        label: 'Noise Scale',    min: 0.001, max: 0.02,  step: 0.001 },
+      { id: 'flow_particles',    label: 'Particles',      min: 500,   max: 10000, step: 200   },
+      { id: 'flow_length',       label: 'Trail Length',   min: 5,     max: 100,   step: 1     },
+      { id: 'flow_angle_offset', label: 'Angle Offset',   min: 0,     max: 6.283, step: 0.05  },
+      { id: 'flow_colorMode',    label: 'Color by Dir',   min: 0,     max: 1,     step: 1     },
+      { id: 'flow_particleSize', label: 'Particle Size',  min: 0.5,   max: 4,     step: 0.25  },
     ];
   }
 
@@ -70,15 +72,16 @@ export class FlowField extends Algorithm {
   }
 
   render(ctx, world) { const { W, H, state: s } = world;
-    const scale       = Math.max(0.001, s.flow_scale);
-    const nParts      = Math.max(500, Math.min(10000, Math.round(s.flow_particles)));
-    const length      = Math.max(5, Math.min(100, Math.round(s.flow_length)));
-    const timeOff     = (s.time || 0) * 0.6;  // faster time offset for visible movement
-    const angleOffset = s.flow_angle_offset || 0;
-    const fg = this.engine.fg(s);
+    const scale        = Math.max(0.001, s.flow_scale);
+    const nParts       = Math.max(500, Math.min(10000, Math.round(s.flow_particles)));
+    const length       = Math.max(5, Math.min(100, Math.round(s.flow_length)));
+    const timeOff      = (s.time || 0) * 0.6;  // faster time offset for visible movement
+    const angleOffset  = s.flow_angle_offset || 0;
+    const colorMode    = s.flow_colorMode ? 1 : 0;
+    const particleSize = Math.max(0.5, s.flow_particleSize ?? 1);
+    const fg           = this.engine.fg(s);
 
-    ctx.strokeStyle = fg;
-    ctx.lineWidth = Math.max(0.8, s.lineWeight || 1);
+    ctx.lineWidth = Math.max(0.8, (s.lineWeight || 1) * particleSize);
     ctx.globalAlpha = 0.45;
     ctx.lineCap = 'round';
 
@@ -88,6 +91,17 @@ export class FlowField extends Algorithm {
       const seed = i * 1.618033988;
       let px = ((seed * 1000) % 1) * W;
       let py = ((seed * 10000) % 1) * H;
+
+      if (colorMode) {
+        // Per-particle color by flow angle at start position — each particle is its own path
+        const nx0 = px * scale;
+        const ny0 = py * scale;
+        const angle0 = noise(nx0 + timeOff, ny0) * Math.PI * 2 + angleOffset;
+        const hue = ((angle0 / (Math.PI * 2)) * 360 + 360) % 360;
+        ctx.strokeStyle = `hsl(${hue.toFixed(1)},80%,65%)`;
+      } else {
+        ctx.strokeStyle = fg;
+      }
 
       ctx.beginPath();
       ctx.moveTo(px, py);

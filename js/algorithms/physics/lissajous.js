@@ -22,10 +22,12 @@ export class Lissajous extends Algorithm {
 
   get params() {
     return [
-      { id: 'liss_a',      label: 'Freq A',  min: 1,   max: 9,     step: 0.1  },
-      { id: 'liss_b',      label: 'Freq B',  min: 1,   max: 9,     step: 0.1  },
-      { id: 'liss_delta',  label: 'Phase δ', min: 0,   max: 3.14,  step: 0.01 },
-      { id: 'liss_points', label: 'Points',  min: 500, max: 30000, step: 100  },
+      { id: 'liss_a',      label: 'Freq A',   min: 1,   max: 9,     step: 0.1  },
+      { id: 'liss_b',      label: 'Freq B',   min: 1,   max: 9,     step: 0.1  },
+      { id: 'liss_delta',  label: 'Phase δ',  min: 0,   max: 3.14,  step: 0.01 },
+      { id: 'liss_points', label: 'Points',   min: 500, max: 30000, step: 100  },
+      { id: 'liss_ampX',   label: 'Amp X',    min: 0.1, max: 2.0,   step: 0.05 },
+      { id: 'liss_ampY',   label: 'Amp Y',    min: 0.1, max: 2.0,   step: 0.05 },
     ];
   }
 
@@ -49,6 +51,8 @@ export class Lissajous extends Algorithm {
     const b     = s.liss_b;
     const delta = s.liss_delta;
     const n     = Math.max(500, Math.min(30000, Math.round(s.liss_points)));
+    const ampX  = Math.max(0.1, s.liss_ampX ?? 1.0);
+    const ampY  = Math.max(0.1, s.liss_ampY ?? 1.0);
     const fg    = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX  = s.camPanX || 0;
@@ -74,8 +78,8 @@ export class Lissajous extends Algorithm {
     const period = Math.PI * 2;
     for (let i = 0; i <= n; i++) {
       const t = (i / n) * period;
-      const x = cx + Math.sin(a * t + delta) * radius;
-      const y = cy + Math.sin(b * t) * radius;
+      const x = cx + Math.sin(a * t + delta) * radius * ampX;
+      const y = cy + Math.sin(b * t) * radius * ampY;
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {

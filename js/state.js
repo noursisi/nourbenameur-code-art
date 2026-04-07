@@ -23,6 +23,7 @@ export const state = {
   phyllo_n: 1200, phyllo_divergence: 137.508, phyllo_dotsize: 3,
   // Flow Field
   flow_scale: 0.006, flow_particles: 4000, flow_length: 40, flow_angle_offset: 0,
+  flow_colorMode: 0, flow_particleSize: 1,
   // Attractor
   att_a: -1.7, att_b: 1.3, att_c: -0.1, att_d: -1.21, att_points: 80000,
   att_colorMode: 0, att_pointShape: 0, att_trail: 0,
@@ -30,10 +31,13 @@ export const state = {
   chladni_m: 5, chladni_n: 3, chladni_palette: 0, chladni_lineWidth: 0.06, chladni_invert: 0,
   // Harmonograph
   harm_f1: 2.01, harm_f2: 3, harm_phase: 0.7, harm_damping: 0.003, harm_points: 100000,
+  harm_colorGrad: 0, harm_compound: 0,
   // Lissajous
   liss_a: 3, liss_b: 4, liss_delta: 1.5, liss_points: 8000,
+  liss_ampX: 1.0, liss_ampY: 1.0,
   // Spiral
   spiral_turns: 20, spiral_growth: 0.1, spiral_dots: 2000,
+  spiral_arms: 1, spiral_inward: 0,
   // Contour
   contour_levels: 15, contour_scale: 0.008, contour_octaves: 3, contour_animation_speed: 0.5,
   // Spirograph
@@ -67,6 +71,7 @@ export const state = {
   dm_colorMode: 0, dm_shape: 0, dm_invert: 0, dm_animSpeed: 1,
   // ASCII Art
   ascii_cols: 60, ascii_charset: 0, ascii_pattern: 0, ascii_fontSize: 10,
+  ascii_colorMode: 0,
   // Halftone distortion
   ip_ht_dotsize: 8, ip_ht_angle: 45,
   // ASCII distortion

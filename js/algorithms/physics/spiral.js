@@ -21,9 +21,11 @@ export class Spiral extends Algorithm {
 
   get params() {
     return [
-      { id: 'spiral_turns',  label: 'Turns',  min: 3,   max: 50,   step: 1     },
-      { id: 'spiral_growth', label: 'Growth', min: 0.02, max: 0.3, step: 0.005 },
-      { id: 'spiral_dots',   label: 'Points', min: 200, max: 8000, step: 100   },
+      { id: 'spiral_turns',  label: 'Turns',   min: 3,   max: 50,   step: 1     },
+      { id: 'spiral_growth', label: 'Growth',  min: 0.02, max: 0.3, step: 0.005 },
+      { id: 'spiral_dots',   label: 'Points',  min: 200, max: 8000, step: 100   },
+      { id: 'spiral_arms',   label: 'Arms',    min: 1,   max: 8,    step: 1     },
+      { id: 'spiral_inward', label: 'Inward',  min: 0,   max: 1,    step: 1     },
     ];
   }
 
@@ -43,13 +45,15 @@ export class Spiral extends Algorithm {
   }
 
   render(ctx, world) { const { W, H, state: s } = world;
-    const turns  = Math.max(3, Math.min(50, Math.round(s.spiral_turns)));
-    const growth = Math.max(0.02, s.spiral_growth);
-    const n      = Math.max(200, Math.min(8000, Math.round(s.spiral_dots)));
-    const fg     = this.engine.fg(s);
+    const turns   = Math.max(3, Math.min(50, Math.round(s.spiral_turns)));
+    const growth  = Math.max(0.02, s.spiral_growth);
+    const n       = Math.max(200, Math.min(8000, Math.round(s.spiral_dots)));
+    const arms    = Math.max(1, Math.min(8, Math.round(s.spiral_arms ?? 1)));
+    const inward  = s.spiral_inward ? 1 : 0;
+    const fg      = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
-    const panX   = s.camPanX || 0;
-    const panY   = s.camPanY || 0;
+    const panX    = s.camPanX || 0;
+    const panY    = s.camPanY || 0;
 
     const cx     = W / 2 + panX;
     const cy     = H / 2 + panY;
@@ -70,22 +74,43 @@ export class Spiral extends Algorithm {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    ctx.beginPath();
     this._svgPoints = [];
 
-    for (let i = 0; i <= n; i++) {
-      const theta = (i / n) * maxTheta;
-      const r = a * Math.exp(growth * theta);
-      const x = cx + r * Math.cos(theta);
-      const y = cy + r * Math.sin(theta);
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
+    const drawSpiral = () => {
+      ctx.beginPath();
+      for (let i = 0; i <= n; i++) {
+        const progress = i / n;
+        const theta = inward ? (1 - progress) * maxTheta : progress * maxTheta;
+        const r = a * Math.exp(growth * theta);
+        const x = cx + r * Math.cos(theta);
+        const y = cy + r * Math.sin(theta);
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
       }
-      this._svgPoints.push([x, y]);
+      ctx.stroke();
+    };
+
+    for (let arm = 0; arm < arms; arm++) {
+      if (arms > 1) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(arm / arms * Math.PI * 2);
+        ctx.translate(-cx, -cy);
+      }
+      drawSpiral();
+      if (arms > 1) ctx.restore();
     }
-    ctx.stroke();
+
+    // Collect SVG points from first arm only
+    for (let i = 0; i <= n; i++) {
+      const progress = i / n;
+      const theta = inward ? (1 - progress) * maxTheta : progress * maxTheta;
+      const r = a * Math.exp(growth * theta);
+      this._svgPoints.push([cx + r * Math.cos(theta), cy + r * Math.sin(theta)]);
+    }
 
     ctx.restore();
   }
