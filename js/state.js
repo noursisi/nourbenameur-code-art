@@ -14,6 +14,7 @@ export const state = {
   julia_power: 2, julia_palette: 0, julia_trap: 0,
   // L-System
   lsystem_angle: 25, lsystem_depth: 7, lsystem_rule: 0,
+  lsystem_taper: 0.7, lsystem_wind: 0, lsystem_leaves: 0, lsystem_leafSize: 3,
   // Koch
   koch_depth: 4, koch_sides: 3,
   // Dragon
