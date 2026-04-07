@@ -77,6 +77,7 @@ export const state = {
   az_rotX: 0, az_colorMode: 0, az_resolution: 1,
   // Moire
   moire_layers: 3, moire_lineWidth: 1, moire_spacing: 12, moire_pattern: 0, moire_angleOffset: 5,
+  moire_rotSpeed: 0.7, moire_scale: 1.0, moire_contrast: 0.5, moire_centerX: 0.5, moire_centerY: 0.5,
   // Penrose
   pen_depth: 5, pen_scale: 1.5, pen_type: 0,
   // Text Silhouette

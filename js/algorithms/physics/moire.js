@@ -22,6 +22,11 @@ export class Moire extends Algorithm {
       { id: 'moire_spacing',     label: 'Spacing',     min: 5,   max: 30,  step: 1    },
       { id: 'moire_pattern',     label: 'Pattern',     min: 0,   max: 3,   step: 1    },
       { id: 'moire_angleOffset', label: 'Angle Offset', min: 0,  max: 30,  step: 0.5  },
+      { id: 'moire_rotSpeed',    label: 'Speed',       min: 0,   max: 3,   step: 0.1  },
+      { id: 'moire_scale',       label: 'Scale',       min: 0.5, max: 3,   step: 0.1  },
+      { id: 'moire_contrast',    label: 'Contrast',    min: 0.1, max: 1,   step: 0.05 },
+      { id: 'moire_centerX',     label: 'Center X',    min: 0,   max: 1,   step: 0.05 },
+      { id: 'moire_centerY',     label: 'Center Y',    min: 0,   max: 1,   step: 0.05 },
     ];
   }
 
@@ -42,23 +47,29 @@ export class Moire extends Algorithm {
   render(ctx, world) { const { W, H, state: s } = world;
     const layers = Math.max(2, Math.min(5, Math.round(s.moire_layers || 3)));
     const lineWidth = Math.max(0.5, Math.min(3, s.moire_lineWidth || 1)) * (s.lineWeight || 1);
-    const spacing = Math.max(5, Math.min(30, s.moire_spacing || 12));
+    const baseSpacing = Math.max(5, Math.min(30, s.moire_spacing || 12));
     const pattern = Math.max(0, Math.min(3, Math.round(s.moire_pattern || 0)));
     const angleOffset = Math.max(0, Math.min(30, s.moire_angleOffset || 5));
+    const rotSpeed = s.moire_rotSpeed !== undefined ? s.moire_rotSpeed : 0.7;
+    const scale = s.moire_scale !== undefined ? s.moire_scale : 1.0;
+    const contrast = s.moire_contrast !== undefined ? s.moire_contrast : 0.5;
+    const centerX = s.moire_centerX !== undefined ? s.moire_centerX : 0.5;
+    const centerY = s.moire_centerY !== undefined ? s.moire_centerY : 0.5;
+    const spacing = baseSpacing * scale;
     const fg = this.engine.fg(s);
     const t = (s.time || 0) * 0.15;
 
-    const cx = W / 2;
-    const cy = H / 2;
+    const cx = W * centerX;
+    const cy = H * centerY;
     const diag = Math.sqrt(W * W + H * H);
 
     ctx.strokeStyle = fg;
     ctx.fillStyle = fg;
     ctx.lineWidth = lineWidth;
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = contrast;
 
     for (let layer = 0; layer < layers; layer++) {
-      const angle = (layer * angleOffset + t * (layer + 1) * 0.7) * Math.PI / 180;
+      const angle = (layer * angleOffset + t * (layer + 1) * rotSpeed) * Math.PI / 180;
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(angle);
