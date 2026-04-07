@@ -171,7 +171,6 @@ export class Contour extends Algorithm {
           if ((v0 < threshold) !== (v1 < threshold)) {
             const t = (threshold - v0) / (v1 - v0);
             const x = ((col + t) * cw).toFixed(1);
-            const y = (row * ch).toFixed(1);
             d += `M${x},${(row * ch - 3).toFixed(1)}L${x},${(row * ch + 3).toFixed(1)}`;
           }
         }
@@ -188,8 +187,8 @@ export class Contour extends Algorithm {
           }
         }
       }
-      if (d) paths += `  <path d="${d}" stroke="${fg}" stroke-width="${Math.max(0.8, s.lineWeight || 1)}" fill="none" opacity="0.7"/>\n`;
+      if (d) paths += `  <path d="${d}" stroke="${fg}" stroke-width="${Math.max(0.8, s.lineWeight || 1)}" stroke-linecap="round" fill="none" opacity="0.7"/>\n`;
     }
-    return paths;
+    return paths || null;
   }
 }
