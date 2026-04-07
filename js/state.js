@@ -45,6 +45,7 @@ export const state = {
   rec_duration: 10,
   // Magnetic Field
   mag_poles: 4, mag_strength: 200, mag_lines: 500, mag_lineLen: 60,
+  mag_colorMode: 0, mag_lineStyle: 0, mag_energy: 1, mag_poleSize: 8,
   // Interference
   intf_sources: 5, intf_wavelength: 0.03, intf_speed: 3,
   // Image Processor
