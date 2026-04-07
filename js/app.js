@@ -11,7 +11,7 @@ import { buildParams } from './ui/params.js';
 import { initMouse, mouse } from './interaction/mouse.js';
 import { loadImage, removeImage } from './interaction/image-layer.js';
 import { imageProcessor } from './interaction/image-processor.js';
-import { toggleCamera, isCameraActive } from './interaction/camera.js';
+import { toggleCamera, isCameraActive, startCamera } from './interaction/camera.js';
 import { initLayers, getLayers, getActiveLayer, setActiveLayer, addLayer, removeLayer, updateLayer } from './layers.js';
 import { exportPNG } from './export/png.js';
 import { exportSVG } from './export/svg.js';
@@ -46,6 +46,8 @@ initLayers();
 let activeAlgo = null;
 let algoGridCtrl = null;
 
+const CAMERA_ALGOS = new Set(['text-silhouette', 'pixel-mosaic', 'body-particles']);
+
 function selectAlgorithm(id) {
   const algo = registry.get(id, engine);
   if (!algo) return;
@@ -66,6 +68,30 @@ function selectAlgorithm(id) {
   set('camZoom', 1);
   set('camPanX', 0);
   set('camPanY', 0);
+
+  // Auto-start camera for Camera Art algorithms
+  if (CAMERA_ALGOS.has(id) && !isCameraActive()) {
+    startCamera().then(ok => {
+      if (ok) {
+        const btn = document.getElementById('btn-ip-camera');
+        if (btn) { btn.classList.add('active'); btn.textContent = 'Stop Cam'; }
+        set('ip_enabled', true);
+        const ipControls = document.getElementById('ip-controls');
+        if (ipControls) ipControls.style.display = '';
+        // Auto-play for camera art so the animation loop runs
+        if (!state.playing) {
+          set('playing', true);
+          updatePlayUI();
+        }
+      }
+    });
+  }
+
+  // Auto-play for camera art (even if camera was already on)
+  if (CAMERA_ALGOS.has(id) && !state.playing) {
+    set('playing', true);
+    updatePlayUI();
+  }
 
   // Rebuild params panel
   const paramsContainer = document.getElementById('param-controls');
