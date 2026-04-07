@@ -80,6 +80,7 @@ export const state = {
   moire_rotSpeed: 0.7, moire_scale: 1.0, moire_contrast: 0.5, moire_centerX: 0.5, moire_centerY: 0.5,
   // Penrose
   pen_depth: 5, pen_scale: 1.5, pen_type: 0,
+  pen_colorMode: 0, pen_rotSpeed: 0.05, pen_lineWidth: 0.5, pen_gapWidth: 1,
   // Text Silhouette
   ts_cols: 40, ts_rows: 30, ts_threshold: 0.3, ts_fontSize: 12, ts_scatter: 0.2, ts_dotMode: 0,
   // Pixel Mosaic

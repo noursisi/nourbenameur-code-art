@@ -36,6 +36,15 @@ function subdivide(triangles) {
   return result;
 }
 
+// Inset a triangle vertex toward the centroid by gapWidth pixels
+function insetVertex(vx, vy, cx, cy, gap) {
+  const dx = vx - cx;
+  const dy = vy - cy;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  const t = d > gap ? gap / d : 0.5;
+  return { x: vx - dx * t, y: vy - dy * t };
+}
+
 export class Penrose extends Algorithm {
   get metadata() {
     return {
@@ -48,9 +57,13 @@ export class Penrose extends Algorithm {
 
   get params() {
     return [
-      { id: 'pen_depth', label: 'Depth',  min: 3, max: 8,   step: 1   },
-      { id: 'pen_scale', label: 'Scale',  min: 0.5, max: 3, step: 0.1 },
-      { id: 'pen_type',  label: 'Type',   min: 0, max: 1,   step: 1   },
+      { id: 'pen_depth',     label: 'Depth',     min: 3,   max: 8,   step: 1    },
+      { id: 'pen_scale',     label: 'Scale',     min: 0.5, max: 3,   step: 0.1  },
+      { id: 'pen_type',      label: 'Type',      min: 0,   max: 1,   step: 1    },
+      { id: 'pen_colorMode', label: 'Color',     min: 0,   max: 2,   step: 1    },
+      { id: 'pen_rotSpeed',  label: 'Rotation',  min: 0,   max: 0.3, step: 0.01 },
+      { id: 'pen_lineWidth', label: 'Line Width',min: 0.2, max: 3,   step: 0.1  },
+      { id: 'pen_gapWidth',  label: 'Gap',       min: 0,   max: 3,   step: 0.5  },
     ];
   }
 
@@ -69,11 +82,15 @@ export class Penrose extends Algorithm {
   }
 
   render(ctx, world) { const { W, H, state: s } = world;
-    const depth = Math.max(3, Math.min(8, Math.round(s.pen_depth || 5)));
-    const scale = Math.max(0.5, Math.min(3, s.pen_scale || 1.5));
-    const type = Math.round(s.pen_type || 0);
-    const fg = this.engine.fg(s);
-    const t = (s.time || 0) * 0.05;
+    const depth     = Math.max(3, Math.min(8, Math.round(s.pen_depth || 5)));
+    const scale     = Math.max(0.5, Math.min(3, s.pen_scale || 1.5));
+    const type      = Math.round(s.pen_type || 0);
+    const colorMode = Math.round(s.pen_colorMode ?? 0);
+    const rotSpeed  = s.pen_rotSpeed ?? 0.05;
+    const lineWidth = s.pen_lineWidth ?? 0.5;
+    const gapWidth  = s.pen_gapWidth ?? 1;
+    const fg        = this.engine.fg(s);
+    const t         = (s.time || 0) * rotSpeed;
 
     const cx = W / 2;
     const cy = H / 2;
@@ -101,15 +118,34 @@ export class Penrose extends Algorithm {
       triangles = subdivide(triangles);
     }
 
-    // Draw
-    ctx.strokeStyle = fg;
-    ctx.lineWidth = Math.max(0.8, s.lineWeight || 1);
+    // Helper: get fill color for a triangle based on colorMode
+    const getFill = (ttype, ax, ay, bx, by, cxp, cyp) => {
+      if (colorMode === 0) {
+        return { style: fg, alpha: ttype === THICK ? 0.35 : 0.15 };
+      } else if (colorMode === 1) {
+        // Type-based: thick = warm, thin = cool
+        if (ttype === THICK) {
+          return { style: 'hsla(35, 50%, 50%, 0.4)', alpha: 1 };
+        } else {
+          return { style: 'hsla(210, 50%, 50%, 0.25)', alpha: 1 };
+        }
+      } else {
+        // Position gradient
+        const tileCx = (ax + bx + cxp) / 3;
+        const tileCy = (ay + by + cyp) / 3;
+        const hue = ((tileCx / W * 180) + (tileCy / H * 180)) % 360;
+        return { style: `hsla(${hue.toFixed(1)}, 40%, 45%, 0.35)`, alpha: 1 };
+      }
+    };
+
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = 0.7;
 
     if (type === 0) {
       // Wireframe
+      ctx.strokeStyle = fg;
+      ctx.lineWidth = Math.max(0.2, lineWidth);
+      ctx.globalAlpha = 0.7;
       ctx.beginPath();
       for (const tri of triangles) {
         const [, ax, ay, bx, by, cxp, cyp] = tri;
@@ -120,19 +156,40 @@ export class Penrose extends Algorithm {
       }
       ctx.stroke();
     } else {
-      // Filled with alternating shades
+      // Filled with gap inset
       for (const tri of triangles) {
         const [ttype, ax, ay, bx, by, cxp, cyp] = tri;
-        ctx.globalAlpha = ttype === THICK ? 0.35 : 0.15;
-        ctx.fillStyle = fg;
+        const { style, alpha } = getFill(ttype, ax, ay, bx, by, cxp, cyp);
+
+        let v1x = ax, v1y = ay;
+        let v2x = bx, v2y = by;
+        let v3x = cxp, v3y = cyp;
+
+        if (gapWidth > 0) {
+          const tcx = (ax + bx + cxp) / 3;
+          const tcy = (ay + by + cyp) / 3;
+          const i1 = insetVertex(ax, ay, tcx, tcy, gapWidth);
+          const i2 = insetVertex(bx, by, tcx, tcy, gapWidth);
+          const i3 = insetVertex(cxp, cyp, tcx, tcy, gapWidth);
+          v1x = i1.x; v1y = i1.y;
+          v2x = i2.x; v2y = i2.y;
+          v3x = i3.x; v3y = i3.y;
+        }
+
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = style;
         ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(bx, by);
-        ctx.lineTo(cxp, cyp);
+        ctx.moveTo(v1x, v1y);
+        ctx.lineTo(v2x, v2y);
+        ctx.lineTo(v3x, v3y);
         ctx.closePath();
         ctx.fill();
       }
+
+      // Stroke outline
       ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = fg;
+      ctx.lineWidth = Math.max(0.2, lineWidth);
       ctx.beginPath();
       for (const tri of triangles) {
         const [, ax, ay, bx, by, cxp, cyp] = tri;
