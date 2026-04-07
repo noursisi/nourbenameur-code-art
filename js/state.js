@@ -48,6 +48,7 @@ export const state = {
   mag_colorMode: 0, mag_lineStyle: 0, mag_energy: 1, mag_poleSize: 8,
   // Interference
   intf_sources: 5, intf_wavelength: 0.03, intf_speed: 3,
+  intf_layout: 0, intf_amplitude: 1.0, intf_decay: 0, intf_palette: 0,
   // Image Processor
   ip_enabled: false, ip_effect: 'none', ip_mixWithAlgo: false, ip_scale: 1, ip_offsetX: 0, ip_offsetY: 0,
   ip_displace_amount: 0.05, ip_displace_scale: 4, ip_displace_speed: 0.3,

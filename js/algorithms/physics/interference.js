@@ -30,16 +30,43 @@ uniform float u_zoom;
 uniform vec3  u_fgColor;
 uniform vec3  u_bgColor;
 uniform bool  u_transparent;
+uniform int   u_layout;
+uniform float u_amplitude;
+uniform float u_decay;
+uniform int   u_palette;
 
 #define MAX_SOURCES 12
 #define PI 3.14159265359
 
-// Generate pseudo-random source positions
-vec2 sourcePos(int i) {
+vec2 getSourcePos(int i, int total, int layout, float time) {
   float fi = float(i);
-  float angle = fi * 2.399963; // golden angle
-  float r = 0.15 + 0.2 * sqrt(fi / u_sources);
-  return vec2(0.5 + cos(angle) * r, 0.5 + sin(angle) * r);
+  float ft = float(total);
+  if (layout == 1) { // Line
+    float t = fi / (ft - 1.0);
+    return vec2(0.1 + t * 0.8, 0.5 + sin(time * 0.3 + t * 6.28) * 0.1);
+  }
+  if (layout == 2) { // Circle
+    float angle = fi / ft * 6.2832 + time * 0.2;
+    return vec2(0.5 + cos(angle) * 0.3, 0.5 + sin(angle) * 0.3);
+  }
+  if (layout == 3) { // Random (seeded)
+    float seed = fi * 127.1 + 311.7;
+    return vec2(fract(sin(seed) * 43758.5453), fract(sin(seed * 1.3) * 22578.1459));
+  }
+  // Default: golden angle
+  float ga = fi * 2.39996;
+  float r = sqrt(fi / ft) * 0.35;
+  return vec2(0.5 + cos(ga) * r, 0.5 + sin(ga) * r);
+}
+
+vec3 intfColor(float val, int pal, float phase) {
+  if (pal == 1) { // Rainbow phase
+    return vec3(0.5+0.5*sin(val*6.28+phase), 0.5+0.5*sin(val*6.28+phase+2.09), 0.5+0.5*sin(val*6.28+phase+4.19));
+  }
+  if (pal == 2) { // Heat
+    return vec3(val, val*val*0.5, val*val*val*0.2);
+  }
+  return vec3(val); // Mono
 }
 
 void main() {
@@ -54,14 +81,15 @@ void main() {
 
   for (int i = 0; i < MAX_SOURCES; i++) {
     if (i >= srcCount) break;
-    vec2 src = sourcePos(i);
+    vec2 src = getSourcePos(i, srcCount, u_layout, u_time);
     // Animate sources slightly
     float fi = float(i);
     src.x += sin(u_time * 0.3 + fi * 1.7) * 0.03;
     src.y += cos(u_time * 0.25 + fi * 2.3) * 0.03;
 
     float dist = distance(pos * aspect, src * aspect);
-    float wave = sin(dist / u_wavelength * 2.0 * PI - u_time * u_speed);
+    float wave = u_amplitude * sin(dist / u_wavelength * 2.0 * PI - u_time * u_speed);
+    if (u_decay > 0.0) wave *= 1.0 / (1.0 + dist * u_decay * 20.0);
     totalWave += wave;
   }
 
@@ -72,7 +100,13 @@ void main() {
   float brightness = totalWave * 0.5 + 0.5;
   brightness = pow(brightness, 1.5); // contrast boost
 
-  vec3 col = mix(u_bgColor, u_fgColor, brightness);
+  vec3 monoColor = intfColor(brightness, u_palette, u_time * 0.5);
+  vec3 col;
+  if (u_palette == 0) {
+    col = mix(u_bgColor, u_fgColor, brightness);
+  } else {
+    col = monoColor;
+  }
 
   float alpha = 1.0;
   if (u_transparent) {
@@ -111,6 +145,10 @@ export class Interference extends Algorithm {
       { id: 'intf_sources',    label: 'Sources',    min: 2,    max: 12,   step: 1    },
       { id: 'intf_wavelength', label: 'Wavelength',  min: 0.005, max: 0.1, step: 0.002 },
       { id: 'intf_speed',      label: 'Speed',       min: 0,    max: 10,   step: 0.2  },
+      { id: 'intf_layout',     label: 'Layout',      min: 0,    max: 3,    step: 1    },
+      { id: 'intf_amplitude',  label: 'Amplitude',   min: 0.1,  max: 3,    step: 0.1  },
+      { id: 'intf_decay',      label: 'Decay',       min: 0,    max: 2,    step: 0.1  },
+      { id: 'intf_palette',    label: 'Palette',     min: 0,    max: 2,    step: 1    },
     ];
   }
 
@@ -170,6 +208,12 @@ export class Interference extends Algorithm {
     const fgC = parseHexColor(this.engine.fg(s));
     const bgC = parseHexColor(this.engine.bg(s));
 
+    // Pass int uniforms manually (Quad.render uses uniform1f for all)
+    const layoutLoc = gl.getUniformLocation(prog, 'u_layout');
+    if (layoutLoc !== null) gl.uniform1i(layoutLoc, s.intf_layout ?? 0);
+    const paletteLoc = gl.getUniformLocation(prog, 'u_palette');
+    if (paletteLoc !== null) gl.uniform1i(paletteLoc, s.intf_palette ?? 0);
+
     this._quad.render(gl, prog, {
       u_resolution: [pW, pH],
       u_time: s.time ?? 0,
@@ -180,6 +224,8 @@ export class Interference extends Algorithm {
       u_zoom: s.camZoom ?? 1,
       u_fgColor: fgC,
       u_bgColor: bgC,
+      u_amplitude: s.intf_amplitude ?? 1.0,
+      u_decay: s.intf_decay ?? 0,
     });
 
     ctx.drawImage(glCanvas, 0, 0, W, H);
