@@ -18,7 +18,7 @@ export const state = {
   // Koch
   koch_depth: 4, koch_sides: 3, koch_angle: 60, koch_fill: 0, koch_invert: 0, koch_rotSpeed: 0.3,
   // Dragon
-  dragon_depth: 12,
+  dragon_depth: 12, dragon_colorGrad: 0, dragon_folds: 1, dragon_rotSpeed: 0.35,
   // Phyllotaxis
   phyllo_n: 1200, phyllo_divergence: 137.508, phyllo_dotsize: 3,
   // Flow Field
