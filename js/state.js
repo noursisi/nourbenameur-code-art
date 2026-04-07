@@ -11,6 +11,7 @@ export const state = {
   transparent: false,
   // Julia
   julia_cr: -0.7, julia_ci: 0.27, julia_iter: 80, julia_scale: 2.5,
+  julia_power: 2, julia_palette: 0, julia_trap: 0,
   // L-System
   lsystem_angle: 25, lsystem_depth: 7, lsystem_rule: 0,
   // Koch
