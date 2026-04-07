@@ -8,8 +8,11 @@ import { Algorithm } from '../base.js';
 /**
  * Given two points A and B, return the 4 sub-segments of the Koch subdivision:
  * A → 1/3, 1/3 → peak, peak → 2/3, 2/3 → B
+ *
+ * peakAngleRad — angle of the peak in radians (default Math.PI/3 = 60°)
+ * invert — 1 to flip the peak direction inward, -1 for outward (default -1)
  */
-function subdivide(ax, ay, bx, by) {
+function subdivide(ax, ay, bx, by, peakAngleRad, invert) {
   const dx = bx - ax;
   const dy = by - ay;
   // Trisection points
@@ -17,24 +20,27 @@ function subdivide(ax, ay, bx, by) {
   const p1y = ay + dy / 3;
   const p2x = ax + (2 * dx) / 3;
   const p2y = ay + (2 * dy) / 3;
-  // Peak: rotate midpoint 60° around p1
-  const angle = Math.atan2(dy, dx) - Math.PI / 3;
-  const len = Math.sqrt(dx * dx + dy * dy) / 3;
-  const peakX = p1x + Math.cos(angle) * len;
-  const peakY = p1y + Math.sin(angle) * len;
+  // Peak: rotate P1→P2 vector by ±angle around P1
+  const edx = p2x - p1x;
+  const edy = p2y - p1y;
+  const cos_a = Math.cos(peakAngleRad);
+  const sin_a = Math.sin(peakAngleRad);
+  const dir = invert;
+  const peakX = p1x + edx * cos_a - edy * sin_a * dir;
+  const peakY = p1y + edx * sin_a * dir + edy * cos_a;
   return [p1x, p1y, peakX, peakY, p2x, p2y];
 }
 
 /**
  * Build array of Koch curve points from a single segment, recursively.
  */
-function kochPoints(ax, ay, bx, by, depth) {
+function kochPoints(ax, ay, bx, by, depth, peakAngleRad, invert) {
   if (depth === 0) return [[ax, ay], [bx, by]];
-  const [p1x, p1y, peakX, peakY, p2x, p2y] = subdivide(ax, ay, bx, by);
-  const seg1 = kochPoints(ax, ay, p1x, p1y, depth - 1);
-  const seg2 = kochPoints(p1x, p1y, peakX, peakY, depth - 1);
-  const seg3 = kochPoints(peakX, peakY, p2x, p2y, depth - 1);
-  const seg4 = kochPoints(p2x, p2y, bx, by, depth - 1);
+  const [p1x, p1y, peakX, peakY, p2x, p2y] = subdivide(ax, ay, bx, by, peakAngleRad, invert);
+  const seg1 = kochPoints(ax, ay, p1x, p1y, depth - 1, peakAngleRad, invert);
+  const seg2 = kochPoints(p1x, p1y, peakX, peakY, depth - 1, peakAngleRad, invert);
+  const seg3 = kochPoints(peakX, peakY, p2x, p2y, depth - 1, peakAngleRad, invert);
+  const seg4 = kochPoints(p2x, p2y, bx, by, depth - 1, peakAngleRad, invert);
   // Merge without duplicating shared endpoints
   return [...seg1, ...seg2.slice(1), ...seg3.slice(1), ...seg4.slice(1)];
 }
@@ -59,6 +65,10 @@ export class Koch extends Algorithm {
     return [
       { id: 'koch_depth', label: 'Depth', min: 0, max: 7, step: 1 },
       { id: 'koch_sides', label: 'Sides', min: 3, max: 8, step: 1 },
+      { id: 'koch_angle', label: 'Peak Angle', min: 10, max: 120, step: 1 },
+      { id: 'koch_fill', label: 'Fill', min: 0, max: 1, step: 1 },
+      { id: 'koch_invert', label: 'Invert', min: 0, max: 1, step: 1 },
+      { id: 'koch_rotSpeed', label: 'Rotation', min: 0, max: 2, step: 0.1 },
     ];
   }
 
@@ -73,13 +83,17 @@ export class Koch extends Algorithm {
   }
 
   animate(world) { const { state: s } = world;
-    // Slowly rotate and cycle depth for dramatic animation
-    this._rotation = s.time * 0.3;
+    const rotSpeed = (s.koch_rotSpeed !== undefined) ? s.koch_rotSpeed : 0.3;
+    this._rotation = s.time * rotSpeed;
   }
 
   render(ctx, world) { const { W, H, state: s } = world;
     const depth = Math.max(0, Math.min(7, Math.round(s.koch_depth)));
     const sides = Math.max(3, Math.min(8, Math.round(s.koch_sides || 3)));
+    const peakAngleDeg = (s.koch_angle !== undefined) ? s.koch_angle : 60;
+    const peakAngleRad = (peakAngleDeg * Math.PI) / 180;
+    const invertDir = (s.koch_invert) ? -1 : 1;
+    const fillMode = !!(s.koch_fill);
     const fg = this.engine.fg(s);
     const camZoom = s.camZoom || 1;
     const panX = s.camPanX || 0;
@@ -103,7 +117,7 @@ export class Koch extends Algorithm {
     for (let i = 0; i < sides; i++) {
       const [ax, ay] = vertices[i];
       const [bx, by] = vertices[(i + 1) % sides];
-      const sidePts = kochPoints(ax, ay, bx, by, depth);
+      const sidePts = kochPoints(ax, ay, bx, by, depth, peakAngleRad, invertDir);
       if (i === 0) {
         allPts.push(...sidePts);
       } else {
@@ -129,6 +143,14 @@ export class Koch extends Algorithm {
     ctx.lineJoin = 'round';
     ctx.stroke();
 
+    // Fill mode: solid fill with 0.15 alpha
+    if (fillMode) {
+      ctx.globalAlpha = 0.15;
+      ctx.fillStyle = fg;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
     // Cache SVG path
     this._svgPath = 'M ' + allPts.map(p => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' L ') + ' Z';
 
@@ -139,9 +161,10 @@ export class Koch extends Algorithm {
     if (!this._svgPath) return null;
     const fg = this.engine.fg(s);
     const bg = this.engine.bg(s);
+    const fillAttr = s.koch_fill ? `fill="${fg}" fill-opacity="0.15"` : 'fill="none"';
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${bg}"/>
-  <path d="${this._svgPath}" stroke="${fg}" stroke-width="${s.lineWeight || 1}" fill="none"/>
+  <path d="${this._svgPath}" stroke="${fg}" stroke-width="${s.lineWeight || 1}" ${fillAttr}/>
 </svg>`;
   }
 }

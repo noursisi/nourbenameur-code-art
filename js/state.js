@@ -16,7 +16,7 @@ export const state = {
   lsystem_angle: 25, lsystem_depth: 7, lsystem_rule: 0,
   lsystem_taper: 0.7, lsystem_wind: 0, lsystem_leaves: 0, lsystem_leafSize: 3,
   // Koch
-  koch_depth: 4, koch_sides: 3,
+  koch_depth: 4, koch_sides: 3, koch_angle: 60, koch_fill: 0, koch_invert: 0, koch_rotSpeed: 0.3,
   // Dragon
   dragon_depth: 12,
   // Phyllotaxis
