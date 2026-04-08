@@ -19,27 +19,8 @@ function collectNeedleworkSVG(W, H, state) {
   const ih = source.videoHeight || source.naturalHeight || source.height;
   if (!iw || !ih) return null;
 
-  // Render source at native res
-  let pixels, sampW, sampH;
-  try {
-    sampW = Math.min(iw, 2000);
-    sampH = Math.round(sampW * (ih / iw));
-    const off = document.createElement('canvas');
-    off.width = sampW;
-    off.height = sampH;
-    const ctx = off.getContext('2d', { willReadFrequently: true });
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, sampW, sampH);
-    ctx.drawImage(source, 0, 0, sampW, sampH);
-    pixels = ctx.getImageData(0, 0, sampW, sampH).data;
-  } catch (e) {
-    return null;
-  }
-
   const cellSize = dotSize + spacing;
   const radius = dotSize / 2;
-  const cols = Math.floor(W / cellSize);
-  const rows = Math.floor(H / cellSize);
 
   const fitScale = Math.min(W / iw, H / ih) * (state.ip_scale || 1);
   const dw = iw * fitScale;
@@ -47,25 +28,41 @@ function collectNeedleworkSVG(W, H, state) {
   const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
   const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
 
+  const imgCols = Math.floor(dw / cellSize);
+  const imgRows = Math.floor(dh / cellSize);
+  if (imgCols <= 0 || imgRows <= 0) return null;
+
+  let pixels;
+  try {
+    const off = document.createElement('canvas');
+    off.width = imgCols;
+    off.height = imgRows;
+    const ctx = off.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, imgCols, imgRows);
+    ctx.drawImage(source, 0, 0, imgCols, imgRows);
+    pixels = ctx.getImageData(0, 0, imgCols, imgRows).data;
+  } catch (e) {
+    return null;
+  }
+
+  const gridW = imgCols * cellSize;
+  const gridH = imgRows * cellSize;
+  const offsetX = dx + (dw - gridW) / 2;
+  const offsetY = dy + (dh - gridH) / 2;
+
   let circles = '';
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const cx = (col + 0.5) * cellSize;
-      const cy = (row + 0.5) * cellSize;
-
-      const imgX = (cx - dx) / dw;
-      const imgY = (cy - dy) / dh;
-      if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
-
-      const sx = Math.floor(imgX * (sampW - 1));
-      const sy = Math.floor(imgY * (sampH - 1));
-      const idx = (sy * sampW + sx) * 4;
+  for (let row = 0; row < imgRows; row++) {
+    for (let col = 0; col < imgCols; col++) {
+      const idx = (row * imgCols + col) * 4;
       const bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
 
       const placeDot = inv ? (bright <= threshold) : (bright >= threshold);
       if (!placeDot) continue;
 
+      const cx = offsetX + (col + 0.5) * cellSize;
+      const cy = offsetY + (row + 0.5) * cellSize;
       circles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}"/>\n`;
     }
   }
