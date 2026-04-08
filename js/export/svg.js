@@ -6,10 +6,6 @@
 
 import { imageProcessor } from '../interaction/image-processor.js';
 
-/**
- * Generate SVG dot grid from the image processor's needlework effect.
- * Downsamples source to grid resolution for clean, balanced dot placement.
- */
 function collectNeedleworkSVG(W, H, state) {
   const source = imageProcessor._source;
   if (!source) return null;
@@ -17,12 +13,28 @@ function collectNeedleworkSVG(W, H, state) {
   const dotSize   = state.ip_nw_dotsize   ?? 6;
   const spacing   = state.ip_nw_spacing   ?? 1;
   const threshold = state.ip_nw_threshold ?? 0.4;
-  const invert    = state.ip_nw_invert    ?? 0;
-  const inv = Number(invert) >= 1;
+  const inv = Number(state.ip_nw_invert ?? 0) >= 1;
 
   const iw = source.videoWidth || source.naturalWidth || source.width;
   const ih = source.videoHeight || source.naturalHeight || source.height;
   if (!iw || !ih) return null;
+
+  // Render source at native res
+  let pixels, sampW, sampH;
+  try {
+    sampW = Math.min(iw, 2000);
+    sampH = Math.round(sampW * (ih / iw));
+    const off = document.createElement('canvas');
+    off.width = sampW;
+    off.height = sampH;
+    const ctx = off.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, sampW, sampH);
+    ctx.drawImage(source, 0, 0, sampW, sampH);
+    pixels = ctx.getImageData(0, 0, sampW, sampH).data;
+  } catch (e) {
+    return null;
+  }
 
   const cellSize = dotSize + spacing;
   const radius = dotSize / 2;
@@ -35,57 +47,25 @@ function collectNeedleworkSVG(W, H, state) {
   const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
   const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
 
-  const SUB = 4;
-  const gridStartCol = Math.max(0, Math.floor(dx / cellSize));
-  const gridEndCol   = Math.min(cols, Math.ceil((dx + dw) / cellSize));
-  const gridStartRow = Math.max(0, Math.floor(dy / cellSize));
-  const gridEndRow   = Math.min(rows, Math.ceil((dy + dh) / cellSize));
-  const gridCols = gridEndCol - gridStartCol;
-  const gridRows = gridEndRow - gridStartRow;
-
-  if (gridCols <= 0 || gridRows <= 0) return null;
-
-  const sampW = gridCols * SUB;
-  const sampH = gridRows * SUB;
-  const offscreen = document.createElement('canvas');
-  offscreen.width = sampW;
-  offscreen.height = sampH;
-  const ctx = offscreen.getContext('2d', { willReadFrequently: true });
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, sampW, sampH);
-  const srcX = ((gridStartCol * cellSize) - dx) / dw * iw;
-  const srcY = ((gridStartRow * cellSize) - dy) / dh * ih;
-  const srcW = (gridCols * cellSize) / dw * iw;
-  const srcH = (gridRows * cellSize) / dh * ih;
-  ctx.drawImage(source, srcX, srcY, srcW, srcH, 0, 0, sampW, sampH);
-  const pixels = ctx.getImageData(0, 0, sampW, sampH).data;
-
   let circles = '';
 
-  for (let gr = 0; gr < gridRows; gr++) {
-    for (let gc = 0; gc < gridCols; gc++) {
-      let darkCount = 0;
-      const totalSub = SUB * SUB;
-      for (let sy = 0; sy < SUB; sy++) {
-        for (let sx = 0; sx < SUB; sx++) {
-          const px = gc * SUB + sx;
-          const py = gr * SUB + sy;
-          const idx = (py * sampW + px) * 4;
-          const a = pixels[idx + 3];
-          let bright;
-          if (a < 10) { bright = 1.0; }
-          else { bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255; }
-          if (bright < 0.5) darkCount++;
-        }
-      }
-      const coverage = darkCount / totalSub;
-      const placeDot = inv ? (coverage >= threshold) : ((1 - coverage) >= threshold);
-      if (!placeDot) continue;
-
-      const col = gridStartCol + gc;
-      const row = gridStartRow + gr;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
       const cx = (col + 0.5) * cellSize;
       const cy = (row + 0.5) * cellSize;
+
+      const imgX = (cx - dx) / dw;
+      const imgY = (cy - dy) / dh;
+      if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
+
+      const sx = Math.floor(imgX * (sampW - 1));
+      const sy = Math.floor(imgY * (sampH - 1));
+      const idx = (sy * sampW + sx) * 4;
+      const bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+
+      const placeDot = inv ? (bright <= threshold) : (bright >= threshold);
+      if (!placeDot) continue;
+
       circles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}"/>\n`;
     }
   }
@@ -98,13 +78,11 @@ export function exportSVG(engine, state, algorithm) {
   const W = engine.W;
   const H = engine.H;
 
-  // Check if image processor is active with needlework effect
   let svgData = null;
   if (state.ip_enabled && state.ip_effect === 'needlework' && imageProcessor.hasSource()) {
     svgData = collectNeedleworkSVG(W, H, state);
   }
 
-  // Fall back to algorithm SVG
   if (!svgData) {
     svgData = algorithm.collectSVG ? algorithm.collectSVG(engine.world) : null;
   }

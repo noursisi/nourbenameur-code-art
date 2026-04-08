@@ -747,14 +747,31 @@ class ImageProcessor {
     const dotSize   = state.ip_nw_dotsize   ?? 6;
     const spacing   = state.ip_nw_spacing   ?? 1;
     const threshold = state.ip_nw_threshold ?? 0.4;
-    const invert    = state.ip_nw_invert    ?? 0;
-    const inv = Number(invert) >= 1;
+    const inv = Number(state.ip_nw_invert ?? 0) >= 1;
 
     const iw = src.videoWidth || src.naturalWidth || src.width;
     const ih = src.videoHeight || src.naturalHeight || src.height;
     if (!iw || !ih) return;
 
-    // Compute fitted rect
+    // Render source at native resolution to offscreen canvas
+    let pixels, sampW, sampH;
+    try {
+      sampW = Math.min(iw, 2000);
+      sampH = Math.round(sampW * (ih / iw));
+      const off = document.createElement('canvas');
+      off.width = sampW;
+      off.height = sampH;
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      offCtx.fillStyle = '#fff'; // transparent → white
+      offCtx.fillRect(0, 0, sampW, sampH);
+      offCtx.drawImage(src, 0, 0, sampW, sampH);
+      pixels = offCtx.getImageData(0, 0, sampW, sampH).data;
+    } catch (e) {
+      this._drawFitted(ctx, W, H, state);
+      return;
+    }
+
+    // Fitted rect
     const scale = (state.ip_scale || 1);
     const fitScale = Math.min(W / iw, H / ih) * scale;
     const dw = iw * fitScale;
@@ -767,76 +784,29 @@ class ImageProcessor {
     const cols = Math.floor(W / cellSize);
     const rows = Math.floor(H / cellSize);
 
-    // Coverage-based sampling: render source at higher resolution (4x grid),
-    // then for each cell count what % of sub-pixels are dark.
-    // This gives clean edges — a line through any part of a cell triggers the dot.
-    const SUB = 4; // 4x4 sub-pixels per cell
-    const gridStartCol = Math.max(0, Math.floor(dx / cellSize));
-    const gridEndCol   = Math.min(cols, Math.ceil((dx + dw) / cellSize));
-    const gridStartRow = Math.max(0, Math.floor(dy / cellSize));
-    const gridEndRow   = Math.min(rows, Math.ceil((dy + dh) / cellSize));
-    const gridCols = gridEndCol - gridStartCol;
-    const gridRows = gridEndRow - gridStartRow;
-
-    if (gridCols <= 0 || gridRows <= 0) return;
-
-    const sampW = gridCols * SUB;
-    const sampH = gridRows * SUB;
-
-    let pixels;
-    try {
-      const off = document.createElement('canvas');
-      off.width = sampW;
-      off.height = sampH;
-      const offCtx = off.getContext('2d', { willReadFrequently: true });
-      offCtx.fillStyle = '#fff';
-      offCtx.fillRect(0, 0, sampW, sampH);
-      const srcX = ((gridStartCol * cellSize) - dx) / dw * iw;
-      const srcY = ((gridStartRow * cellSize) - dy) / dh * ih;
-      const srcW = (gridCols * cellSize) / dw * iw;
-      const srcH = (gridRows * cellSize) / dh * ih;
-      offCtx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, sampW, sampH);
-      pixels = offCtx.getImageData(0, 0, sampW, sampH).data;
-    } catch (e) {
-      this._drawFitted(ctx, W, H, state);
-      return;
-    }
-
-    // For each grid cell, compute coverage (% of sub-pixels that are "on")
+    // Simple: for each cell, sample brightness, threshold it.
+    // Normal: dot where bright. Invert: dot where dark.
     ctx.beginPath();
-    for (let gr = 0; gr < gridRows; gr++) {
-      for (let gc = 0; gc < gridCols; gc++) {
-        let darkCount = 0;
-        const totalSub = SUB * SUB;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cx = (col + 0.5) * cellSize;
+        const cy = (row + 0.5) * cellSize;
 
-        for (let sy = 0; sy < SUB; sy++) {
-          for (let sx = 0; sx < SUB; sx++) {
-            const px = gc * SUB + sx;
-            const py = gr * SUB + sy;
-            const idx = (py * sampW + px) * 4;
-            const a = pixels[idx + 3];
-            let bright;
-            if (a < 10) {
-              bright = 1.0; // transparent = white
-            } else {
-              bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
-            }
-            // Count sub-pixels that are "dark" (below 0.5 hardcoded pre-threshold)
-            if (bright < 0.5) darkCount++;
-          }
-        }
+        // Map to source image
+        const imgX = (cx - dx) / dw;
+        const imgY = (cy - dy) / dh;
+        if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
 
-        // Coverage: what fraction of the cell is dark?
-        const coverage = darkCount / totalSub;
-        // In normal mode: place dot where image is bright (low dark coverage)
-        // In invert mode: place dot where image is dark (high dark coverage)
-        const placeDot = inv ? (coverage >= threshold) : ((1 - coverage) >= threshold);
+        const sx = Math.floor(imgX * (sampW - 1));
+        const sy = Math.floor(imgY * (sampH - 1));
+        const idx = (sy * sampW + sx) * 4;
+        const bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+
+        // Normal: place dot if pixel is bright enough
+        // Invert: place dot if pixel is dark enough
+        const placeDot = inv ? (bright <= threshold) : (bright >= threshold);
 
         if (placeDot) {
-          const col = gridStartCol + gc;
-          const row = gridStartRow + gr;
-          const cx = (col + 0.5) * cellSize;
-          const cy = (row + 0.5) * cellSize;
           ctx.moveTo(cx + radius, cy);
           ctx.arc(cx, cy, radius, 0, Math.PI * 2);
         }
