@@ -64,7 +64,7 @@ function collectNeedleworkSVG(W, H, state) {
       const b = pixels[idx + 2];
       let bright = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
 
-      if (invert > 0.5) bright = 1 - bright;
+      if (Number(invert) >= 1) bright = 1 - bright;
 
       if (bright >= threshold) {
         circles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}"/>\n`;
