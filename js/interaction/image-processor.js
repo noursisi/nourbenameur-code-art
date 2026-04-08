@@ -494,6 +494,68 @@ void main() {
     }),
   },
 
+  needlework: {
+    name: 'Needlework',
+    params: [
+      { id: 'ip_nw_dotsize',   label: 'Dot Size',   min: 2,  max: 16, step: 1,    default: 6  },
+      { id: 'ip_nw_spacing',   label: 'Spacing',    min: 0,  max: 4,  step: 0.5,  default: 1  },
+      { id: 'ip_nw_threshold', label: 'Threshold',  min: 0,  max: 1,  step: 0.01, default: 0.4 },
+      { id: 'ip_nw_invert',    label: 'Invert',     min: 0,  max: 1,  step: 1,    default: 0  },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_dotsize;
+uniform float u_spacing;
+uniform float u_threshold;
+uniform float u_invert;
+
+float brightness(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+void main() {
+  vec2 px = v_uv * u_resolution;
+
+  // Grid cell size = dot diameter + spacing
+  float cellSize = u_dotsize + u_spacing;
+  vec2 cell = floor(px / cellSize);
+  vec2 cellCenter = (cell + 0.5) * cellSize;
+
+  // Sample image brightness at cell center
+  vec2 sampleUV = clamp(cellCenter / u_resolution, 0.0, 1.0);
+  vec4 col = texture2D(u_image, sampleUV);
+  float bright = brightness(col.rgb);
+
+  // Invert if needed (for dark-on-light source images)
+  if (u_invert > 0.5) bright = 1.0 - bright;
+
+  // Binary: dot or no dot
+  float hasDot = step(u_threshold, bright);
+
+  // Distance from cell center
+  float dist = length(px - cellCenter);
+  float radius = u_dotsize * 0.5;
+
+  // Antialiased circle
+  float circle = 1.0 - smoothstep(radius - 0.8, radius + 0.8, dist);
+
+  // Final: show dot only if brightness exceeds threshold
+  float val = circle * hasDot;
+
+  gl_FragColor = vec4(vec3(val), 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_dotsize:   s.ip_nw_dotsize   ?? 6,
+      u_spacing:   s.ip_nw_spacing   ?? 1,
+      u_threshold: s.ip_nw_threshold ?? 0.4,
+      u_invert:    s.ip_nw_invert    ?? 0,
+    }),
+  },
+
   asciiDistort: {
     name: 'ASCII',
     params: [

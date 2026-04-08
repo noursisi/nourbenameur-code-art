@@ -74,6 +74,8 @@ export const state = {
   ascii_colorMode: 0,
   // Halftone distortion
   ip_ht_dotsize: 8, ip_ht_angle: 45,
+  // Needlework distortion
+  ip_nw_dotsize: 6, ip_nw_spacing: 1, ip_nw_threshold: 0.4, ip_nw_invert: 0,
   // ASCII distortion
   ip_ascii_size: 8, ip_ascii_levels: 5,
   // Data Mosaic distortion
