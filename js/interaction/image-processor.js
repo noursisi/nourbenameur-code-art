@@ -548,12 +548,15 @@ void main() {
   gl_FragColor = vec4(vec3(val), 1.0);
 }
 `,
-    uniforms: (s) => ({
-      u_dotsize:   s.ip_nw_dotsize   ?? 6,
-      u_spacing:   s.ip_nw_spacing   ?? 1,
-      u_threshold: s.ip_nw_threshold ?? 0.4,
-      u_invert:    s.ip_nw_invert    ?? 0,
-    }),
+    uniforms: (s) => {
+      const dpr = window.devicePixelRatio || 1;
+      return {
+        u_dotsize:   (s.ip_nw_dotsize   ?? 6) * dpr,
+        u_spacing:   (s.ip_nw_spacing   ?? 1) * dpr,
+        u_threshold: s.ip_nw_threshold ?? 0.4,
+        u_invert:    s.ip_nw_invert    ?? 0,
+      };
+    },
   },
 
   asciiDistort: {
