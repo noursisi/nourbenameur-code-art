@@ -783,6 +783,16 @@ class ImageProcessor {
     const cols = Math.floor(W / cellSize);
     const rows = Math.floor(H / cellSize);
 
+    const inv = Number(invert) >= 1;
+
+    // Helper: sample brightness at a source pixel, clamped
+    function sampleBright(px, py) {
+      const x = Math.max(0, Math.min(sampleW - 1, Math.floor(px)));
+      const y = Math.max(0, Math.min(sampleH - 1, Math.floor(py)));
+      const i = (y * sampleW + x) * 4;
+      return (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114) / 255;
+    }
+
     // Batch all dots into a single path for performance
     ctx.beginPath();
     for (let row = 0; row < rows; row++) {
@@ -790,18 +800,32 @@ class ImageProcessor {
         const cx = (col + 0.5) * cellSize;
         const cy = (row + 0.5) * cellSize;
 
-        // Map canvas position to source image pixel
         const imgX = (cx - dx) / dw;
         const imgY = (cy - dy) / dh;
 
         if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
 
-        const sx = Math.floor(imgX * (sampleW - 1));
-        const sy = Math.floor(imgY * (sampleH - 1));
-        const idx = (sy * sampleW + sx) * 4;
+        const sx = imgX * (sampleW - 1);
+        const sy = imgY * (sampleH - 1);
 
-        let bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
-        if (Number(invert) >= 1) bright = 1 - bright;
+        // Sample a 3x3 neighborhood to catch thin lines
+        // For normal: use center brightness
+        // For invert: use DARKEST pixel in neighborhood (catches thin dark lines)
+        let bright;
+        if (inv) {
+          // Find the darkest pixel nearby — if any line passes through, we catch it
+          let darkest = 1;
+          const step = Math.max(1, cellSize * (sampleW / W) * 0.4);
+          for (let oy = -1; oy <= 1; oy++) {
+            for (let ox = -1; ox <= 1; ox++) {
+              const b = sampleBright(sx + ox * step, sy + oy * step);
+              if (b < darkest) darkest = b;
+            }
+          }
+          bright = 1 - darkest; // invert: dark line → bright dot
+        } else {
+          bright = sampleBright(sx, sy);
+        }
 
         if (bright >= threshold) {
           ctx.moveTo(cx + radius, cy);

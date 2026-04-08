@@ -48,6 +48,16 @@ function collectNeedleworkSVG(W, H, state) {
   const cols = Math.floor(W / cellSize);
   const rows = Math.floor(H / cellSize);
 
+  const inv = Number(invert) >= 1;
+  const pixH = Math.round(H);
+
+  function sampleB(px, py) {
+    const x = Math.max(0, Math.min(pixW - 1, Math.floor(px)));
+    const y = Math.max(0, Math.min(pixH - 1, Math.floor(py)));
+    const i = (y * pixW + x) * 4;
+    return (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114) / 255;
+  }
+
   let circles = '';
 
   for (let row = 0; row < rows; row++) {
@@ -55,16 +65,20 @@ function collectNeedleworkSVG(W, H, state) {
       const cx = (col + 0.5) * cellSize;
       const cy = (row + 0.5) * cellSize;
 
-      const sx = Math.min(Math.floor(cx), pixW - 1);
-      const sy = Math.min(Math.floor(cy), Math.round(H) - 1);
-      const idx = (sy * pixW + sx) * 4;
-
-      const r = pixels[idx];
-      const g = pixels[idx + 1];
-      const b = pixels[idx + 2];
-      let bright = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-
-      if (Number(invert) >= 1) bright = 1 - bright;
+      let bright;
+      if (inv) {
+        let darkest = 1;
+        const step = cellSize * 0.4;
+        for (let oy = -1; oy <= 1; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            const b = sampleB(cx + ox * step, cy + oy * step);
+            if (b < darkest) darkest = b;
+          }
+        }
+        bright = 1 - darkest;
+      } else {
+        bright = sampleB(cx, cy);
+      }
 
       if (bright >= threshold) {
         circles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}"/>\n`;
