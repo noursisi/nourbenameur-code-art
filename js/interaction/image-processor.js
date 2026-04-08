@@ -502,78 +502,10 @@ void main() {
       { id: 'ip_nw_threshold', label: 'Threshold',  min: 0,  max: 1,  step: 0.01, default: 0.4 },
       { id: 'ip_nw_invert',    label: 'Invert',     min: 0,  max: 1,  step: 1,    default: 0  },
     ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform vec2 u_resolution;
-uniform float u_dotsize;
-uniform float u_spacing;
-uniform float u_threshold;
-uniform float u_invert;
-uniform vec2 u_imgSize;   // original image size (width, height)
-uniform float u_imgScale; // user scale
-
-float brightness(vec3 c) {
-  return dot(c, vec3(0.299, 0.587, 0.114));
-}
-
-void main() {
-  vec2 px = v_uv * u_resolution;
-
-  // Grid cell size = dot diameter + spacing
-  float cellSize = u_dotsize + u_spacing;
-  vec2 cell = floor(px / cellSize);
-  vec2 cellCenter = (cell + 0.5) * cellSize;
-
-  // Compute fitted image rect (same as _drawFitted logic)
-  float fitScale = min(u_resolution.x / u_imgSize.x, u_resolution.y / u_imgSize.y) * u_imgScale;
-  vec2 imgDim = u_imgSize * fitScale;
-  vec2 imgOffset = (u_resolution - imgDim) * 0.5;
-
-  // Map cell center to image UV (fitted, not stretched)
-  vec2 imgUV = (cellCenter - imgOffset) / imgDim;
-
-  // Outside the image = black (no dot)
-  if (imgUV.x < 0.0 || imgUV.x > 1.0 || imgUV.y < 0.0 || imgUV.y > 1.0) {
-    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    return;
-  }
-
-  // Sample image brightness at fitted position
-  // Flip Y to match texture orientation (v_uv already flips in vertex shader)
-  vec4 col = texture2D(u_image, imgUV);
-  float bright = brightness(col.rgb);
-
-  if (u_invert > 0.5) bright = 1.0 - bright;
-
-  float hasDot = step(u_threshold, bright);
-
-  // Distance from cell center — perfectly round circle
-  float dist = length(px - cellCenter);
-  float radius = u_dotsize * 0.5;
-
-  // Antialiased circle
-  float circle = 1.0 - smoothstep(radius - 0.8, radius + 0.8, dist);
-
-  float val = circle * hasDot;
-  gl_FragColor = vec4(vec3(val), 1.0);
-}
-`,
-    uniforms: (s) => {
-      const dpr = window.devicePixelRatio || 1;
-      const src = imageProcessor._source;
-      const iw = src ? (src.videoWidth || src.naturalWidth || src.width || 1) : 1;
-      const ih = src ? (src.videoHeight || src.naturalHeight || src.height || 1) : 1;
-      return {
-        u_dotsize:   (s.ip_nw_dotsize   ?? 6) * dpr,
-        u_spacing:   (s.ip_nw_spacing   ?? 1) * dpr,
-        u_threshold: s.ip_nw_threshold ?? 0.4,
-        u_invert:    s.ip_nw_invert    ?? 0,
-        u_imgSize:   [iw, ih],
-        u_imgScale:  s.ip_scale ?? 1,
-      };
-    },
+    // No GLSL shader — rendered via Canvas 2D in the custom render path
+    frag: null,
+    canvas2d: true,
+    uniforms: () => ({}),
   },
 
   asciiDistort: {
@@ -804,6 +736,90 @@ class ImageProcessor {
     } catch(e) {}
   }
 
+  /**
+   * Render needlework effect via Canvas 2D — guaranteed round dots.
+   * Samples the source image on a grid and draws circles.
+   */
+  _renderNeedlework(ctx, W, H, state) {
+    const src = this._source;
+    if (!src) return;
+
+    const dotSize   = state.ip_nw_dotsize   ?? 6;
+    const spacing   = state.ip_nw_spacing   ?? 1;
+    const threshold = state.ip_nw_threshold ?? 0.4;
+    const invert    = state.ip_nw_invert    ?? 0;
+
+    const iw = src.videoWidth || src.naturalWidth || src.width;
+    const ih = src.videoHeight || src.naturalHeight || src.height;
+    if (!iw || !ih) return;
+
+    // Draw source to offscreen canvas for pixel sampling
+    if (!this._nwCanvas) {
+      this._nwCanvas = document.createElement('canvas');
+      this._nwCtx = this._nwCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    // Use moderate resolution for sampling (don't need full DPR)
+    const sampleW = Math.min(iw, 1200);
+    const sampleH = Math.round(sampleW * (ih / iw));
+    if (this._nwCanvas.width !== sampleW || this._nwCanvas.height !== sampleH) {
+      this._nwCanvas.width = sampleW;
+      this._nwCanvas.height = sampleH;
+    }
+    this._nwCtx.drawImage(src, 0, 0, sampleW, sampleH);
+    const pixels = this._nwCtx.getImageData(0, 0, sampleW, sampleH).data;
+
+    // Compute fitted rect on the output canvas
+    const scale = (state.ip_scale || 1);
+    const fitScale = Math.min(W / iw, H / ih) * scale;
+    const dw = iw * fitScale;
+    const dh = ih * fitScale;
+    const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
+    const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
+
+    const cellSize = dotSize + spacing;
+    const radius = dotSize / 2;
+    const cols = Math.floor(W / cellSize);
+    const rows = Math.floor(H / cellSize);
+
+    // Clear to black
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw dots
+    ctx.fillStyle = '#fff';
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cx = (col + 0.5) * cellSize;
+        const cy = (row + 0.5) * cellSize;
+
+        // Map canvas position to source image pixel
+        const imgX = (cx - dx) / dw;  // 0-1 within fitted image
+        const imgY = (cy - dy) / dh;
+
+        // Outside fitted image = skip
+        if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
+
+        // Sample source pixel
+        const sx = Math.floor(imgX * (sampleW - 1));
+        const sy = Math.floor(imgY * (sampleH - 1));
+        const idx = (sy * sampleW + sx) * 4;
+
+        const r = pixels[idx];
+        const g = pixels[idx + 1];
+        const b = pixels[idx + 2];
+        let bright = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+
+        if (invert > 0.5) bright = 1 - bright;
+
+        if (bright >= threshold) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
   render(engine, ctx, W, H, state) {
     if (!this._source) return;
 
@@ -811,6 +827,12 @@ class ImageProcessor {
     const effect = state.ip_effect || 'none';
     if (effect === 'none') {
       this._drawFitted(ctx, W, H, state);
+      return;
+    }
+
+    // Needlework uses Canvas 2D (no WebGL) for guaranteed round dots
+    if (effect === 'needlework') {
+      this._renderNeedlework(ctx, W, H, state);
       return;
     }
 
