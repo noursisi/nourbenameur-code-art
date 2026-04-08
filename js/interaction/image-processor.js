@@ -511,6 +511,8 @@ uniform float u_dotsize;
 uniform float u_spacing;
 uniform float u_threshold;
 uniform float u_invert;
+uniform vec2 u_imgSize;   // original image size (width, height)
+uniform float u_imgScale; // user scale
 
 float brightness(vec3 c) {
   return dot(c, vec3(0.299, 0.587, 0.114));
@@ -524,37 +526,52 @@ void main() {
   vec2 cell = floor(px / cellSize);
   vec2 cellCenter = (cell + 0.5) * cellSize;
 
-  // Sample image brightness at cell center
-  vec2 sampleUV = clamp(cellCenter / u_resolution, 0.0, 1.0);
-  vec4 col = texture2D(u_image, sampleUV);
+  // Compute fitted image rect (same as _drawFitted logic)
+  float fitScale = min(u_resolution.x / u_imgSize.x, u_resolution.y / u_imgSize.y) * u_imgScale;
+  vec2 imgDim = u_imgSize * fitScale;
+  vec2 imgOffset = (u_resolution - imgDim) * 0.5;
+
+  // Map cell center to image UV (fitted, not stretched)
+  vec2 imgUV = (cellCenter - imgOffset) / imgDim;
+
+  // Outside the image = black (no dot)
+  if (imgUV.x < 0.0 || imgUV.x > 1.0 || imgUV.y < 0.0 || imgUV.y > 1.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
+
+  // Sample image brightness at fitted position
+  // Flip Y to match texture orientation (v_uv already flips in vertex shader)
+  vec4 col = texture2D(u_image, imgUV);
   float bright = brightness(col.rgb);
 
-  // Invert if needed (for dark-on-light source images)
   if (u_invert > 0.5) bright = 1.0 - bright;
 
-  // Binary: dot or no dot
   float hasDot = step(u_threshold, bright);
 
-  // Distance from cell center
+  // Distance from cell center — perfectly round circle
   float dist = length(px - cellCenter);
   float radius = u_dotsize * 0.5;
 
   // Antialiased circle
   float circle = 1.0 - smoothstep(radius - 0.8, radius + 0.8, dist);
 
-  // Final: show dot only if brightness exceeds threshold
   float val = circle * hasDot;
-
   gl_FragColor = vec4(vec3(val), 1.0);
 }
 `,
     uniforms: (s) => {
       const dpr = window.devicePixelRatio || 1;
+      const src = imageProcessor._source;
+      const iw = src ? (src.videoWidth || src.naturalWidth || src.width || 1) : 1;
+      const ih = src ? (src.videoHeight || src.naturalHeight || src.height || 1) : 1;
       return {
         u_dotsize:   (s.ip_nw_dotsize   ?? 6) * dpr,
         u_spacing:   (s.ip_nw_spacing   ?? 1) * dpr,
         u_threshold: s.ip_nw_threshold ?? 0.4,
         u_invert:    s.ip_nw_invert    ?? 0,
+        u_imgSize:   [iw, ih],
+        u_imgScale:  s.ip_scale ?? 1,
       };
     },
   },
