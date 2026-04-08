@@ -748,29 +748,13 @@ class ImageProcessor {
     const spacing   = state.ip_nw_spacing   ?? 1;
     const threshold = state.ip_nw_threshold ?? 0.4;
     const invert    = state.ip_nw_invert    ?? 0;
+    const inv = Number(invert) >= 1;
 
     const iw = src.videoWidth || src.naturalWidth || src.width;
     const ih = src.videoHeight || src.naturalHeight || src.height;
     if (!iw || !ih) return;
 
-    // Draw source to offscreen canvas for pixel sampling
-    let pixels;
-    const sampleW = Math.min(iw, 800);
-    const sampleH = Math.round(sampleW * (ih / iw));
-    try {
-      const off = document.createElement('canvas');
-      off.width = sampleW;
-      off.height = sampleH;
-      const offCtx = off.getContext('2d', { willReadFrequently: true });
-      offCtx.drawImage(src, 0, 0, sampleW, sampleH);
-      pixels = offCtx.getImageData(0, 0, sampleW, sampleH).data;
-    } catch (e) {
-      // Tainted canvas or other error — show fitted image as fallback
-      this._drawFitted(ctx, W, H, state);
-      return;
-    }
-
-    // Compute fitted rect on the output canvas
+    // Compute fitted rect
     const scale = (state.ip_scale || 1);
     const fitScale = Math.min(W / iw, H / ih) * scale;
     const dw = iw * fitScale;
@@ -783,54 +767,63 @@ class ImageProcessor {
     const cols = Math.floor(W / cellSize);
     const rows = Math.floor(H / cellSize);
 
-    const inv = Number(invert) >= 1;
+    // Downsample: render source at GRID resolution so each cell = 1 averaged pixel.
+    // This gives clean, balanced dot distribution — no noisy point-sampling.
+    // We render just the image area mapped to the grid cells that overlap it.
+    const gridStartCol = Math.max(0, Math.floor(dx / cellSize));
+    const gridEndCol   = Math.min(cols, Math.ceil((dx + dw) / cellSize));
+    const gridStartRow = Math.max(0, Math.floor(dy / cellSize));
+    const gridEndRow   = Math.min(rows, Math.ceil((dy + dh) / cellSize));
+    const gridCols = gridEndCol - gridStartCol;
+    const gridRows = gridEndRow - gridStartRow;
 
-    // Helper: sample brightness at a source pixel, clamped
-    function sampleBright(px, py) {
-      const x = Math.max(0, Math.min(sampleW - 1, Math.floor(px)));
-      const y = Math.max(0, Math.min(sampleH - 1, Math.floor(py)));
-      const i = (y * sampleW + x) * 4;
-      return (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114) / 255;
+    if (gridCols <= 0 || gridRows <= 0) return;
+
+    let pixels;
+    try {
+      const off = document.createElement('canvas');
+      off.width = gridCols;
+      off.height = gridRows;
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      // Fill with white so transparent PNGs have white background
+      offCtx.fillStyle = '#fff';
+      offCtx.fillRect(0, 0, gridCols, gridRows);
+      // Draw source image scaled to exactly fill the grid cells
+      // Map image so that fitted rect aligns with grid
+      const srcX = ((gridStartCol * cellSize) - dx) / dw * iw;
+      const srcY = ((gridStartRow * cellSize) - dy) / dh * ih;
+      const srcW = (gridCols * cellSize) / dw * iw;
+      const srcH = (gridRows * cellSize) / dh * ih;
+      offCtx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, gridCols, gridRows);
+      pixels = offCtx.getImageData(0, 0, gridCols, gridRows).data;
+    } catch (e) {
+      this._drawFitted(ctx, W, H, state);
+      return;
     }
 
-    // Batch all dots into a single path for performance
+    // Draw dots
     ctx.beginPath();
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
+    for (let gr = 0; gr < gridRows; gr++) {
+      for (let gc = 0; gc < gridCols; gc++) {
+        const idx = (gr * gridCols + gc) * 4;
+        const a = pixels[idx + 3]; // alpha
+        // Treat transparent as white (brightness 1)
+        let bright;
+        if (a < 10) {
+          bright = 1.0;
+        } else {
+          bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+        }
+
+        if (inv) bright = 1 - bright;
+        if (bright < threshold) continue;
+
+        const col = gridStartCol + gc;
+        const row = gridStartRow + gr;
         const cx = (col + 0.5) * cellSize;
         const cy = (row + 0.5) * cellSize;
-
-        const imgX = (cx - dx) / dw;
-        const imgY = (cy - dy) / dh;
-
-        if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
-
-        const sx = imgX * (sampleW - 1);
-        const sy = imgY * (sampleH - 1);
-
-        // Sample a 3x3 neighborhood to catch thin lines
-        // For normal: use center brightness
-        // For invert: use DARKEST pixel in neighborhood (catches thin dark lines)
-        let bright;
-        if (inv) {
-          // Find the darkest pixel nearby — if any line passes through, we catch it
-          let darkest = 1;
-          const step = Math.max(1, cellSize * (sampleW / W) * 0.4);
-          for (let oy = -1; oy <= 1; oy++) {
-            for (let ox = -1; ox <= 1; ox++) {
-              const b = sampleBright(sx + ox * step, sy + oy * step);
-              if (b < darkest) darkest = b;
-            }
-          }
-          bright = 1 - darkest; // invert: dark line → bright dot
-        } else {
-          bright = sampleBright(sx, sy);
-        }
-
-        if (bright >= threshold) {
-          ctx.moveTo(cx + radius, cy);
-          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        }
+        ctx.moveTo(cx + radius, cy);
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       }
     }
     ctx.fillStyle = '#fff';
