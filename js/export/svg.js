@@ -19,20 +19,32 @@ function collectNeedleworkSVG(W, H, state) {
   const threshold = state.ip_nw_threshold ?? 0.4;
   const invert    = state.ip_nw_invert    ?? 0;
 
-  // Draw source to offscreen canvas for pixel sampling
   const iw = source.videoWidth || source.naturalWidth || source.width;
   const ih = source.videoHeight || source.naturalHeight || source.height;
   if (!iw || !ih) return null;
 
+  // Render source at canvas resolution so the sampling matches what the shader sees
   const offscreen = document.createElement('canvas');
-  // Use a reasonable resolution for sampling
-  const sampleW = Math.min(iw, 800);
-  const sampleH = Math.round(sampleW * (ih / iw));
-  offscreen.width = sampleW;
-  offscreen.height = sampleH;
+  const dpr = window.devicePixelRatio || 1;
+  const canvasW = Math.round(W * dpr);
+  const canvasH = Math.round(H * dpr);
+  offscreen.width = canvasW;
+  offscreen.height = canvasH;
   const ctx = offscreen.getContext('2d');
-  ctx.drawImage(source, 0, 0, sampleW, sampleH);
-  const pixels = ctx.getImageData(0, 0, sampleW, sampleH).data;
+
+  // Fill black background (matches shader output — no dot = black)
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // Draw source fitted to canvas, same as the shader sees it
+  const fitScale = Math.min(canvasW / iw, canvasH / ih) * (state.ip_scale || 1);
+  const dw = iw * fitScale;
+  const dh = ih * fitScale;
+  const dx = (canvasW - dw) / 2 + (state.ip_offsetX || 0) * dpr;
+  const dy = (canvasH - dh) / 2 + (state.ip_offsetY || 0) * dpr;
+  ctx.drawImage(source, dx, dy, dw, dh);
+
+  const pixels = ctx.getImageData(0, 0, canvasW, canvasH).data;
 
   const cellSize = dotSize + spacing;
   const radius = dotSize / 2;
@@ -47,10 +59,10 @@ function collectNeedleworkSVG(W, H, state) {
       const cx = (col + 0.5) * cellSize;
       const cy = (row + 0.5) * cellSize;
 
-      // Map to source image coordinates
-      const sx = Math.floor((cx / W) * (sampleW - 1));
-      const sy = Math.floor((cy / H) * (sampleH - 1));
-      const idx = (sy * sampleW + sx) * 4;
+      // Sample at DPR-scaled coordinates
+      const sx = Math.floor((cx / W) * (canvasW - 1));
+      const sy = Math.floor((cy / H) * (canvasH - 1));
+      const idx = (sy * canvasW + sx) * 4;
 
       const r = pixels[idx];
       const g = pixels[idx + 1];
@@ -60,16 +72,14 @@ function collectNeedleworkSVG(W, H, state) {
       if (invert > 0.5) bright = 1 - bright;
 
       if (bright >= threshold) {
-        circles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}"/>`;
+        circles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}"/>\n`;
         count++;
-        // Add newline every 20 circles for readability
-        if (count % 20 === 0) circles += '\n';
       }
     }
   }
 
   if (!circles) return null;
-  return `  <g fill="#fff">\n${circles}\n  </g>`;
+  return `  <g fill="#fff">\n${circles}  </g>`;
 }
 
 export function exportSVG(engine, state, algorithm) {
