@@ -35,7 +35,7 @@ function collectNeedleworkSVG(W, H, state) {
   const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
   const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
 
-  // Downsample to grid resolution
+  const SUB = 4;
   const gridStartCol = Math.max(0, Math.floor(dx / cellSize));
   const gridEndCol   = Math.min(cols, Math.ceil((dx + dw) / cellSize));
   const gridStartRow = Math.max(0, Math.floor(dy / cellSize));
@@ -45,33 +45,42 @@ function collectNeedleworkSVG(W, H, state) {
 
   if (gridCols <= 0 || gridRows <= 0) return null;
 
+  const sampW = gridCols * SUB;
+  const sampH = gridRows * SUB;
   const offscreen = document.createElement('canvas');
-  offscreen.width = gridCols;
-  offscreen.height = gridRows;
+  offscreen.width = sampW;
+  offscreen.height = sampH;
   const ctx = offscreen.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, gridCols, gridRows);
+  ctx.fillRect(0, 0, sampW, sampH);
   const srcX = ((gridStartCol * cellSize) - dx) / dw * iw;
   const srcY = ((gridStartRow * cellSize) - dy) / dh * ih;
   const srcW = (gridCols * cellSize) / dw * iw;
   const srcH = (gridRows * cellSize) / dh * ih;
-  ctx.drawImage(source, srcX, srcY, srcW, srcH, 0, 0, gridCols, gridRows);
-  const pixels = ctx.getImageData(0, 0, gridCols, gridRows).data;
+  ctx.drawImage(source, srcX, srcY, srcW, srcH, 0, 0, sampW, sampH);
+  const pixels = ctx.getImageData(0, 0, sampW, sampH).data;
 
   let circles = '';
 
   for (let gr = 0; gr < gridRows; gr++) {
     for (let gc = 0; gc < gridCols; gc++) {
-      const idx = (gr * gridCols + gc) * 4;
-      const a = pixels[idx + 3];
-      let bright;
-      if (a < 10) {
-        bright = 1.0;
-      } else {
-        bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+      let darkCount = 0;
+      const totalSub = SUB * SUB;
+      for (let sy = 0; sy < SUB; sy++) {
+        for (let sx = 0; sx < SUB; sx++) {
+          const px = gc * SUB + sx;
+          const py = gr * SUB + sy;
+          const idx = (py * sampW + px) * 4;
+          const a = pixels[idx + 3];
+          let bright;
+          if (a < 10) { bright = 1.0; }
+          else { bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255; }
+          if (bright < 0.5) darkCount++;
+        }
       }
-      if (inv) bright = 1 - bright;
-      if (bright < threshold) continue;
+      const coverage = darkCount / totalSub;
+      const placeDot = inv ? (coverage >= threshold) : ((1 - coverage) >= threshold);
+      if (!placeDot) continue;
 
       const col = gridStartCol + gc;
       const row = gridStartRow + gr;

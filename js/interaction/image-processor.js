@@ -767,9 +767,10 @@ class ImageProcessor {
     const cols = Math.floor(W / cellSize);
     const rows = Math.floor(H / cellSize);
 
-    // Downsample: render source at GRID resolution so each cell = 1 averaged pixel.
-    // This gives clean, balanced dot distribution — no noisy point-sampling.
-    // We render just the image area mapped to the grid cells that overlap it.
+    // Coverage-based sampling: render source at higher resolution (4x grid),
+    // then for each cell count what % of sub-pixels are dark.
+    // This gives clean edges — a line through any part of a cell triggers the dot.
+    const SUB = 4; // 4x4 sub-pixels per cell
     const gridStartCol = Math.max(0, Math.floor(dx / cellSize));
     const gridEndCol   = Math.min(cols, Math.ceil((dx + dw) / cellSize));
     const gridStartRow = Math.max(0, Math.floor(dy / cellSize));
@@ -779,51 +780,66 @@ class ImageProcessor {
 
     if (gridCols <= 0 || gridRows <= 0) return;
 
+    const sampW = gridCols * SUB;
+    const sampH = gridRows * SUB;
+
     let pixels;
     try {
       const off = document.createElement('canvas');
-      off.width = gridCols;
-      off.height = gridRows;
+      off.width = sampW;
+      off.height = sampH;
       const offCtx = off.getContext('2d', { willReadFrequently: true });
-      // Fill with white so transparent PNGs have white background
       offCtx.fillStyle = '#fff';
-      offCtx.fillRect(0, 0, gridCols, gridRows);
-      // Draw source image scaled to exactly fill the grid cells
-      // Map image so that fitted rect aligns with grid
+      offCtx.fillRect(0, 0, sampW, sampH);
       const srcX = ((gridStartCol * cellSize) - dx) / dw * iw;
       const srcY = ((gridStartRow * cellSize) - dy) / dh * ih;
       const srcW = (gridCols * cellSize) / dw * iw;
       const srcH = (gridRows * cellSize) / dh * ih;
-      offCtx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, gridCols, gridRows);
-      pixels = offCtx.getImageData(0, 0, gridCols, gridRows).data;
+      offCtx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, sampW, sampH);
+      pixels = offCtx.getImageData(0, 0, sampW, sampH).data;
     } catch (e) {
       this._drawFitted(ctx, W, H, state);
       return;
     }
 
-    // Draw dots
+    // For each grid cell, compute coverage (% of sub-pixels that are "on")
     ctx.beginPath();
     for (let gr = 0; gr < gridRows; gr++) {
       for (let gc = 0; gc < gridCols; gc++) {
-        const idx = (gr * gridCols + gc) * 4;
-        const a = pixels[idx + 3]; // alpha
-        // Treat transparent as white (brightness 1)
-        let bright;
-        if (a < 10) {
-          bright = 1.0;
-        } else {
-          bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+        let darkCount = 0;
+        const totalSub = SUB * SUB;
+
+        for (let sy = 0; sy < SUB; sy++) {
+          for (let sx = 0; sx < SUB; sx++) {
+            const px = gc * SUB + sx;
+            const py = gr * SUB + sy;
+            const idx = (py * sampW + px) * 4;
+            const a = pixels[idx + 3];
+            let bright;
+            if (a < 10) {
+              bright = 1.0; // transparent = white
+            } else {
+              bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+            }
+            // Count sub-pixels that are "dark" (below 0.5 hardcoded pre-threshold)
+            if (bright < 0.5) darkCount++;
+          }
         }
 
-        if (inv) bright = 1 - bright;
-        if (bright < threshold) continue;
+        // Coverage: what fraction of the cell is dark?
+        const coverage = darkCount / totalSub;
+        // In normal mode: place dot where image is bright (low dark coverage)
+        // In invert mode: place dot where image is dark (high dark coverage)
+        const placeDot = inv ? (coverage >= threshold) : ((1 - coverage) >= threshold);
 
-        const col = gridStartCol + gc;
-        const row = gridStartRow + gr;
-        const cx = (col + 0.5) * cellSize;
-        const cy = (row + 0.5) * cellSize;
-        ctx.moveTo(cx + radius, cy);
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        if (placeDot) {
+          const col = gridStartCol + gc;
+          const row = gridStartRow + gr;
+          const cx = (col + 0.5) * cellSize;
+          const cy = (row + 0.5) * cellSize;
+          ctx.moveTo(cx + radius, cy);
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        }
       }
     }
     ctx.fillStyle = '#fff';
