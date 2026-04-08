@@ -754,19 +754,21 @@ class ImageProcessor {
     if (!iw || !ih) return;
 
     // Draw source to offscreen canvas for pixel sampling
-    if (!this._nwCanvas) {
-      this._nwCanvas = document.createElement('canvas');
-      this._nwCtx = this._nwCanvas.getContext('2d', { willReadFrequently: true });
-    }
-    // Use moderate resolution for sampling (don't need full DPR)
-    const sampleW = Math.min(iw, 1200);
+    let pixels;
+    const sampleW = Math.min(iw, 800);
     const sampleH = Math.round(sampleW * (ih / iw));
-    if (this._nwCanvas.width !== sampleW || this._nwCanvas.height !== sampleH) {
-      this._nwCanvas.width = sampleW;
-      this._nwCanvas.height = sampleH;
+    try {
+      const off = document.createElement('canvas');
+      off.width = sampleW;
+      off.height = sampleH;
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      offCtx.drawImage(src, 0, 0, sampleW, sampleH);
+      pixels = offCtx.getImageData(0, 0, sampleW, sampleH).data;
+    } catch (e) {
+      // Tainted canvas or other error — show fitted image as fallback
+      this._drawFitted(ctx, W, H, state);
+      return;
     }
-    this._nwCtx.drawImage(src, 0, 0, sampleW, sampleH);
-    const pixels = this._nwCtx.getImageData(0, 0, sampleW, sampleH).data;
 
     // Compute fitted rect on the output canvas
     const scale = (state.ip_scale || 1);
@@ -781,43 +783,34 @@ class ImageProcessor {
     const cols = Math.floor(W / cellSize);
     const rows = Math.floor(H / cellSize);
 
-    // Clear to black
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-
-    // Draw dots
-    ctx.fillStyle = '#fff';
+    // Batch all dots into a single path for performance
+    ctx.beginPath();
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const cx = (col + 0.5) * cellSize;
         const cy = (row + 0.5) * cellSize;
 
         // Map canvas position to source image pixel
-        const imgX = (cx - dx) / dw;  // 0-1 within fitted image
+        const imgX = (cx - dx) / dw;
         const imgY = (cy - dy) / dh;
 
-        // Outside fitted image = skip
         if (imgX < 0 || imgX > 1 || imgY < 0 || imgY > 1) continue;
 
-        // Sample source pixel
         const sx = Math.floor(imgX * (sampleW - 1));
         const sy = Math.floor(imgY * (sampleH - 1));
         const idx = (sy * sampleW + sx) * 4;
 
-        const r = pixels[idx];
-        const g = pixels[idx + 1];
-        const b = pixels[idx + 2];
-        let bright = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-
+        let bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
         if (invert > 0.5) bright = 1 - bright;
 
         if (bright >= threshold) {
-          ctx.beginPath();
+          ctx.moveTo(cx + radius, cy);
           ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-          ctx.fill();
         }
       }
     }
+    ctx.fillStyle = '#fff';
+    ctx.fill();
   }
 
   render(engine, ctx, W, H, state) {
