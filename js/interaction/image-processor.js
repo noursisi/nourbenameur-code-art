@@ -497,9 +497,11 @@ void main() {
   needlework: {
     name: 'Needlework',
     params: [
-      { id: 'ip_nw_dotsize',   label: 'Dot Size',   min: 2,  max: 16, step: 1,    default: 6  },
-      { id: 'ip_nw_spacing',   label: 'Spacing',    min: 0,  max: 4,  step: 0.5,  default: 1  },
+      { id: 'ip_nw_dotsize',   label: 'Dot Size',   min: 2,  max: 24, step: 1,    default: 6  },
+      { id: 'ip_nw_spacing',   label: 'Spacing',    min: 0,  max: 8,  step: 0.5,  default: 1  },
       { id: 'ip_nw_threshold', label: 'Threshold',  min: 0,  max: 1,  step: 0.01, default: 0.4 },
+      { id: 'ip_nw_contrast',  label: 'Contrast',   min: 1,  max: 5,  step: 0.1,  default: 1  },
+      { id: 'ip_nw_mirror',    label: 'Mirror',     min: 0,  max: 1,  step: 1,    default: 0  },
       { id: 'ip_nw_invert',    label: 'Invert',     min: 0,  max: 1,  step: 1,    default: 0  },
     ],
     // No GLSL shader — rendered via Canvas 2D in the custom render path
@@ -747,14 +749,14 @@ class ImageProcessor {
     const dotSize   = state.ip_nw_dotsize   ?? 6;
     const spacing   = state.ip_nw_spacing   ?? 1;
     const threshold = state.ip_nw_threshold ?? 0.4;
-    const inv = Number(state.ip_nw_invert ?? 0) >= 1;
+    const contrast  = state.ip_nw_contrast  ?? 1;
+    const mirror    = Number(state.ip_nw_mirror ?? 0) >= 1;
+    const inv       = Number(state.ip_nw_invert ?? 0) >= 1;
 
     const iw = src.videoWidth || src.naturalWidth || src.width;
     const ih = src.videoHeight || src.naturalHeight || src.height;
     if (!iw || !ih) return;
 
-    // Grid is anchored to the IMAGE, not the canvas.
-    // Step 1: figure out how many dot cells fit across the image
     const cellSize = dotSize + spacing;
     const radius = dotSize / 2;
 
@@ -778,13 +780,43 @@ class ImageProcessor {
       off.width = imgCols;
       off.height = imgRows;
       const offCtx = off.getContext('2d', { willReadFrequently: true });
-      offCtx.fillStyle = '#fff'; // transparent → white
+      offCtx.fillStyle = '#fff';
       offCtx.fillRect(0, 0, imgCols, imgRows);
       offCtx.drawImage(src, 0, 0, imgCols, imgRows);
       pixels = offCtx.getImageData(0, 0, imgCols, imgRows).data;
     } catch (e) {
       this._drawFitted(ctx, W, H, state);
       return;
+    }
+
+    // Build brightness grid with contrast boost
+    const bright = new Float32Array(imgCols * imgRows);
+    for (let i = 0; i < imgCols * imgRows; i++) {
+      const idx = i * 4;
+      let b = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
+      // Contrast: push values away from 0.5 toward 0 or 1
+      if (contrast > 1) {
+        b = (b - 0.5) * contrast + 0.5;
+        b = Math.max(0, Math.min(1, b));
+      }
+      bright[i] = b;
+    }
+
+    // If mirror: force left/right symmetry by averaging then mirroring
+    if (mirror) {
+      const halfCols = Math.ceil(imgCols / 2);
+      for (let row = 0; row < imgRows; row++) {
+        for (let col = 0; col < halfCols; col++) {
+          const mirrorCol = imgCols - 1 - col;
+          if (mirrorCol === col) continue;
+          const leftIdx = row * imgCols + col;
+          const rightIdx = row * imgCols + mirrorCol;
+          // Use the darker value (for invert: catches lines on either side)
+          const val = Math.min(bright[leftIdx], bright[rightIdx]);
+          bright[leftIdx] = val;
+          bright[rightIdx] = val;
+        }
+      }
     }
 
     // Center the dot grid within the fitted image area
@@ -796,10 +828,8 @@ class ImageProcessor {
     ctx.beginPath();
     for (let row = 0; row < imgRows; row++) {
       for (let col = 0; col < imgCols; col++) {
-        const idx = (row * imgCols + col) * 4;
-        const bright = (pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114) / 255;
-
-        const placeDot = inv ? (bright <= threshold) : (bright >= threshold);
+        const b = bright[row * imgCols + col];
+        const placeDot = inv ? (b <= threshold) : (b >= threshold);
         if (!placeDot) continue;
 
         const cx = offsetX + (col + 0.5) * cellSize;
