@@ -18,6 +18,7 @@ import { exportSVG } from './export/svg.js';
 import { startRecording, stopRecording, isRecording } from './export/video.js';
 import { initKeyboard } from './interaction/keyboard.js';
 import { createSlider } from './ui/panel.js';
+import { loadPreset, getPresetNames } from './interaction/needlework-presets.js';
 
 const BLEND_MODES = [
   { value: 'source-over', label: 'Normal' },
@@ -231,6 +232,50 @@ function buildIPParams(effectKey) {
     const decimals = p.step < 1 ? (String(p.step).split('.')[1]?.length || 1) : 0;
     const fmt = decimals > 0 ? v => v.toFixed(decimals) : null;
     createSlider(ipParamControls, p.label, p.id, p.min, p.max, p.step, fmt);
+  }
+
+  // Add preset buttons for needlework effect
+  if (effectKey === 'needlework') {
+    const presetLabel = document.createElement('div');
+    presetLabel.className = 'slider-label';
+    presetLabel.style.marginTop = '8px';
+    presetLabel.innerHTML = '<span>Presets</span>';
+    ipParamControls.appendChild(presetLabel);
+
+    const presetGrid = document.createElement('div');
+    presetGrid.className = 'btn-grid';
+    presetGrid.style.gridTemplateColumns = '1fr 1fr 1fr 1fr';
+    presetGrid.style.marginTop = '4px';
+
+    const names = getPresetNames();
+    names.forEach((name, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.textContent = name;
+      btn.style.fontSize = '8px';
+      btn.style.padding = '5px 3px';
+      btn.addEventListener('click', async () => {
+        try {
+          const img = await loadPreset(idx);
+          imageProcessor._source = img;
+          imageProcessor._sourceType = 'image';
+          imageProcessor._hasPrevFrame = false;
+          set('ip_enabled', true);
+          const toggle = document.getElementById('ip-enabled-toggle');
+          if (toggle) toggle.classList.add('on');
+          if (ipControls) ipControls.style.display = '';
+          // Highlight active preset
+          presetGrid.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          markDirty();
+        } catch (e) {
+          console.error('Failed to load preset:', e);
+        }
+      });
+      presetGrid.appendChild(btn);
+    });
+
+    ipParamControls.appendChild(presetGrid);
   }
 }
 

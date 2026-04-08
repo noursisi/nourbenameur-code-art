@@ -139,6 +139,8 @@ class Engine {
 
     // ── 3. Image Processor (behind algorithm if not mix mode) ──────────────
     // Always show image when source exists; distortion only when ip_enabled
+    // "Solo effects" like needlework replace the algorithm entirely
+    const isSoloEffect = s.ip_enabled && s.ip_effect === 'needlework';
     if (imageProcessor.hasSource() && !s.ip_mixWithAlgo) {
       if (s.ip_enabled && s.ip_effect !== 'none') {
         imageProcessor.render(this, ctx, W, H, s);
@@ -147,11 +149,13 @@ class Engine {
       }
     }
 
-    // ── 4. Layers / Algorithm ───────────────────────────────────────────────
-    if (useMultiLayer) {
-      this._renderMultiLayer(ctx, W, H, s, layers);
-    } else {
-      this._renderSingleLayer(ctx, W, H, s);
+    // ── 4. Layers / Algorithm (skip when solo effect is active) ────────────
+    if (!isSoloEffect) {
+      if (useMultiLayer) {
+        this._renderMultiLayer(ctx, W, H, s, layers);
+      } else {
+        this._renderSingleLayer(ctx, W, H, s);
+      }
     }
 
     // ── 5. Image Processor (on top if mix mode) ─────────────────────────────
