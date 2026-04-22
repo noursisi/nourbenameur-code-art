@@ -97,7 +97,7 @@ export const state = {
   bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
   // Cybercore — Y2K/techcore collage
   cyber_windows: 5, cyber_circuits: 10, cyber_scanlines: 0.45, cyber_text: 0.6,
-  cyber_grid: 0.1, cyber_glitch: 3, cyber_thumbs: 1, cyber_tint: 0.35, cyber_seed: 42,
+  cyber_grid: 0.1, cyber_glitch: 3, cyber_chaos: 0.5, cyber_thumbs: 1, cyber_tint: 0.35, cyber_seed: 42,
   // Camera
   cameraActive: false,
   // Layers

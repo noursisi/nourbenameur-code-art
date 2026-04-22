@@ -107,6 +107,7 @@ export class Cybercore extends Algorithm {
       { id: 'cyber_text',     label: 'Text',     min: 0,    max: 1,   step: 0.05, default: 0.6  },
       { id: 'cyber_grid',     label: 'Grid',     min: 0,    max: 0.5, step: 0.02, default: 0.1  },
       { id: 'cyber_glitch',   label: 'Glitch',   min: 0,    max: 10,  step: 1,    default: 3    },
+      { id: 'cyber_chaos',    label: 'Chaos',    min: 0,    max: 1,   step: 0.05, default: 0.5  },
       { id: 'cyber_thumbs',   label: 'Thumbs',   min: 0,    max: 1,   step: 1,    default: 1    },
       { id: 'cyber_tint',     label: 'Tint',     min: 0,    max: 1,   step: 0.05, default: 0.35 },
       { id: 'cyber_seed',     label: 'Seed',     min: 0,    max: 100, step: 1,    default: 42   },
@@ -135,6 +136,7 @@ export class Cybercore extends Algorithm {
     const textDens  = clamp(s.cyber_text      ?? 0.6,  0, 1);
     const gridOp    = clamp(s.cyber_grid      ?? 0.1,  0, 0.5);
     const nGlitch   = Math.round(clamp(s.cyber_glitch  ?? 3,    0,  10));
+    const chaos     = clamp(s.cyber_chaos     ?? 0.5,  0, 1);
     const thumbs    = Math.round(clamp(s.cyber_thumbs  ?? 1,    0,  1));
     const tint      = clamp(s.cyber_tint      ?? 0.35, 0, 1);
     const seed      = Math.round(clamp(s.cyber_seed    ?? 42,   0,  100));
@@ -170,7 +172,7 @@ export class Cybercore extends Algorithm {
 
     // ── 5. Fake UI Windows ─────────────────────────────────────────────────────
     if (nWindows > 0) {
-      this._drawWindows(ctx, W, H, nWindows, rng, t);
+      this._drawWindows(ctx, W, H, nWindows, rng, t, chaos);
     }
 
     // ── 6. Thumbnail Strip ─────────────────────────────────────────────────────
@@ -178,22 +180,32 @@ export class Cybercore extends Algorithm {
       this._drawThumbnails(ctx, W, H, rng, t);
     }
 
-    // ── 7. Scanlines ───────────────────────────────────────────────────────────
+    // ── 7. Chaos: image fragmentation — slice and offset random strips ─────
+    if (chaos > 0.2) {
+      this._drawFragmentation(ctx, W, H, chaos, rng, t);
+    }
+
+    // ── 8. Scanlines ───────────────────────────────────────────────────────────
     if (scanlines > 0) {
       this._drawScanlines(ctx, W, H, scanlines, t);
     }
 
-    // ── 8. Glitch Bars ─────────────────────────────────────────────────────────
+    // ── 9. Glitch Bars ─────────────────────────────────────────────────────────
     if (nGlitch > 0) {
       this._drawGlitch(ctx, W, H, nGlitch, rng, t);
     }
 
-    // ── 9. Color Tint ──────────────────────────────────────────────────────────
+    // ── 10. Chaos: noise artifacts ─────────────────────────────────────────────
+    if (chaos > 0.3) {
+      this._drawNoiseArtifacts(ctx, W, H, chaos, rng);
+    }
+
+    // ── 11. Color Tint ─────────────────────────────────────────────────────────
     if (tint > 0) {
       this._drawTint(ctx, W, H, tint);
     }
 
-    // ── 10. Corner HUD decorations ─────────────────────────────────────────────
+    // ── 12. Corner HUD decorations ─────────────────────────────────────────────
     this._drawCornerHUD(ctx, W, H, t);
 
     ctx.restore();
@@ -372,13 +384,12 @@ export class Cybercore extends Algorithm {
     ctx.restore();
   }
 
-  _drawWindows(ctx, W, H, count, rng, t) {
-    // Margin so windows don't go off-screen
-    const MARGIN = 10;
-    const MIN_W  = 140;
-    const MAX_W  = Math.min(320, W * 0.45);
-    const MIN_H  = 80;
-    const MAX_H  = Math.min(220, H * 0.35);
+  _drawWindows(ctx, W, H, count, rng, t, chaos = 0) {
+    const MARGIN = chaos > 0.3 ? -60 : 10; // negative margin = windows go off-screen
+    const MIN_W  = chaos > 0.5 ? 60 : 140;
+    const MAX_W  = Math.min(chaos > 0.5 ? 500 : 320, W * (0.45 + chaos * 0.3));
+    const MIN_H  = chaos > 0.5 ? 40 : 80;
+    const MAX_H  = Math.min(chaos > 0.5 ? 400 : 220, H * (0.35 + chaos * 0.3));
     const TITLE_H = 20;
 
     for (let i = 0; i < count; i++) {
@@ -386,6 +397,17 @@ export class Cybercore extends Algorithm {
       const wh = Math.floor(lerp(MIN_H, MAX_H, rng()));
       const wx = Math.floor(MARGIN + rng() * (W - ww - MARGIN * 2));
       const wy = Math.floor(MARGIN + rng() * (H - wh - MARGIN * 2));
+
+      // Chaos: random rotation and scale
+      const rotation = chaos > 0.2 ? (rng() - 0.5) * chaos * 0.15 : 0;
+      const scaleVar = chaos > 0.3 ? lerp(0.7, 1.4, rng()) : 1;
+      if (rotation !== 0 || scaleVar !== 1) {
+        ctx.save();
+        ctx.translate(wx + ww / 2, wy + wh / 2);
+        ctx.rotate(rotation);
+        ctx.scale(scaleVar, scaleVar);
+        ctx.translate(-(wx + ww / 2), -(wy + wh / 2));
+      }
 
       const title  = pickFrom(WINDOW_TITLES,    rng);
       const hasErr = rng() < 0.15;
@@ -482,6 +504,11 @@ export class Cybercore extends Algorithm {
 
       ctx.restore(); // clip
       ctx.restore(); // window save
+
+      // Close chaos rotation/scale transform
+      if (rotation !== 0 || scaleVar !== 1) {
+        ctx.restore();
+      }
     }
   }
 
@@ -849,13 +876,100 @@ export class Cybercore extends Algorithm {
     ctx.restore();
   }
 
+  // ── Chaos: image fragmentation ─────────────────────────────────────────────
+
+  _drawFragmentation(ctx, W, H, chaos, rng, t) {
+    const count = Math.round(chaos * 8);
+    try {
+      for (let i = 0; i < count; i++) {
+        // Grab a random horizontal strip from the current canvas
+        const stripH = Math.floor(lerp(2, 30 * chaos, rng()));
+        const srcY = Math.floor(rng() * (H - stripH));
+        const srcX = 0;
+
+        // Offset it horizontally by a random amount
+        const offsetX = Math.floor((rng() - 0.5) * W * chaos * 0.4);
+        const offsetY = Math.floor((rng() - 0.5) * H * chaos * 0.1);
+
+        ctx.save();
+        ctx.globalAlpha = lerp(0.3, 0.9, rng());
+        // Color shift on some strips
+        if (rng() < chaos * 0.5) {
+          ctx.globalCompositeOperation = rng() < 0.5 ? 'screen' : 'difference';
+        }
+        ctx.drawImage(ctx.canvas, srcX, srcY, W, stripH, offsetX, srcY + offsetY, W, stripH);
+        ctx.restore();
+      }
+    } catch (e) {
+      // getImageData might fail — silently skip
+    }
+  }
+
+  // ── Chaos: noise artifacts ────────────────────────────────────────────────
+
+  _drawNoiseArtifacts(ctx, W, H, chaos, rng) {
+    ctx.save();
+
+    // Random bright pixels scattered
+    const pixelCount = Math.round(chaos * 200);
+    for (let i = 0; i < pixelCount; i++) {
+      const x = Math.floor(rng() * W);
+      const y = Math.floor(rng() * H);
+      const c = rng() < 0.6 ? '#00ffff' : rng() < 0.5 ? '#ff0033' : '#00ff00';
+      ctx.fillStyle = c;
+      ctx.globalAlpha = rng() * chaos * 0.4;
+      const sz = rng() < 0.9 ? 1 : Math.floor(rng() * 3) + 1;
+      ctx.fillRect(x, y, sz, sz);
+    }
+
+    // Corrupted text blocks — text at wrong sizes and angles
+    if (chaos > 0.4) {
+      const blockCount = Math.round(chaos * 4);
+      for (let i = 0; i < blockCount; i++) {
+        const fontSize = Math.floor(lerp(6, 40 * chaos, rng()));
+        ctx.font = `${fontSize}px monospace`;
+        ctx.fillStyle = rng() < 0.5 ? '#00ccff' : '#003311';
+        ctx.globalAlpha = lerp(0.05, 0.3, rng());
+        const text = pickFrom(READOUT_POOL, rng);
+        const x = rng() * W;
+        const y = rng() * H;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((rng() - 0.5) * chaos * 0.5);
+        ctx.fillText(text, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    // Broken border fragments — partial rectangles floating around
+    if (chaos > 0.3) {
+      const fragCount = Math.round(chaos * 6);
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < fragCount; i++) {
+        const x = rng() * W;
+        const y = rng() * H;
+        const w = lerp(20, 200, rng());
+        const h = lerp(10, 80, rng());
+        ctx.strokeStyle = rng() < 0.7 ? '#1a3050' : '#402020';
+        ctx.globalAlpha = lerp(0.1, 0.4, rng());
+        ctx.beginPath();
+        // Draw only partial sides of the rectangle
+        const sides = Math.floor(rng() * 3) + 1;
+        if (sides >= 1) { ctx.moveTo(x, y); ctx.lineTo(x + w, y); }
+        if (sides >= 2) { ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); }
+        if (sides >= 3) { ctx.moveTo(x, y + h); ctx.lineTo(x, y); }
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
   // ── Randomize ──────────────────────────────────────────────────────────────
 
   randomize(state, set) {
-    // Randomize seed first — this cascades all layout decisions
     set('cyber_seed', Math.floor(Math.random() * 100));
 
-    // Weighted random choices for a coherent aesthetic
     const dense = Math.random() < 0.5;
 
     set('cyber_windows',   Math.round(lerp(dense ? 4 : 1, dense ? 12 : 6,  Math.random())));
@@ -864,6 +978,7 @@ export class Cybercore extends Algorithm {
     set('cyber_text',      parseFloat(lerp(0.2,  0.9,  Math.random()).toFixed(2)));
     set('cyber_grid',      parseFloat(lerp(0,    0.3,  Math.random()).toFixed(2)));
     set('cyber_glitch',    Math.round(lerp(0, 8, Math.random())));
+    set('cyber_chaos',     parseFloat(lerp(0.2, 0.9, Math.random()).toFixed(2)));
     set('cyber_thumbs',    Math.random() < 0.7 ? 1 : 0);
     set('cyber_tint',      parseFloat(lerp(0.1, 0.7, Math.random()).toFixed(2)));
   }
