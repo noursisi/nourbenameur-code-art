@@ -1,8 +1,8 @@
 /**
- * Cybercore — Y2K/cybercore/techcore collage compositions.
- * Generates hacker-desktop, surveillance-system, and late-90s terminal aesthetics
- * using seeded layouts, fake UI windows, circuit traces, and glitch artifacts.
- * Works with an uploaded image as base layer, or standalone.
+ * Cybercore — Y2K / Cybercore COLLAGE aesthetics.
+ * Early web chaos: text collage, Windows XP glitch, error dialog stacks,
+ * floating analysis panels, coordinate overlays, cursor arrows.
+ * The uploaded image is DOMINANT — this is a collage layered on top, not a HUD.
  */
 
 import { Algorithm } from '../base.js';
@@ -17,74 +17,132 @@ function makeLCG(seed) {
   };
 }
 
-// ── Tech string pools ─────────────────────────────────────────────────────────
-
-const WINDOW_TITLES = [
-  'SYSTEM_CORE.dll', 'NEURAL_MAP v2.1', '0x7F3A::MONITOR',
-  'DATA_STREAM_04',  'PROXY_CHAIN::OK', 'SCAN COMPLETE',
-  'ERR::0x0042',     'BUFFER_OVERFLOW', 'TRACE_ROUTE',
-  'NET_DAEMON v4',   'SYS.PROC::LIVE',  'KERNEL_LOG_03',
-  'PACKET_SNIFFER',  'CRYPTO_INIT::OK', 'WATCHDOG::RUN',
-  'UPLINK_SECURED',  'FIREWALL_ACTIVE', 'REBOOT_PENDING',
-];
-
-const WINDOW_SUBTITLES = [
-  'PID 2847 :: ACTIVE', 'HEAP: 0xC0DEBEEF', 'CHECKSUM OK',
-  'PORT 8080 LISTEN',   'AES-256 ENGAGED',  'LATENCY 12ms',
-  'THREAD COUNT: 48',   'SIGNAL LOCKED',    'SYNC IN PROGRESS',
-];
-
-const READOUT_POOL = [
-  '0xAF3B', '0x001C', '0xFF00', '0xDEAD', '0xBEEF', '0xC0DE',
-  '0x4F3A', '0x7E2B', '0xFF3C', '0x1A4D',
-  'LAT 48.8566 LON 2.3522', 'LAT 35.6762 LON 139.6503',
-  'NODE_127.0.0.1', 'NODE_10.0.0.255',
-  'CONNECTED', 'DECRYPTING...', 'ACCESS GRANTED', 'AUTH FAILED',
-  'CPU 87%', 'MEM 64%', 'NET 12Mbps', 'DISK 94%',
-  'TX 4.2KB/s', 'RX 18.7KB/s', 'PING 8ms', 'LOSS 0%',
-  '2026.04.08 19:41:33', '2026.01.01 00:00:01',
-  'THREAD DUMP...', 'GC PAUSED', 'STACK DEPTH: 12', 'CACHE MISS',
-  'PROXY 195.43.12.8', 'TOR EXIT NODE', 'ROUTE HOP 7',
-  'ENTROPY: HIGH', 'NOISE FLOOR -94dBm', 'SIGNAL 5/5',
-];
-
-const CONTENT_LABELS = [
-  'INCOMING', 'OUTGOING', 'QUEUED', 'DROPPED',
-  'BYTES_IN', 'BYTES_OUT', 'ERRORS', 'STATUS',
-  'TEMP', 'VOLTAGE', 'AMPERE', 'WATT',
-];
-
-// ── Color palette ─────────────────────────────────────────────────────────────
-
-const NEON_COLORS = [
-  '#00ffff', '#00ccff', '#00ff00', '#00cc44',
-  '#0066ff', '#33ffcc', '#66ff00', '#00ffaa',
-];
-const WARN_COLORS  = ['#ff0033', '#ff6600', '#ffcc00'];
-const BG_DARK      = '#050810';
-const BG_PANEL     = '#090d1a';
-const BG_TITLEBAR  = '#0d1424';
-const BORDER_CYAN  = '#1a4060';
-const BORDER_BRIGHT = '#0f3050';
-
-function neonPick(rng, warnChance = 0.08) {
-  if (rng() < warnChance) return WARN_COLORS[Math.floor(rng() * WARN_COLORS.length)];
-  return NEON_COLORS[Math.floor(rng() * NEON_COLORS.length)];
-}
-
-function hexAlpha(hex, a) {
-  // Returns hex color with explicit globalAlpha set externally; returns the hex string.
-  return hex;
-}
-
 // ── Utility ───────────────────────────────────────────────────────────────────
 
-function lerp(a, b, t) { return a + (b - a) * t; }
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+function pickFrom(arr, rng) { return arr[Math.floor(rng() * arr.length)]; }
 
-function pickFrom(arr, rng) {
-  return arr[Math.floor(rng() * arr.length)];
-}
+// ── Early web / Y2K text pool (100+ strings) ──────────────────────────────────
+
+const WEB_TEXT = [
+  'CLICK HERE', 'FREE DOWNLOAD', 'You have 1 new message', 'CONGRATULATIONS!',
+  'Adult (NSFW)', '404 NOT FOUND', 'angels-heaven.org', 'Click OK to continue',
+  'Error at line 0x0042', 'WARNING', 'best viewed with ANY browser',
+  'CLICK to apologize!', 'CLICK to be saved!', 'Privacy Policy',
+  'Are You Ready?', 'Submit your picture', 'MAIN PAGE', 'Online Now!',
+  'Add to favorites', 'the rules', 'Disclaimer', 'Make Money Fast',
+  'Cool Links', 'Click here!', 'DOWNLOADS', 'Sign Up', 'Contact us',
+  'SEARCH...', 'Web Resources', 'How do I sell?', 'History', 'News', 'Help',
+  'VIEW SOURCE', 'REFRESH', 'BACK', 'FORWARD',
+  'File  Edit  View  Favorites  Tools  Help',
+  'C:\\WINDOWS\\System32\\', 'rundll32.exe', 'explorer.exe',
+  'kernel32.dll', 'FATAL ERROR', 'BSOD', 'MEMORY DUMP',
+  'Connection timed out', 'Server not found', 'Access denied',
+  'The page cannot be displayed',
+  'This program has performed an illegal operation',
+  'General Protection Fault', 'Abort, Retry, Fail?',
+  'Press F1 for help', 'Insert disk 2', 'Formatting C:\\',
+  'Your computer may be at risk', 'Windows is shutting down',
+  'Runtime Error!', 'Stack overflow', 'Segmentation fault',
+  'www.angelfire.com/~darkrose', 'geocities.com/Area51',
+  'webrings.org/join', 'counter: 000847',
+  'This site is under construction', 'Coming Soon!',
+  'Last updated: 02/14/2001', 'Get Netscape Now!',
+  'Best viewed in 800x600', 'This page uses frames',
+  'You are visitor #00042', 'Sign my guestbook!',
+  'Win a FREE iPod!', 'Your IP has been logged',
+  'Download Limewire', 'Napster is back!',
+  'AIM: xXdarkl0rdXx', 'MSN: cutegirl01@hotmail.com',
+  'Do not steal my graphics!', 'Layout by moonbeam_designz',
+  'UNDER CONSTRUCTION', 'NEW!', 'UPDATED!', 'HOT!',
+  'Click to enlarge', 'Save image as...', 'Open in new window',
+  'pop-up blocked', 'Allow pop-ups from this site?',
+  'Your download will begin shortly', 'Mirror 1 | Mirror 2 | Mirror 3',
+  'Rate this site: * * * * *', 'Total votes: 1,337',
+  'Join the webring', 'Previous | Next | Random | List',
+  'Post reply', 'New thread', 'Quote', 'Edit',
+  '>>> READ THE RULES <<<', 'Moderator: Admin',
+  'Posts: 2,847', 'Joined: Sep 2000', 'Location: USA',
+  'Banned', 'Sticky', 'Locked', 'Moved',
+  'C:\\> _', 'ipconfig /all', 'ping 192.168.1.1',
+  'netstat -an', 'dir /s /b', 'del *.* /q',
+  'format C: /y', 'regedit.exe', 'msconfig',
+  '0x8007000E', '0xC000021A', '0x0000007E',
+  'IRQL_NOT_LESS_OR_EQUAL', 'PAGE_FAULT_IN_NONPAGED_AREA',
+  'A problem has been detected', 'Technical information:',
+  'STOP: 0x0000000A', '*** STOP: 0x00000050',
+  'Beginning dump of physical memory', 'Physical memory dump complete',
+  'Contact your system administrator',
+  'The system cannot find the file specified',
+  'Access is denied', 'Not enough storage',
+  'The operation completed successfully',
+  'There is not enough space on the disk',
+  'The device is not ready', 'The network path was not found',
+  'An error occurred while', 'Please wait...',
+  'Loading...', 'Connecting...', 'Synchronizing...',
+  'Verifying...', 'Scanning for viruses...',
+  'Checking for updates...', 'Installing component 3 of 47',
+  'Do not turn off your computer', 'Setup is copying files...',
+  'Estimated time remaining: 47 minutes',
+  'register.com', 'tripod.com', 'brinkster.com',
+  'freewebs.com', 'homestead.com', 'lycos.com',
+  'altavista.com', 'ask jeeves', 'hotbot.com',
+  'astalavista.box.sk', 'l33t.hax0r.net',
+  'skull.net', 'darkness.org', 'eviloverlord.com',
+];
+
+const WINDOW_TITLES = [
+  'Error', 'Warning', 'Microsoft Windows', 'Internet Explorer',
+  'Windows Explorer', 'My Computer', 'Notepad', 'Paint',
+  'System Properties', 'Device Manager', 'Task Manager',
+  'Registry Editor', 'Command Prompt', 'Run', 'Properties',
+  'Open With...', 'Save As', 'File Download', 'Security Warning',
+  'Windows Update', 'System Restore', 'Add or Remove Programs',
+  'Display Properties', 'Desktop Cleanup Wizard', 'Low Disk Space',
+  'New Message', 'Inbox - Outlook Express', 'Windows Media Player',
+  'WinAmp 2.91', 'ICQ2003', 'mIRC', 'AOL Instant Messenger',
+  'Kazaa Lite', 'BitTorrent', 'WinRAR', 'DAEMON Tools',
+  'Norton AntiVirus Alert', 'McAfee SecurityCenter',
+  'Spybot - Search & Destroy', 'Ad-Aware SE',
+  'SciTE - [untitled]', 'Notepad++ v4.8.2',
+  'Adobe Photoshop CS', 'Macromedia Flash MX',
+  'Counter-Strike', 'Half-Life', 'Quake III Arena',
+  'Defrag', 'ScanDisk', 'Disk Cleanup',
+];
+
+const ERROR_MESSAGES = [
+  'An error has occurred. To continue:\nPress ENTER to return to Windows, or\nPress CTRL+ALT+DEL to restart your computer.',
+  'This program has performed an illegal operation and will be shut down.\n\nIf the problem persists, contact the program vendor.',
+  'Windows has detected that your computer is running slowly. Would you like Windows to close some programs?',
+  'A fatal exception 0E has occurred at 0028:C0034B53 in VxD---.',
+  'Not enough memory to complete this operation. Quit one or more programs, and then try again.',
+  'Windows cannot access the specified device, path, or file. You may not have the appropriate permissions.',
+  'The file or folder that this shortcut refers to cannot be found.',
+  'Windows has recovered from a serious error. A log of this error has been created.',
+  'Your computer may be infected with spyware or adware.',
+  'Disk quota exceeded. You must free up space to continue.',
+  'The connection was refused when attempting to contact the server.',
+  'Internet Explorer has encountered an error and must close.',
+  'Stack overflow at line: 0',
+  'Object expected\nLine: 1\nChar: 1\nError: Object expected\nCode: 0\nURL: http://www.geocities.com/darkrose/',
+  'Runtime error (at 42:0):\nCould not call proc.',
+];
+
+// ── Text colors ───────────────────────────────────────────────────────────────
+
+const TEXT_COLORS = [
+  '#ffffff', '#00ffff', '#ffff00', '#00ff00',
+  '#ff0066', '#0099ff', '#ff99ff', '#99ff00',
+  '#ff6600', '#ff0000', '#00ccff', '#ccff00',
+  '#000000', '#0000ff',
+];
+
+const HIGHLIGHT_BG_COLORS = [
+  '#ffff00', '#00ff00', '#ff69b4', '#00bfff',
+  '#ff4500', '#adff2f', '#ff1493', '#1e90ff',
+  '#ffd700', '#7fff00', '#ff6347', '#40e0d0',
+  '#0000ff', '#000080',
+];
 
 // ── Main class ────────────────────────────────────────────────────────────────
 
@@ -93,893 +151,721 @@ export class Cybercore extends Algorithm {
   get metadata() {
     return {
       name: 'Cybercore',
-      eq:   'y2k × data',
+      eq:   'y2k × collage',
       cat:  'Data Art',
-      desc: 'Y2K / techcore collage — fake UI windows, circuit traces, glitch bars, and data readouts compose a late-90s hacker desktop.',
+      desc: 'Y2K / cybercore collage — early web chaos, Windows error dialogs, text bombing, cursor arrows, glitch, and image crop windows.',
     };
   }
 
   get params() {
     return [
-      { id: 'cyber_windows',  label: 'Windows',  min: 0,    max: 12,  step: 1,    default: 5    },
-      { id: 'cyber_circuits', label: 'Circuits', min: 0,    max: 20,  step: 1,    default: 10   },
-      { id: 'cyber_scanlines',label: 'Scanlines',min: 0,    max: 1,   step: 0.05, default: 0.45 },
-      { id: 'cyber_text',     label: 'Text',     min: 0,    max: 1,   step: 0.05, default: 0.6  },
-      { id: 'cyber_grid',     label: 'Grid',     min: 0,    max: 0.5, step: 0.02, default: 0.1  },
-      { id: 'cyber_glitch',   label: 'Glitch',   min: 0,    max: 10,  step: 1,    default: 3    },
-      { id: 'cyber_chaos',    label: 'Chaos',    min: 0,    max: 1,   step: 0.05, default: 0.5  },
-      { id: 'cyber_thumbs',   label: 'Thumbs',   min: 0,    max: 1,   step: 1,    default: 1    },
-      { id: 'cyber_tint',     label: 'Tint',     min: 0,    max: 1,   step: 0.05, default: 0.35 },
-      { id: 'cyber_seed',     label: 'Seed',     min: 0,    max: 100, step: 1,    default: 42   },
+      { id: 'cyber_density',  label: 'Density',   min: 0.1, max: 1,   step: 0.05, default: 0.6  },
+      { id: 'cyber_text',     label: 'Text',       min: 0,   max: 1,   step: 0.05, default: 0.7  },
+      { id: 'cyber_windows',  label: 'Windows',    min: 0,   max: 30,  step: 1,    default: 8    },
+      { id: 'cyber_glitch',   label: 'Glitch',     min: 0,   max: 1,   step: 0.05, default: 0.3  },
+      { id: 'cyber_scanlines',label: 'Scanlines',  min: 0,   max: 1,   step: 0.05, default: 0.25 },
+      { id: 'cyber_cursors',  label: 'Cursors',    min: 0,   max: 20,  step: 1,    default: 6    },
+      { id: 'cyber_coords',   label: 'Coords',     min: 0,   max: 1,   step: 0.05, default: 0.5  },
+      { id: 'cyber_tint',     label: 'Tint',       min: 0,   max: 1,   step: 0.05, default: 0.2  },
+      { id: 'cyber_seed',     label: 'Seed',       min: 0,   max: 100, step: 1,    default: 42   },
     ];
   }
 
   get detailParam() {
-    return { id: 'cyber_circuits', min: 0, max: 20, step: 1 };
+    return { id: 'cyber_density', min: 0.1, max: 1, step: 0.05 };
   }
 
-  // ── Animate ────────────────────────────────────────────────────────────────
-
-  animate(world) {
-    // Time advances from the engine render loop — we use world.state.time.
-    // No layout changes here; scanline offset and blink state are derived from time.
-  }
+  animate(world) {}
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   render(ctx, world) {
     const { W, H, state: s } = world;
 
-    const nWindows  = Math.round(clamp(s.cyber_windows  ?? 5,    0,  12));
-    const nCircuits = Math.round(clamp(s.cyber_circuits ?? 10,   0,  20));
-    const scanlines = clamp(s.cyber_scanlines ?? 0.45, 0, 1);
-    const textDens  = clamp(s.cyber_text      ?? 0.6,  0, 1);
-    const gridOp    = clamp(s.cyber_grid      ?? 0.1,  0, 0.5);
-    const nGlitch   = Math.round(clamp(s.cyber_glitch  ?? 3,    0,  10));
-    const chaos     = clamp(s.cyber_chaos     ?? 0.5,  0, 1);
-    const thumbs    = Math.round(clamp(s.cyber_thumbs  ?? 1,    0,  1));
-    const tint      = clamp(s.cyber_tint      ?? 0.35, 0, 1);
+    const density   = clamp(s.cyber_density  ?? 0.6,  0.1, 1);
+    const textAmt   = clamp(s.cyber_text     ?? 0.7,  0,   1);
+    const nWindows  = Math.round(clamp(s.cyber_windows  ?? 8,    0,  30));
+    const glitch    = clamp(s.cyber_glitch   ?? 0.3,  0,   1);
+    const scanlines = clamp(s.cyber_scanlines ?? 0.25, 0,   1);
+    const nCursors  = Math.round(clamp(s.cyber_cursors  ?? 6,    0,  20));
+    const coords    = clamp(s.cyber_coords   ?? 0.5,  0,   1);
+    const tint      = clamp(s.cyber_tint     ?? 0.2,  0,   1);
     const seed      = Math.round(clamp(s.cyber_seed    ?? 42,   0,  100));
-    const t         = s.time ?? 0;
 
-    // Stable layout RNG (seed-based)
     const rng = makeLCG(seed * 7919 + 31337);
 
     ctx.save();
 
-    // ── 1. Dark base fill (only if no image loaded as background) ─────────────
-    // We do a semi-transparent wash so image behind shows through, but we still
-    // add enough darkness to sell the aesthetic.
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = BG_DARK;
+    // ── 1. Very light dark wash — image should show through ───────────────────
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#000008';
     ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
 
-    // ── 2. Grid Overlay ────────────────────────────────────────────────────────
-    if (gridOp > 0) {
-      this._drawGrid(ctx, W, H, gridOp, rng);
+    // ── 2. Glitch effects ─────────────────────────────────────────────────────
+    if (glitch > 0) {
+      this._drawGlitch(ctx, W, H, glitch, rng, density);
     }
 
-    // ── 3. Circuit Traces ──────────────────────────────────────────────────────
-    if (nCircuits > 0) {
-      this._drawCircuits(ctx, W, H, nCircuits, rng, t);
+    // ── 3. Coordinate overlays with dashed lines ──────────────────────────────
+    if (coords > 0) {
+      this._drawCoords(ctx, W, H, coords, rng, density);
     }
 
-    // ── 4. Tech Text Readouts ──────────────────────────────────────────────────
-    if (textDens > 0) {
-      this._drawTextReadouts(ctx, W, H, textDens, rng, t);
-    }
-
-    // ── 5. Fake UI Windows ─────────────────────────────────────────────────────
+    // ── 4. Windows / dialog boxes ─────────────────────────────────────────────
     if (nWindows > 0) {
-      this._drawWindows(ctx, W, H, nWindows, rng, t, chaos);
+      this._drawWindows(ctx, W, H, nWindows, rng, density);
     }
 
-    // ── 6. Thumbnail Strip ─────────────────────────────────────────────────────
-    if (thumbs > 0) {
-      this._drawThumbnails(ctx, W, H, rng, t);
+    // ── 5. Text collage ───────────────────────────────────────────────────────
+    if (textAmt > 0) {
+      this._drawTextCollage(ctx, W, H, textAmt, rng, density);
     }
 
-    // ── 7. Chaos: image fragmentation — slice and offset random strips ─────
-    if (chaos > 0.2) {
-      this._drawFragmentation(ctx, W, H, chaos, rng, t);
+    // ── 6. Cursor arrows ──────────────────────────────────────────────────────
+    if (nCursors > 0) {
+      this._drawCursors(ctx, W, H, nCursors, rng);
     }
 
-    // ── 8. Scanlines ───────────────────────────────────────────────────────────
+    // ── 7. Scanlines ──────────────────────────────────────────────────────────
     if (scanlines > 0) {
-      this._drawScanlines(ctx, W, H, scanlines, t);
+      this._drawScanlines(ctx, W, H, scanlines);
     }
 
-    // ── 9. Glitch Bars ─────────────────────────────────────────────────────────
-    if (nGlitch > 0) {
-      this._drawGlitch(ctx, W, H, nGlitch, rng, t);
-    }
-
-    // ── 10. Chaos: noise artifacts ─────────────────────────────────────────────
-    if (chaos > 0.3) {
-      this._drawNoiseArtifacts(ctx, W, H, chaos, rng);
-    }
-
-    // ── 11. Color Tint ─────────────────────────────────────────────────────────
+    // ── 8. Color tint ─────────────────────────────────────────────────────────
     if (tint > 0) {
       this._drawTint(ctx, W, H, tint);
     }
 
-    // ── 12. Corner HUD decorations ─────────────────────────────────────────────
-    this._drawCornerHUD(ctx, W, H, t);
-
     ctx.restore();
   }
 
-  // ── Internal draw methods ──────────────────────────────────────────────────
+  // ── Glitch ────────────────────────────────────────────────────────────────
 
-  _drawGrid(ctx, W, H, opacity, rng) {
-    const cellW = Math.floor(lerp(20, 60, rng()));
-    const cellH = cellW;
+  _drawGlitch(ctx, W, H, glitch, rng, density) {
+    const numStrips = Math.floor(glitch * density * 30) + 2;
 
     ctx.save();
-    ctx.strokeStyle = '#0a2030';
-    ctx.lineWidth = 0.5;
-    ctx.globalAlpha = opacity;
+    for (let i = 0; i < numStrips; i++) {
+      const srcY   = rng() * H;
+      const stripH = rng() * 30 + 2;
+      const offsetX = (rng() - 0.5) * glitch * 80;
 
-    // Vertical lines
-    for (let x = 0; x <= W; x += cellW) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, H);
-      ctx.stroke();
-    }
-    // Horizontal lines
-    for (let y = 0; y <= H; y += cellH) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+      try {
+        ctx.drawImage(ctx.canvas, 0, srcY, W, stripH, offsetX, srcY, W, stripH);
+      } catch (e) {}
     }
 
-    // Occasional brighter dot at intersections
-    ctx.fillStyle = '#00ccff';
-    ctx.globalAlpha = opacity * 0.6;
-    for (let x = 0; x <= W; x += cellW) {
-      for (let y = 0; y <= H; y += cellH) {
-        ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
-      }
+    // RGB channel shift — draw canvas with red/blue offset and multiply blend
+    if (glitch > 0.3) {
+      const shift = glitch * 12;
+      ctx.globalAlpha = glitch * 0.25;
+      ctx.globalCompositeOperation = 'screen';
+      try {
+        ctx.drawImage(ctx.canvas, shift, 0, W - shift, H, 0, 0, W - shift, H);
+      } catch (e) {}
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
     }
+
+    // Random color bars
+    const nBars = Math.floor(glitch * density * 8);
+    for (let i = 0; i < nBars; i++) {
+      const y = rng() * H;
+      const h = rng() * 4 + 1;
+      ctx.globalAlpha = rng() * 0.6 + 0.1;
+      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ff00ff', '#00ffff', '#ffff00'];
+      ctx.fillStyle = pickFrom(colors, rng);
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillRect(0, y, W, h);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
-  _drawCircuits(ctx, W, H, count, rng, t) {
-    ctx.save();
-    ctx.lineCap = 'square';
+  // ── Coordinate overlays ───────────────────────────────────────────────────
 
-    for (let i = 0; i < count; i++) {
-      const color  = neonPick(rng, 0.06);
-      const bright = rng() < 0.25; // some traces are brighter/thicker
-      const lw     = bright ? 1.5 : 0.8;
-      const alpha  = bright ? 0.9 : lerp(0.3, 0.65, rng());
-
-      ctx.strokeStyle = color;
-      ctx.fillStyle   = color;
-      ctx.lineWidth   = lw;
-      ctx.globalAlpha = alpha;
-
-      // Starting point
-      let x = Math.floor(rng() * W);
-      let y = Math.floor(rng() * H);
-
-      // Number of segments (each is a horizontal or vertical run)
-      const segs = 3 + Math.floor(rng() * 6);
-      let dir = rng() < 0.5 ? 0 : 1; // 0=horizontal, 1=vertical
-
-      const points = [{ x, y }];
-
-      for (let s = 0; s < segs; s++) {
-        const len = 20 + Math.floor(rng() * (W * 0.25));
-        if (dir === 0) {
-          x += rng() < 0.5 ? len : -len;
-          x = clamp(x, 2, W - 2);
-        } else {
-          y += rng() < 0.5 ? len : -len;
-          y = clamp(y, 2, H - 2);
-        }
-        points.push({ x, y });
-        dir = 1 - dir;
-      }
-
-      // Draw the trace
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let j = 1; j < points.length; j++) {
-        ctx.lineTo(points[j].x, points[j].y);
-      }
-      ctx.stroke();
-
-      // Dot at each turn point
-      const dotR = lw + 1;
-      for (const pt of points) {
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, dotR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Animated pulse dot travelling along the trace
-      if (bright) {
-        const speed   = 0.1 + rng() * 0.3;
-        const phase   = rng() * Math.PI * 2;
-        const progress = ((t * speed + phase) % 1 + 1) % 1;
-        const idx     = progress * (points.length - 1);
-        const segIdx  = Math.floor(idx);
-        const segT    = idx - segIdx;
-        if (segIdx < points.length - 1) {
-          const pa = points[segIdx];
-          const pb = points[segIdx + 1];
-          const px = lerp(pa.x, pb.x, segT);
-          const py = lerp(pa.y, pb.y, segT);
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.arc(px, py, dotR + 1.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-
-    ctx.restore();
-  }
-
-  _drawTextReadouts(ctx, W, H, density, rng, t) {
-    const count = Math.round(density * 40) + 5;
+  _drawCoords(ctx, W, H, coords, rng, density) {
+    const nLines = Math.floor(coords * density * 18) + 2;
+    const lineColors = ['#ffffff', '#00ff00', '#ff0000', '#00ffff', '#ffff00'];
 
     ctx.save();
-    ctx.font = '9px monospace';
-    ctx.textBaseline = 'top';
+    ctx.font = '9px "Courier New", monospace';
 
-    for (let i = 0; i < count; i++) {
-      const text  = pickFrom(READOUT_POOL, rng).toUpperCase();
-      const color = rng() < 0.7 ? '#00ccff' : rng() < 0.5 ? '#00ff88' : '#0066ff';
-      const alpha = lerp(0.2, 0.65, rng());
+    for (let i = 0; i < nLines; i++) {
+      const x1 = rng() * W;
+      const y1 = rng() * H;
+      const x2 = rng() * W;
+      const y2 = rng() * H;
+      const col = pickFrom(lineColors, rng);
 
-      // Place in margins and scattered zones
-      let px, py;
-      const zone = Math.floor(rng() * 4);
-      switch (zone) {
-        case 0: // left margin
-          px = lerp(4, W * 0.18, rng());
-          py = lerp(10, H - 10, rng());
-          break;
-        case 1: // right margin
-          px = lerp(W * 0.82, W - 4, rng());
-          py = lerp(10, H - 10, rng());
-          break;
-        case 2: // top strip
-          px = lerp(4, W - 4, rng());
-          py = lerp(4, H * 0.12, rng());
-          break;
-        case 3: // scattered mid
-          px = lerp(W * 0.1, W * 0.9, rng());
-          py = lerp(H * 0.1, H * 0.9, rng());
-          break;
-      }
+      // Dashed line
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.7;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-      // Blinking: some lines blink at different rates
-      const blink = rng() < 0.2;
-      if (blink) {
-        const blinkRate = 0.5 + rng() * 1.5;
-        const blinkPhase = rng() * Math.PI * 2;
-        const bv = Math.sin(t * blinkRate + blinkPhase);
-        if (bv < 0) continue; // skip when invisible
-      }
+      // Endpoint handles (small squares)
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x1 - 3, y1 - 3, 6, 6);
+      ctx.strokeRect(x2 - 3, y2 - 3, 6, 6);
 
-      ctx.fillStyle = color;
-      ctx.globalAlpha = alpha;
-      ctx.fillText(text, px, py);
+      // Coordinate labels
+      ctx.globalAlpha = 0.9;
+      const label1 = `x:${Math.round(x1)} y:${Math.round(y1)}`;
+      const label2 = `x:${Math.round(x2)} y:${Math.round(y2)}`;
 
-      // Tiny prefix indicator
-      if (rng() < 0.3) {
-        ctx.globalAlpha = alpha * 0.6;
-        ctx.fillStyle = '#005533';
-        ctx.fillText('>', px - 8, py);
-      }
+      // Background for label
+      const lw1 = ctx.measureText(label1).width;
+      const lw2 = ctx.measureText(label2).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(x1 + 5, y1 - 11, lw1 + 4, 12);
+      ctx.fillRect(x2 + 5, y2 - 11, lw2 + 4, 12);
+
+      ctx.fillStyle = col;
+      ctx.fillText(label1, x1 + 7, y1 - 1);
+      ctx.fillText(label2, x2 + 7, y2 - 1);
     }
 
+    // Selection rectangles (dotted)
+    const nRects = Math.floor(coords * density * 6) + 1;
+    for (let i = 0; i < nRects; i++) {
+      const rx = rng() * W * 0.8;
+      const ry = rng() * H * 0.8;
+      const rw = rng() * W * 0.4 + 40;
+      const rh = rng() * H * 0.4 + 30;
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = pickFrom(['#fff', '#00ffff', '#ffff00'], rng);
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.setLineDash([]);
+
+      // Corner handles
+      for (const [hx, hy] of [[rx,ry],[rx+rw,ry],[rx,ry+rh],[rx+rw,ry+rh]]) {
+        ctx.strokeStyle = '#fff';
+        ctx.globalAlpha = 0.8;
+        ctx.strokeRect(hx - 3, hy - 3, 6, 6);
+      }
+
+      // Measurement annotation
+      const dimLabel = `${Math.round(rw)}px × ${Math.round(rh)}px`;
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      const dlw = ctx.measureText(dimLabel).width;
+      ctx.fillRect(rx, ry - 13, dlw + 6, 12);
+      ctx.fillStyle = '#00ffff';
+      ctx.font = '9px "Courier New", monospace';
+      ctx.fillText(dimLabel, rx + 3, ry - 3);
+    }
+
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
-  _drawWindows(ctx, W, H, count, rng, t, chaos = 0) {
-    const MARGIN = chaos > 0.3 ? -60 : 10; // negative margin = windows go off-screen
-    const MIN_W  = chaos > 0.5 ? 60 : 140;
-    const MAX_W  = Math.min(chaos > 0.5 ? 500 : 320, W * (0.45 + chaos * 0.3));
-    const MIN_H  = chaos > 0.5 ? 40 : 80;
-    const MAX_H  = Math.min(chaos > 0.5 ? 400 : 220, H * (0.35 + chaos * 0.3));
-    const TITLE_H = 20;
+  // ── Windows / Dialogs ─────────────────────────────────────────────────────
 
-    for (let i = 0; i < count; i++) {
-      const ww = Math.floor(lerp(MIN_W, MAX_W, rng()));
-      const wh = Math.floor(lerp(MIN_H, MAX_H, rng()));
-      const wx = Math.floor(MARGIN + rng() * (W - ww - MARGIN * 2));
-      const wy = Math.floor(MARGIN + rng() * (H - wh - MARGIN * 2));
+  _drawWindows(ctx, W, H, nWindows, rng, density) {
+    ctx.save();
 
-      // Chaos: random rotation and scale
-      const rotation = chaos > 0.2 ? (rng() - 0.5) * chaos * 0.15 : 0;
-      const scaleVar = chaos > 0.3 ? lerp(0.7, 1.4, rng()) : 1;
-      if (rotation !== 0 || scaleVar !== 1) {
-        ctx.save();
-        ctx.translate(wx + ww / 2, wy + wh / 2);
-        ctx.rotate(rotation);
-        ctx.scale(scaleVar, scaleVar);
-        ctx.translate(-(wx + ww / 2), -(wy + wh / 2));
+    for (let i = 0; i < nWindows; i++) {
+      // Size — mix of tiny and huge
+      const sizeRoll = rng();
+      let ww, wh;
+      if (sizeRoll < 0.15) {
+        ww = rng() * 60 + 40;  // tiny
+        wh = rng() * 40 + 25;
+      } else if (sizeRoll < 0.5) {
+        ww = rng() * 160 + 100; // medium
+        wh = rng() * 120 + 60;
+      } else {
+        ww = rng() * 250 + 150; // large
+        wh = rng() * 200 + 100;
       }
 
-      const title  = pickFrom(WINDOW_TITLES,    rng);
-      const hasErr = rng() < 0.15;
-      const borderColor = hasErr ? '#441010' : BORDER_CYAN;
-      const titleBg     = hasErr ? '#1a0808' : BG_TITLEBAR;
-      const bodyType    = Math.floor(rng() * 4); // 0=text, 1=grid-squares, 2=progress, 3=dark
+      // Position — allow going off edges
+      const wx = (rng() - 0.1) * (W + 80) - 40;
+      const wy = (rng() - 0.1) * (H + 80) - 40;
+
+      // Rotation — slight, occasionally more
+      const rot = (rng() - 0.5) * (rng() < 0.2 ? 0.3 : 0.07);
 
       ctx.save();
+      ctx.translate(wx + ww / 2, wy + wh / 2);
+      ctx.rotate(rot);
+      ctx.translate(-(ww / 2), -(wh / 2));
 
-      // Drop shadow
-      ctx.shadowColor  = hasErr ? 'rgba(255,0,51,0.25)' : 'rgba(0,180,255,0.18)';
-      ctx.shadowBlur   = 12;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 3;
+      const titleH = 18;
+      const isError = rng() < 0.35;
+      const isImageWindow = rng() < 0.45 && ww > 80 && wh > 60;
 
-      // Window border + body background
-      ctx.fillStyle   = BG_PANEL;
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth   = 1;
-      ctx.globalAlpha = 0.92;
-      ctx.fillRect(wx, wy, ww, wh);
-      ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wh - 1);
-      ctx.shadowBlur = 0;
+      // Shadow
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(4, 4, ww, wh);
+
+      // Window body background
+      ctx.globalAlpha = 0.93;
+      ctx.fillStyle = '#d4d0c8';
+      ctx.fillRect(0, 0, ww, wh);
 
       // Title bar
-      ctx.fillStyle   = titleBg;
-      ctx.globalAlpha = 1;
-      ctx.fillRect(wx, wy, ww, TITLE_H);
-
-      // Title bar bottom border line
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth   = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(wx, wy + TITLE_H);
-      ctx.lineTo(wx + ww, wy + TITLE_H);
-      ctx.stroke();
-
-      // Window control buttons (right side of title bar)
-      const btnY   = wy + TITLE_H / 2;
-      const btnR   = 4;
-      const btns   = [
-        { x: wx + ww - 10, color: '#331010', border: '#662020' },
-        { x: wx + ww - 22, color: '#1a2a10', border: '#2a4415' },
-        { x: wx + ww - 34, color: '#10202a', border: '#154060' },
-      ];
-      for (const btn of btns) {
-        ctx.fillStyle   = btn.color;
-        ctx.strokeStyle = btn.border;
-        ctx.lineWidth   = 0.5;
-        ctx.fillRect(btn.x - btnR, btnY - btnR, btnR * 2, btnR * 2);
-        ctx.strokeRect(btn.x - btnR, btnY - btnR, btnR * 2, btnR * 2);
+      const tbGrad = ctx.createLinearGradient(0, 0, ww, 0);
+      if (isError) {
+        tbGrad.addColorStop(0, '#800000');
+        tbGrad.addColorStop(1, '#c04040');
+      } else {
+        tbGrad.addColorStop(0, '#0a246a');
+        tbGrad.addColorStop(1, '#3a6ea5');
       }
+      ctx.fillStyle = tbGrad;
+      ctx.fillRect(0, 0, ww, titleH);
 
       // Title text
-      ctx.font        = '8px monospace';
-      ctx.fillStyle   = hasErr ? '#ff4444' : '#66ccff';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold 10px "Tahoma", "MS Sans Serif", sans-serif`;
       ctx.textBaseline = 'middle';
-      ctx.globalAlpha = 0.95;
-      // Clip title text to avoid overlapping buttons
-      ctx.save();
-      ctx.rect(wx + 4, wy, ww - 44, TITLE_H);
-      ctx.clip();
-      ctx.fillText(title, wx + 6, wy + TITLE_H / 2);
-      ctx.restore();
+      ctx.globalAlpha = 1;
+      const title = pickFrom(WINDOW_TITLES, rng);
+      ctx.fillText(title.substring(0, Math.floor(ww / 7)), 4, titleH / 2);
 
-      // Blinking active indicator dot in title bar
-      const blinkOn = Math.sin(t * 1.5 + i * 0.8) > 0;
-      ctx.fillStyle   = blinkOn ? '#00ff88' : '#003322';
-      ctx.beginPath();
-      ctx.arc(wx + ww - 46, btnY, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Content area clip
-      const contentY = wy + TITLE_H + 1;
-      const contentH = wh - TITLE_H - 1;
-      ctx.save();
-      ctx.rect(wx + 1, contentY, ww - 2, contentH - 1);
-      ctx.clip();
-
-      switch (bodyType) {
-        case 0: // scrolling text dump
-          this._drawWindowText(ctx, wx, contentY, ww, contentH, rng, t, i);
-          break;
-        case 1: // colored grid of squares
-          this._drawWindowGrid(ctx, wx, contentY, ww, contentH, rng);
-          break;
-        case 2: // progress bars
-          this._drawWindowProgress(ctx, wx, contentY, ww, contentH, rng, t, i);
-          break;
-        case 3: // pure dark with scanline-like stripe
-          this._drawWindowDark(ctx, wx, contentY, ww, contentH, rng, t);
-          break;
-      }
-
-      ctx.restore(); // clip
-      ctx.restore(); // window save
-
-      // Close chaos rotation/scale transform
-      if (rotation !== 0 || scaleVar !== 1) {
-        ctx.restore();
-      }
-    }
-  }
-
-  _drawWindowText(ctx, wx, wy, ww, wh, rng, t, windowIdx) {
-    ctx.font        = '8px monospace';
-    ctx.textBaseline = 'top';
-    const lineH = 10;
-    const lines = Math.floor(wh / lineH);
-    const scrollOffset = (t * 0.4 + windowIdx * 3.7) % lines;
-    const startLine = Math.floor(scrollOffset);
-
-    for (let i = 0; i < lines; i++) {
-      const lineIdx = (startLine + i) % (READOUT_POOL.length);
-      const text = READOUT_POOL[lineIdx % READOUT_POOL.length].toUpperCase();
-      const alpha = lerp(0.15, 0.55, rng());
-      const isHighlight = rng() < 0.08;
-      ctx.fillStyle   = isHighlight ? '#ff4444' : rng() < 0.6 ? '#009955' : '#005533';
-      ctx.globalAlpha = isHighlight ? 0.8 : alpha;
-      ctx.fillText(text, wx + 5, wy + i * lineH + 3);
-    }
-
-    // Cursor blink on last visible line
-    const cursorOn = Math.sin(t * 2) > 0;
-    if (cursorOn) {
-      ctx.fillStyle   = '#00ff88';
-      ctx.globalAlpha = 0.9;
-      ctx.fillText('_', wx + 5 + 3, wy + (lines - 1) * lineH + 3);
-    }
-  }
-
-  _drawWindowGrid(ctx, wx, wy, ww, wh, rng) {
-    const cols = Math.floor(lerp(6, 12, rng()));
-    const rows = Math.floor(lerp(3, 7, rng()));
-    const cw = (ww - 10) / cols;
-    const ch = (wh - 10) / rows;
-    const gapFrac = 0.15;
-    const cellW = cw * (1 - gapFrac);
-    const cellH = ch * (1 - gapFrac);
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const cx = wx + 5 + c * cw + cw * gapFrac / 2;
-        const cy = wy + 5 + r * ch + ch * gapFrac / 2;
-        const v = rng();
-        const hue = rng() < 0.7 ? lerp(170, 220, rng()) : lerp(80, 140, rng()); // cyan/blue or green
-        const lit = lerp(5, 35, v);
-        ctx.fillStyle   = `hsl(${hue}, 80%, ${lit}%)`;
-        ctx.globalAlpha = 0.85;
-        ctx.fillRect(cx, cy, cellW, cellH);
-        // Bright border on active cells
-        if (v > 0.7) {
-          ctx.strokeStyle = `hsl(${hue}, 90%, 55%)`;
-          ctx.lineWidth   = 0.5;
-          ctx.globalAlpha = v * 0.8;
-          ctx.strokeRect(cx, cy, cellW, cellH);
+      // [_][□][X] buttons
+      if (ww > 60) {
+        const btnW = 14, btnH = 12;
+        const bx = ww - (btnW + 2) * 3 - 3;
+        const by = (titleH - btnH) / 2;
+        const btns = ['_', '□', 'X'];
+        const btnColors = ['#d4d0c8', '#d4d0c8', '#d4d0c8'];
+        for (let b = 0; b < 3; b++) {
+          const bxPos = bx + b * (btnW + 2);
+          ctx.fillStyle = btnColors[b];
+          ctx.fillRect(bxPos, by, btnW, btnH);
+          // raised border
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(bxPos, by + btnH);
+          ctx.lineTo(bxPos, by);
+          ctx.lineTo(bxPos + btnW, by);
+          ctx.stroke();
+          ctx.strokeStyle = '#808080';
+          ctx.beginPath();
+          ctx.moveTo(bxPos + btnW, by);
+          ctx.lineTo(bxPos + btnW, by + btnH);
+          ctx.lineTo(bxPos, by + btnH);
+          ctx.stroke();
+          ctx.fillStyle = '#000000';
+          ctx.font = `bold 8px "Tahoma", sans-serif`;
+          ctx.textBaseline = 'middle';
+          ctx.fillText(btns[b], bxPos + 3, by + btnH / 2);
         }
       }
-    }
-  }
 
-  _drawWindowProgress(ctx, wx, wy, ww, wh, rng, t, windowIdx) {
-    ctx.font        = '7px monospace';
-    ctx.textBaseline = 'top';
-    const barCount = Math.floor(wh / 20);
-    const barH     = 6;
-    const barPad   = (wh - barCount * 18) / (barCount + 1);
+      // Window border (classic raised)
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, wh); ctx.lineTo(0, 0); ctx.lineTo(ww, 0);
+      ctx.stroke();
+      ctx.strokeStyle = '#808080';
+      ctx.beginPath();
+      ctx.moveTo(ww, 0); ctx.lineTo(ww, wh); ctx.lineTo(0, wh);
+      ctx.stroke();
 
-    for (let i = 0; i < barCount; i++) {
-      const label = pickFrom(CONTENT_LABELS, rng).toUpperCase();
-      const speed  = 0.05 + rng() * 0.15;
-      const phase  = rng() * Math.PI * 2;
-      // Oscillate fill 0..1 with a slow sine for animation
-      let fill = ((Math.sin(t * speed + phase + windowIdx) + 1) / 2) * 0.9 + 0.05;
-      fill = clamp(fill, 0, 1);
+      // Window content area
+      const bodyX = 2, bodyY = titleH + 1, bodyW = ww - 4, bodyH = wh - titleH - 3;
 
-      const barY  = wy + barPad + i * (barH + 12);
-      const barX  = wx + 5;
-      const barW  = ww - 10;
+      if (bodyH > 4 && bodyW > 4) {
+        if (isImageWindow) {
+          // Crop a piece of the actual canvas into this window
+          try {
+            const srcX = rng() * W * 0.7;
+            const srcY2 = rng() * H * 0.7;
+            const srcW = Math.min(bodyW * (1.5 + rng()), W - srcX);
+            const srcH = Math.min(bodyH * (1.5 + rng()), H - srcY2);
+            ctx.drawImage(ctx.canvas, srcX, srcY2, srcW, srcH, bodyX, bodyY, bodyW, bodyH);
+          } catch (e) {
+            // fallback: gray body
+            ctx.fillStyle = '#c0c0c0';
+            ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
+          }
+          // scrollbar strip on right
+          this._drawScrollbar(ctx, bodyX + bodyW - 12, bodyY, 12, bodyH, rng);
+        } else if (isError) {
+          // Error dialog content
+          ctx.fillStyle = '#d4d0c8';
+          ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
 
-      const isHot = fill > 0.8;
-      const color = isHot ? '#ff3300' : rng() < 0.6 ? '#00ccff' : '#00ff66';
+          // Error icon area
+          if (bodyW > 50) {
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(bodyX + 18, bodyY + 16, 12, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff0000';
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 14px "Tahoma", sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('!', bodyX + 14, bodyY + 16);
+          }
 
-      // Label
-      ctx.fillStyle   = '#336655';
-      ctx.globalAlpha = 0.7;
-      ctx.fillText(label, barX, barY - 9);
+          // Error message text
+          ctx.fillStyle = '#000000';
+          ctx.font = '9px "Tahoma", "MS Sans Serif", sans-serif';
+          ctx.textBaseline = 'top';
+          const msg = pickFrom(ERROR_MESSAGES, rng);
+          const lines = msg.split('\n');
+          const startX = bodyW > 50 ? bodyX + 36 : bodyX + 4;
+          const maxW = bodyW - (bodyW > 50 ? 40 : 8);
+          let lineY = bodyY + 4;
+          for (const line of lines) {
+            if (lineY > bodyY + bodyH - 10) break;
+            // word wrap roughly
+            if (ctx.measureText(line).width > maxW && maxW > 20) {
+              const words = line.split(' ');
+              let cur = '';
+              for (const w of words) {
+                const test = cur ? cur + ' ' + w : w;
+                if (ctx.measureText(test).width > maxW && cur) {
+                  ctx.fillText(cur, startX, lineY);
+                  lineY += 11;
+                  cur = w;
+                } else {
+                  cur = test;
+                }
+              }
+              if (cur) { ctx.fillText(cur, startX, lineY); lineY += 11; }
+            } else {
+              ctx.fillText(line, startX, lineY);
+              lineY += 11;
+            }
+          }
 
-      // Fill percentage
-      ctx.fillStyle   = color;
-      ctx.globalAlpha = 0.6;
-      ctx.fillText(`${Math.round(fill * 100)}%`, barX + barW - 24, barY - 9);
+          // OK button
+          if (bodyH > 40) {
+            const bW = 50, bH = 16;
+            const bx2 = bodyX + bodyW / 2 - bW / 2;
+            const by2 = bodyY + bodyH - bH - 6;
+            ctx.fillStyle = '#d4d0c8';
+            ctx.fillRect(bx2, by2, bW, bH);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(bx2, by2 + bH); ctx.lineTo(bx2, by2); ctx.lineTo(bx2 + bW, by2);
+            ctx.stroke();
+            ctx.strokeStyle = '#808080';
+            ctx.beginPath();
+            ctx.moveTo(bx2 + bW, by2); ctx.lineTo(bx2 + bW, by2 + bH); ctx.lineTo(bx2, by2 + bH);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '10px "Tahoma", sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('OK', bx2 + bW / 2 - 6, by2 + bH / 2);
+          }
+        } else {
+          // Generic window — menu bar + text content
+          ctx.fillStyle = '#d4d0c8';
+          ctx.fillRect(bodyX, bodyY, bodyW, bodyH);
 
-      // Bar track
-      ctx.fillStyle   = '#060e1a';
-      ctx.globalAlpha = 0.9;
-      ctx.fillRect(barX, barY, barW, barH);
+          // Menu bar
+          if (bodyH > 25) {
+            ctx.fillStyle = '#d4d0c8';
+            ctx.fillRect(bodyX, bodyY, bodyW, 14);
+            ctx.fillStyle = '#000';
+            ctx.font = '9px "Tahoma", "MS Sans Serif", sans-serif';
+            ctx.textBaseline = 'middle';
+            const menus = ['File', 'Edit', 'View', 'Tools', 'Help'];
+            let mx = bodyX + 4;
+            for (const m of menus) {
+              if (mx > bodyX + bodyW - 20) break;
+              ctx.fillText(m, mx, bodyY + 7);
+              mx += ctx.measureText(m).width + 10;
+            }
+            // menu bar bottom line
+            ctx.strokeStyle = '#808080';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(bodyX, bodyY + 14); ctx.lineTo(bodyX + bodyW, bodyY + 14);
+            ctx.stroke();
+          }
 
-      // Bar fill
-      ctx.fillStyle   = color;
-      ctx.globalAlpha = 0.85;
-      ctx.fillRect(barX, barY, Math.floor(barW * fill), barH);
+          // Blue selection highlight bar(s)
+          const numHighlights = Math.floor(rng() * 3) + 1;
+          if (bodyH > 40) {
+            for (let h = 0; h < numHighlights; h++) {
+              const hY = bodyY + 16 + rng() * (bodyH - 20);
+              if (hY + 13 < bodyY + bodyH) {
+                ctx.fillStyle = rng() < 0.5 ? '#0a246a' : '#316ac5';
+                ctx.globalAlpha = 0.85;
+                ctx.fillRect(bodyX + 1, hY, bodyW - 2, 13);
+                ctx.globalAlpha = 1;
+              }
+            }
+          }
 
-      // Bar border
-      ctx.strokeStyle = isHot ? '#660000' : '#0a2030';
-      ctx.lineWidth   = 0.5;
-      ctx.globalAlpha = 0.5;
-      ctx.strokeRect(barX, barY, barW, barH);
-    }
-  }
+          // Scrollbar
+          if (bodyW > 60) {
+            this._drawScrollbar(ctx, bodyX + bodyW - 12, bodyY + 15, 12, bodyH - 15, rng);
+          }
 
-  _drawWindowDark(ctx, wx, wy, ww, wh, rng, t) {
-    // Almost pure dark with occasional horizontal scan sweep line
-    ctx.fillStyle   = '#03070f';
-    ctx.globalAlpha = 0.7;
-    ctx.fillRect(wx, wy, ww, wh);
-
-    // Sweep line
-    const sweepY = ((t * 0.5) % 1) * wh;
-    ctx.fillStyle = '#00ffff';
-    ctx.globalAlpha = 0.04;
-    ctx.fillRect(wx, wy + sweepY, ww, 2);
-
-    // Sparse random data pixels
-    ctx.globalAlpha = 0.5;
-    for (let j = 0; j < 30; j++) {
-      const px = wx + Math.floor(rng() * (ww - 4));
-      const py = wy + Math.floor(rng() * (wh - 4));
-      const color = rng() < 0.7 ? '#00ff44' : '#0066ff';
-      ctx.fillStyle = color;
-      ctx.fillRect(px, py, 1, 1);
-    }
-
-    // Bottom-left timestamp
-    ctx.font        = '7px monospace';
-    ctx.fillStyle   = '#004422';
-    ctx.globalAlpha = 0.6;
-    ctx.textBaseline = 'bottom';
-    const ts = '00:' + String(Math.floor(t * 60) % 60).padStart(2, '0') + ':' + String(Math.floor(t * 3600) % 60).padStart(2, '0');
-    ctx.fillText(ts, wx + 5, wy + wh - 3);
-  }
-
-  _drawThumbnails(ctx, W, H, rng, t) {
-    const STRIP_H  = 48;
-    const THUMB_W  = 56;
-    const THUMB_H  = 36;
-    const PAD      = 4;
-    const STRIP_Y  = H - STRIP_H - 2;
-    const count    = Math.max(3, Math.floor((W - 20) / (THUMB_W + PAD)));
-
-    // Strip background
-    ctx.save();
-    ctx.fillStyle   = '#04080f';
-    ctx.globalAlpha = 0.85;
-    ctx.fillRect(0, STRIP_Y, W, STRIP_H + 2);
-
-    // Top border line
-    ctx.strokeStyle = BORDER_CYAN;
-    ctx.lineWidth   = 0.5;
-    ctx.globalAlpha = 0.8;
-    ctx.beginPath();
-    ctx.moveTo(0, STRIP_Y);
-    ctx.lineTo(W, STRIP_Y);
-    ctx.stroke();
-
-    const startX = (W - count * (THUMB_W + PAD)) / 2;
-
-    for (let i = 0; i < count; i++) {
-      const tx = startX + i * (THUMB_W + PAD);
-      const ty = STRIP_Y + (STRIP_H - THUMB_H) / 2;
-
-      // Pick a base hue stable per thumbnail
-      const hue     = lerp(170, 240, rng());
-      const lit     = lerp(3, 18, rng());
-      const isActive = Math.floor(t * 0.2) % count === i;
-
-      // Thumbnail body
-      ctx.fillStyle   = `hsl(${hue}, 70%, ${lit}%)`;
-      ctx.globalAlpha = 0.9;
-      ctx.fillRect(tx, ty, THUMB_W, THUMB_H);
-
-      // Internal pattern: rows of tiny dots
-      ctx.fillStyle   = `hsl(${hue}, 80%, ${lit + 20}%)`;
-      ctx.globalAlpha = 0.4;
-      const dotRows = 4, dotCols = 8;
-      const dw = THUMB_W / dotCols, dh = THUMB_H / dotRows;
-      for (let dr = 0; dr < dotRows; dr++) {
-        for (let dc = 0; dc < dotCols; dc++) {
-          if (rng() < 0.5) {
-            ctx.fillRect(tx + dc * dw + 1, ty + dr * dh + 1, dw - 2, dh - 2);
+          // Content text lines
+          ctx.fillStyle = '#000000';
+          ctx.font = '9px "Courier New", monospace';
+          ctx.textBaseline = 'top';
+          const numLines2 = Math.floor(bodyH / 11);
+          for (let l = 0; l < numLines2; l++) {
+            if (rng() < 0.7) {
+              const txt = pickFrom(WEB_TEXT, rng);
+              const textY = bodyY + 17 + l * 11;
+              if (textY > bodyY + bodyH - 5) break;
+              ctx.globalAlpha = 0.85;
+              ctx.fillText(txt.substring(0, Math.floor((bodyW - 20) / 5.5)), bodyX + 4, textY);
+              ctx.globalAlpha = 1;
+            }
           }
         }
       }
 
-      // Border — brighter if active
-      ctx.strokeStyle = isActive ? '#00ccff' : BORDER_BRIGHT;
-      ctx.lineWidth   = isActive ? 1 : 0.5;
-      ctx.globalAlpha = isActive ? 1 : 0.5;
-      ctx.strokeRect(tx, ty, THUMB_W, THUMB_H);
-
-      // Tiny index label below thumbnail
-      ctx.font        = '7px monospace';
-      ctx.fillStyle   = isActive ? '#00ccff' : '#224433';
-      ctx.globalAlpha = 0.7;
-      ctx.textBaseline = 'top';
-      ctx.fillText(String(i).padStart(2, '0'), tx + 2, ty + THUMB_H + 1);
+      ctx.restore();
     }
-
-    // "FILES" label on right edge
-    ctx.font        = '8px monospace';
-    ctx.fillStyle   = '#003344';
-    ctx.globalAlpha = 0.6;
-    ctx.textBaseline = 'middle';
-    ctx.fillText('FILES', W - 36, STRIP_Y + STRIP_H / 2);
 
     ctx.restore();
   }
 
-  _drawScanlines(ctx, W, H, intensity, t) {
-    // Scroll the scanlines slowly upward using time
-    const scrollOffset = (t * 18) % 4;
-
+  _drawScrollbar(ctx, x, y, w, h, rng) {
     ctx.save();
-    ctx.globalAlpha = intensity * 0.35;
-
-    // Use a pattern-like approach: draw horizontal bars every 4px
-    ctx.fillStyle = '#000000';
-    for (let y = -scrollOffset; y < H; y += 4) {
-      ctx.fillRect(0, y, W, 2);
-    }
-
-    // Subtle vignette-ish edge darkening (top and bottom strips)
-    const vigH = H * 0.12;
-    const topGrad = ctx.createLinearGradient(0, 0, 0, vigH);
-    topGrad.addColorStop(0, `rgba(0,0,0,${intensity * 0.6})`);
-    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.globalAlpha = 1;
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, W, vigH);
-
-    const botGrad = ctx.createLinearGradient(0, H - vigH, 0, H);
-    botGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    botGrad.addColorStop(1, `rgba(0,0,0,${intensity * 0.6})`);
-    ctx.fillStyle = botGrad;
-    ctx.fillRect(0, H - vigH, W, vigH);
-
+    // track
+    ctx.fillStyle = '#d4d0c8';
+    ctx.fillRect(x, y, w, h);
+    // arrows top/bottom
+    ctx.fillStyle = '#d4d0c8';
+    ctx.fillRect(x, y, w, 12);
+    ctx.fillRect(x, y + h - 12, w, 12);
+    // borders
+    ctx.strokeStyle = '#808080';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+    // thumb
+    const thumbH = Math.max(h * 0.2, 20);
+    const thumbY = y + 13 + rng() * (h - thumbH - 26);
+    ctx.fillStyle = '#d4d0c8';
+    ctx.fillRect(x + 1, thumbY, w - 2, thumbH);
+    ctx.strokeStyle = '#ffffff';
+    ctx.beginPath(); ctx.moveTo(x + 1, thumbY + thumbH); ctx.lineTo(x + 1, thumbY); ctx.lineTo(x + w - 1, thumbY); ctx.stroke();
+    ctx.strokeStyle = '#808080';
+    ctx.beginPath(); ctx.moveTo(x + w - 1, thumbY); ctx.lineTo(x + w - 1, thumbY + thumbH); ctx.lineTo(x + 1, thumbY + thumbH); ctx.stroke();
+    // up/down arrow glyphs
+    ctx.fillStyle = '#000';
+    ctx.font = '8px sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('▲', x + 2, y + 6);
+    ctx.fillText('▼', x + 2, y + h - 6);
     ctx.restore();
   }
 
-  _drawGlitch(ctx, W, H, count, rng, t) {
+  // ── Text Collage ──────────────────────────────────────────────────────────
+
+  _drawTextCollage(ctx, W, H, textAmt, rng, density) {
+    const count = Math.floor(textAmt * density * 180) + 30;
+
     ctx.save();
+    ctx.textBaseline = 'top';
 
     for (let i = 0; i < count; i++) {
-      // Glitch bars appear and disappear using time + per-bar phase
-      const phase    = rng() * Math.PI * 2;
-      const blinkRate = 0.8 + rng() * 3;
-      const visible  = Math.sin(t * blinkRate + phase) > 0.4;
-      if (!visible) continue;
+      const x = (rng() - 0.05) * (W + 60) - 30;
+      const y = (rng() - 0.05) * (H + 60) - 30;
 
-      const gy  = Math.floor(rng() * H);
-      const gh  = Math.floor(lerp(2, 18, rng()));
-      const gx  = Math.floor(lerp(-20, 20, rng())); // horizontal offset/shift
-      const color = rng() < 0.6 ? '#00ffff' : rng() < 0.5 ? '#ff0033' : '#0066ff';
-      const alpha = lerp(0.05, 0.25, rng());
+      const size = Math.floor(rng() * rng() * 28 + 6); // skewed small, occasional big
+      const isBold   = rng() < 0.4;
+      const isItalic = rng() < 0.2;
 
-      ctx.globalAlpha = alpha;
-      ctx.globalCompositeOperation = 'screen';
-      ctx.fillStyle = color;
-      ctx.fillRect(gx, gy, W, gh);
+      // Font family: mix of fonts
+      const fonts = [
+        '"Courier New", monospace',
+        '"Times New Roman", serif',
+        'Arial, sans-serif',
+        '"Comic Sans MS", cursive',
+        '"Tahoma", sans-serif',
+        'Impact, sans-serif',
+        '"Verdana", sans-serif',
+      ];
+      const fontFamily = pickFrom(fonts, rng);
+      const fontStr = `${isItalic ? 'italic ' : ''}${isBold ? 'bold ' : ''}${size}px ${fontFamily}`;
+      ctx.font = fontStr;
 
-      // Some glitch bars get a copied strip offset
-      if (rng() < 0.4) {
-        try {
-          // Pull a strip from a nearby area and re-paint offset
-          const srcY = clamp(gy - 5 - Math.floor(rng() * 30), 0, H - gh - 1);
-          const imgData = ctx.getImageData(0, srcY, W, gh);
-          ctx.globalAlpha = lerp(0.1, 0.5, rng());
-          ctx.putImageData(imgData, gx, gy);
-        } catch (e) {
-          // getImageData can fail in some cross-origin contexts; skip silently
-        }
+      const color = pickFrom(TEXT_COLORS, rng);
+      const text  = pickFrom(WEB_TEXT, rng);
+
+      // 30% chance of colored background rectangle (web highlight box)
+      if (rng() < 0.3) {
+        const bgColor = pickFrom(HIGHLIGHT_BG_COLORS, rng);
+        const textW = ctx.measureText(text).width;
+        const pad = 2;
+        ctx.globalAlpha = rng() * 0.6 + 0.5;
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(x - pad, y - pad, textW + pad * 2, size + pad * 2);
+        // text on top of colored bg
+        ctx.globalAlpha = 1;
+        // pick contrasting text color
+        const darkBgs = ['#0000ff', '#000080'];
+        ctx.fillStyle = darkBgs.includes(bgColor) ? '#ffffff' : '#000000';
+        ctx.fillText(text, x, y);
+      } else {
+        ctx.globalAlpha = rng() * 0.5 + 0.5;
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
       }
     }
 
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
-  _drawTint(ctx, W, H, tintStrength) {
-    ctx.save();
-    // Multiply-ish tint: overlay a semi-transparent cyan-blue gradient
-    const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0,   `rgba(0,30,60,${tintStrength * 0.45})`);
-    grad.addColorStop(0.5, `rgba(0,10,30,${tintStrength * 0.2})`);
-    grad.addColorStop(1,   `rgba(0,20,50,${tintStrength * 0.4})`);
+  // ── Cursor Arrows ─────────────────────────────────────────────────────────
 
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle   = grad;
+  _drawCursors(ctx, W, H, nCursors, rng) {
+    ctx.save();
+
+    for (let i = 0; i < nCursors; i++) {
+      const x = rng() * W;
+      const y = rng() * H;
+      const scale = rng() * 1.5 + 0.6;
+      const rot   = (rng() - 0.5) * Math.PI * 0.5; // slight random rotation
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.scale(scale, scale);
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, 16);
+      ctx.lineTo(5, 12);
+      ctx.lineTo(8, 18);
+      ctx.lineTo(10, 17);
+      ctx.lineTo(7, 11);
+      ctx.lineTo(12, 11);
+      ctx.closePath();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.9;
+      ctx.fill();
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 1;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  // ── Scanlines ─────────────────────────────────────────────────────────────
+
+  _drawScanlines(ctx, W, H, scanlines) {
+    ctx.save();
+    ctx.globalAlpha = scanlines * 0.35;
+    for (let y = 0; y < H; y += 2) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, y, W, 1);
+    }
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ── Color tint ────────────────────────────────────────────────────────────
+
+  _drawTint(ctx, W, H, tint) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'color';
+    ctx.globalAlpha = tint * 0.35;
+    ctx.fillStyle = '#0044aa';
     ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = 'source-over';
-
-    // Screen pass: adds cyan bloom to bright areas
-    ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle   = `rgba(0,80,120,${tintStrength * 0.12})`;
     ctx.globalAlpha = 1;
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'source-over';
-
     ctx.restore();
   }
 
-  _drawCornerHUD(ctx, W, H, t) {
-    ctx.save();
-    ctx.font        = '8px monospace';
-    ctx.textBaseline = 'top';
-    ctx.globalAlpha = 0.55;
+  // ── Randomize ─────────────────────────────────────────────────────────────
 
-    // Top-left: system identifier
-    ctx.fillStyle = '#004433';
-    ctx.fillText('SYS::CYBERCORE_v2.0', 6, 6);
-
-    // Top-right: live clock-like readout
-    const secs    = Math.floor(t * 10) % 60;
-    const mins    = Math.floor(t / 6) % 60;
-    const timeStr = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-    ctx.fillStyle = '#003344';
-    ctx.textAlign = 'right';
-    ctx.fillText('T+' + timeStr + ' | ONLINE', W - 6, 6);
-
-    // Bottom-right: tiny status cluster
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle    = '#002233';
-    ctx.fillText('SECURE_LINK::ACTIVE', W - 6, H - 6);
-
-    // Bottom-left: signal strength bars
-    const bars = 5;
-    const barW = 3, barPad = 2;
-    const strength = (Math.sin(t * 0.3) * 0.5 + 0.5);
-    for (let b = 0; b < bars; b++) {
-      const bh = 3 + b * 2;
-      const bx = 6 + b * (barW + barPad);
-      const by = H - 8 - bh;
-      const active = b / bars < strength;
-      ctx.fillStyle   = active ? '#00aa44' : '#081810';
-      ctx.globalAlpha = active ? 0.8 : 0.4;
-      ctx.fillRect(bx, by, barW, bh);
+  randomize(state, setFn) {
+    // Wildly different presets each time
+    const preset = Math.floor(Math.random() * 6);
+    switch (preset) {
+      case 0: // Pure text chaos
+        setFn('cyber_density',  0.8 + Math.random() * 0.2);
+        setFn('cyber_text',     0.85 + Math.random() * 0.15);
+        setFn('cyber_windows',  Math.floor(Math.random() * 6));
+        setFn('cyber_glitch',   Math.random() * 0.3);
+        setFn('cyber_scanlines',Math.random() * 0.3);
+        setFn('cyber_cursors',  Math.floor(Math.random() * 5));
+        setFn('cyber_coords',   Math.random() * 0.4);
+        setFn('cyber_tint',     Math.random() * 0.3);
+        break;
+      case 1: // Window stack city
+        setFn('cyber_density',  0.5 + Math.random() * 0.4);
+        setFn('cyber_text',     0.3 + Math.random() * 0.4);
+        setFn('cyber_windows',  15 + Math.floor(Math.random() * 15));
+        setFn('cyber_glitch',   Math.random() * 0.2);
+        setFn('cyber_scanlines',Math.random() * 0.4);
+        setFn('cyber_cursors',  Math.floor(Math.random() * 10));
+        setFn('cyber_coords',   Math.random() * 0.6);
+        setFn('cyber_tint',     Math.random() * 0.4);
+        break;
+      case 2: // Glitch nightmare
+        setFn('cyber_density',  0.7 + Math.random() * 0.3);
+        setFn('cyber_text',     0.4 + Math.random() * 0.4);
+        setFn('cyber_windows',  Math.floor(Math.random() * 12));
+        setFn('cyber_glitch',   0.6 + Math.random() * 0.4);
+        setFn('cyber_scanlines',0.3 + Math.random() * 0.4);
+        setFn('cyber_cursors',  Math.floor(Math.random() * 8));
+        setFn('cyber_coords',   Math.random() * 0.5);
+        setFn('cyber_tint',     0.3 + Math.random() * 0.5);
+        break;
+      case 3: // Coordinate/measurement hell
+        setFn('cyber_density',  0.6 + Math.random() * 0.3);
+        setFn('cyber_text',     0.3 + Math.random() * 0.4);
+        setFn('cyber_windows',  Math.floor(Math.random() * 8));
+        setFn('cyber_glitch',   Math.random() * 0.35);
+        setFn('cyber_scanlines',Math.random() * 0.3);
+        setFn('cyber_cursors',  Math.floor(Math.random() * 15));
+        setFn('cyber_coords',   0.7 + Math.random() * 0.3);
+        setFn('cyber_tint',     Math.random() * 0.25);
+        break;
+      case 4: // Cursor rain
+        setFn('cyber_density',  0.5 + Math.random() * 0.3);
+        setFn('cyber_text',     0.5 + Math.random() * 0.4);
+        setFn('cyber_windows',  Math.floor(Math.random() * 10));
+        setFn('cyber_glitch',   Math.random() * 0.5);
+        setFn('cyber_scanlines',0.2 + Math.random() * 0.4);
+        setFn('cyber_cursors',  12 + Math.floor(Math.random() * 8));
+        setFn('cyber_coords',   Math.random() * 0.7);
+        setFn('cyber_tint',     Math.random() * 0.4);
+        break;
+      default: // Everything maxed
+        setFn('cyber_density',  0.7 + Math.random() * 0.3);
+        setFn('cyber_text',     0.6 + Math.random() * 0.4);
+        setFn('cyber_windows',  8 + Math.floor(Math.random() * 22));
+        setFn('cyber_glitch',   0.3 + Math.random() * 0.5);
+        setFn('cyber_scanlines',0.15 + Math.random() * 0.4);
+        setFn('cyber_cursors',  5 + Math.floor(Math.random() * 15));
+        setFn('cyber_coords',   0.4 + Math.random() * 0.6);
+        setFn('cyber_tint',     0.1 + Math.random() * 0.4);
+        break;
     }
-
-    // Corner bracket decorations (top-left, top-right, bottom-left, bottom-right)
-    ctx.globalAlpha = 0.25;
-    ctx.strokeStyle = '#00ccff';
-    ctx.lineWidth   = 1;
-    const brk = 12; // bracket arm length
-
-    // TL
-    ctx.beginPath(); ctx.moveTo(0, brk); ctx.lineTo(0, 0); ctx.lineTo(brk, 0); ctx.stroke();
-    // TR
-    ctx.beginPath(); ctx.moveTo(W - brk, 0); ctx.lineTo(W, 0); ctx.lineTo(W, brk); ctx.stroke();
-    // BL
-    ctx.beginPath(); ctx.moveTo(0, H - brk); ctx.lineTo(0, H); ctx.lineTo(brk, H); ctx.stroke();
-    // BR
-    ctx.beginPath(); ctx.moveTo(W - brk, H); ctx.lineTo(W, H); ctx.lineTo(W, H - brk); ctx.stroke();
-
-    ctx.textAlign = 'left';
-    ctx.restore();
-  }
-
-  // ── Chaos: image fragmentation ─────────────────────────────────────────────
-
-  _drawFragmentation(ctx, W, H, chaos, rng, t) {
-    const count = Math.round(chaos * 8);
-    try {
-      for (let i = 0; i < count; i++) {
-        // Grab a random horizontal strip from the current canvas
-        const stripH = Math.floor(lerp(2, 30 * chaos, rng()));
-        const srcY = Math.floor(rng() * (H - stripH));
-        const srcX = 0;
-
-        // Offset it horizontally by a random amount
-        const offsetX = Math.floor((rng() - 0.5) * W * chaos * 0.4);
-        const offsetY = Math.floor((rng() - 0.5) * H * chaos * 0.1);
-
-        ctx.save();
-        ctx.globalAlpha = lerp(0.3, 0.9, rng());
-        // Color shift on some strips
-        if (rng() < chaos * 0.5) {
-          ctx.globalCompositeOperation = rng() < 0.5 ? 'screen' : 'difference';
-        }
-        ctx.drawImage(ctx.canvas, srcX, srcY, W, stripH, offsetX, srcY + offsetY, W, stripH);
-        ctx.restore();
-      }
-    } catch (e) {
-      // getImageData might fail — silently skip
-    }
-  }
-
-  // ── Chaos: noise artifacts ────────────────────────────────────────────────
-
-  _drawNoiseArtifacts(ctx, W, H, chaos, rng) {
-    ctx.save();
-
-    // Random bright pixels scattered
-    const pixelCount = Math.round(chaos * 200);
-    for (let i = 0; i < pixelCount; i++) {
-      const x = Math.floor(rng() * W);
-      const y = Math.floor(rng() * H);
-      const c = rng() < 0.6 ? '#00ffff' : rng() < 0.5 ? '#ff0033' : '#00ff00';
-      ctx.fillStyle = c;
-      ctx.globalAlpha = rng() * chaos * 0.4;
-      const sz = rng() < 0.9 ? 1 : Math.floor(rng() * 3) + 1;
-      ctx.fillRect(x, y, sz, sz);
-    }
-
-    // Corrupted text blocks — text at wrong sizes and angles
-    if (chaos > 0.4) {
-      const blockCount = Math.round(chaos * 4);
-      for (let i = 0; i < blockCount; i++) {
-        const fontSize = Math.floor(lerp(6, 40 * chaos, rng()));
-        ctx.font = `${fontSize}px monospace`;
-        ctx.fillStyle = rng() < 0.5 ? '#00ccff' : '#003311';
-        ctx.globalAlpha = lerp(0.05, 0.3, rng());
-        const text = pickFrom(READOUT_POOL, rng);
-        const x = rng() * W;
-        const y = rng() * H;
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate((rng() - 0.5) * chaos * 0.5);
-        ctx.fillText(text, 0, 0);
-        ctx.restore();
-      }
-    }
-
-    // Broken border fragments — partial rectangles floating around
-    if (chaos > 0.3) {
-      const fragCount = Math.round(chaos * 6);
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i < fragCount; i++) {
-        const x = rng() * W;
-        const y = rng() * H;
-        const w = lerp(20, 200, rng());
-        const h = lerp(10, 80, rng());
-        ctx.strokeStyle = rng() < 0.7 ? '#1a3050' : '#402020';
-        ctx.globalAlpha = lerp(0.1, 0.4, rng());
-        ctx.beginPath();
-        // Draw only partial sides of the rectangle
-        const sides = Math.floor(rng() * 3) + 1;
-        if (sides >= 1) { ctx.moveTo(x, y); ctx.lineTo(x + w, y); }
-        if (sides >= 2) { ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); }
-        if (sides >= 3) { ctx.moveTo(x, y + h); ctx.lineTo(x, y); }
-        ctx.stroke();
-      }
-    }
-
-    ctx.restore();
-  }
-
-  // ── Randomize ──────────────────────────────────────────────────────────────
-
-  randomize(state, set) {
-    set('cyber_seed', Math.floor(Math.random() * 100));
-
-    const dense = Math.random() < 0.5;
-
-    set('cyber_windows',   Math.round(lerp(dense ? 4 : 1, dense ? 12 : 6,  Math.random())));
-    set('cyber_circuits',  Math.round(lerp(dense ? 8 : 2, dense ? 20 : 12, Math.random())));
-    set('cyber_scanlines', parseFloat(lerp(0.15, 0.75, Math.random()).toFixed(2)));
-    set('cyber_text',      parseFloat(lerp(0.2,  0.9,  Math.random()).toFixed(2)));
-    set('cyber_grid',      parseFloat(lerp(0,    0.3,  Math.random()).toFixed(2)));
-    set('cyber_glitch',    Math.round(lerp(0, 8, Math.random())));
-    set('cyber_chaos',     parseFloat(lerp(0.2, 0.9, Math.random()).toFixed(2)));
-    set('cyber_thumbs',    Math.random() < 0.7 ? 1 : 0);
-    set('cyber_tint',      parseFloat(lerp(0.1, 0.7, Math.random()).toFixed(2)));
+    setFn('cyber_seed', Math.floor(Math.random() * 100));
   }
 }

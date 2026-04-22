@@ -95,9 +95,9 @@ export const state = {
   pm_cols: 20, pm_rows: 15, pm_gap: 2, pm_textDensity: 0.15, pm_sizeVariation: 0.3, pm_roundness: 0,
   // Body Particles
   bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
-  // Cybercore — Y2K/techcore collage
-  cyber_windows: 5, cyber_circuits: 10, cyber_scanlines: 0.45, cyber_text: 0.6,
-  cyber_grid: 0.1, cyber_glitch: 3, cyber_chaos: 0.5, cyber_thumbs: 1, cyber_tint: 0.35, cyber_seed: 42,
+  // Cybercore — Y2K/cybercore collage
+  cyber_density: 0.6, cyber_text: 0.7, cyber_windows: 8, cyber_glitch: 0.3,
+  cyber_scanlines: 0.25, cyber_cursors: 6, cyber_coords: 0.5, cyber_tint: 0.2, cyber_seed: 42,
   // Camera
   cameraActive: false,
   // Layers
