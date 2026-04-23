@@ -108,12 +108,12 @@ export const state = {
   // Cybercore — Y2K/cybercore collage
   cyber_density: 0.6, cyber_text: 0.7, cyber_windows: 8, cyber_glitch: 0.3,
   cyber_scanlines: 0.25, cyber_cursors: 6, cyber_coords: 0.5, cyber_tint: 0.2, cyber_seed: 42,
-  // Web Collage — early 2000s text spam
-  wc_count: 150, wc_size: 0.6, wc_highlight: 0.35, wc_chaos: 0.5, wc_seed: 42,
-  // Desktop Glitch — Windows XP/95 glitch
-  dg_cursors: 8, dg_windows: 5, dg_glitch: 0.4, dg_selection: 0.5, dg_scanlines: 0.3, dg_seed: 42,
-  // Data Scan — clinical analysis overlay
-  ds_lines: 12, ds_panels: 5, ds_markers: 8, ds_grid: 0.3, ds_labels: 0.5, ds_seed: 42,
+  // Fragment — tile-slice and scatter
+  frag_cols: 6, frag_rows: 4, frag_shuffle: 0.5, frag_gap: 2, frag_zoom: 0.3, frag_rotate: 0.2, frag_seed: 42,
+  // Shred — strip tear and offset
+  shred_count: 20, shred_offset: 0.5, shred_vertical: 0, shred_vary: 0.5, shred_channel: 0.3, shred_seed: 42,
+  // Echo — layered image ghosts
+  echo_count: 5, echo_scale: 0.85, echo_spread: 30, echo_rotate: 0.1, echo_fade: 0.3, echo_tint: 0, echo_seed: 42,
   // Camera
   cameraActive: false,
   // Layers

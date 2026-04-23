@@ -1,9 +1,7 @@
 /**
- * Web Collage — Early 2000s web text spam aesthetic.
- * Hundreds of text snippets at wildly different sizes, fonts, colors,
- * many with colored background rects (like highlighted web links).
- * Think Geocities, early forums, popup ads.
- * The uploaded image shows through — this is a collage layered on top.
+ * Fragment — Slices the canvas into tiles and rearranges them.
+ * Like cutting a photo with scissors and reassembling it wrong.
+ * Operates on whatever is already on the canvas (uploaded image, algorithm output).
  */
 
 import { Algorithm } from '../base.js';
@@ -18,78 +16,15 @@ function makeLCG(seed) {
   };
 }
 
-function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
-function pickFrom(arr, rng) { return arr[Math.floor(rng() * arr.length)]; }
+// ── Fisher-Yates shuffle with seeded RNG ──────────────────────────────────────
 
-// ── Early web text pool ───────────────────────────────────────────────────────
-
-const WEB_TEXT = [
-  'CLICK HERE', 'FREE DOWNLOAD', 'Adult (NSFW)', 'angels-heaven.org',
-  'CONGRATULATIONS!', 'You have 1 new message', 'best viewed with ANY browser',
-  'Add to favorites', 'MAIN PAGE', 'Cool Links', 'Click here!', 'WARNING',
-  'Privacy Policy', 'Make Money', 'Submit your picture', 'Are You Ready?',
-  'Online Now!', 'DOWNLOADS', 'How do I sell?', 'Clubbed to death',
-  'the rules', 'Disclaimer', 'Sign Up', 'Contact us', 'SEARCH...',
-  'i butchering you', 'Mood Swings', 'Cannibal', 'Anxiety at social events?',
-  'Click OK button', 'What do you have to be thankful for?', 'Thinking of You',
-  'Photography', 'View More', 'HELLP', 'Species', 'Collectibles', 'VIDEOS',
-  'Credit Problems?', 'People Finder', 'the online diary for the world',
-  'Undergraduate Studies', 'WHO we ARE', 'Reset password', 'Satanic Mass',
-  'Anthrax Hoaxer on Most-Wanted', 'PoliticsNow', 'Watch Controversial Video',
-  'U.S. Govt Pages', 'Doll Houses', 'Cash-earning links', 'parentsguide.org',
-  'ExciteSeeingTour', 'Movie Links', 'Society and Cult', 'INTEGRATED BROWSING',
-  'Newsgroups and', 'The truth is out there', 'Streaming audio', 'INFORM!',
-  'Message Al', 'Please select a rating', 'Stars', 'Hardcore', 'PHOTOS',
-  'Feedback - We would like to hear from you', 'History',
-  'Win a FREE iPod!', 'Your IP has been logged', 'Download Limewire',
-  'AIM: xXdarkl0rdXx', 'MSN: cutegirl01@hotmail.com',
-  'Do not steal my graphics!', 'Layout by moonbeam_designz',
-  'UNDER CONSTRUCTION', 'NEW!', 'UPDATED!', 'HOT!',
-  'Click to enlarge', 'Save image as...', 'Open in new window',
-  'pop-up blocked', 'Allow pop-ups from this site?',
-  'Your download will begin shortly', 'Mirror 1 | Mirror 2 | Mirror 3',
-  'Rate this site: * * * * *', 'Total votes: 1,337',
-  'Join the webring', 'Previous | Next | Random | List',
-  'Post reply', 'New thread', 'Quote', 'Edit',
-  '>>> READ THE RULES <<<', 'Moderator: Admin',
-  'Posts: 2,847', 'Joined: Sep 2000', 'Location: USA',
-  'Banned', 'Sticky', 'Locked', 'Moved',
-  'Last updated: 02/14/2001', 'Get Netscape Now!',
-  'Best viewed in 800x600', 'This page uses frames',
-  'You are visitor #00042', 'Sign my guestbook!',
-  'www.angelfire.com/~darkrose', 'geocities.com/Area51',
-  'webrings.org/join', 'counter: 000847',
-  'This site is under construction', 'Coming Soon!',
-  'Access denied', 'The page cannot be displayed',
-  'Connection timed out', 'Server not found',
-  'Please wait...', 'Loading...', 'Connecting...', 'Synchronizing...',
-  'Checking for updates...', 'Installing component 3 of 47',
-  'Do not turn off your computer', 'Estimated time remaining: 47 minutes',
-  'register.com', 'tripod.com', 'freewebs.com', 'homestead.com',
-  'altavista.com', 'ask jeeves', 'hotbot.com',
-  'C:\\WINDOWS\\System32\\', 'explorer.exe', 'FATAL ERROR',
-];
-
-const FONTS = [
-  'monospace', 'serif', 'sans-serif',
-  '"Times New Roman"', '"Arial Black"', '"Comic Sans MS"', 'Impact',
-];
-
-const TEXT_COLORS = [
-  '#000000', '#ffffff', '#ff0000', '#0000ff', '#008000',
-  '#ffff00', '#00ffff', '#ff00ff', '#00ff00', '#ff8800',
-];
-
-// Highlight background colors and contrast text for each
-const HIGHLIGHT_COLORS = [
-  { bg: '#FFFF00', fg: '#000000' },
-  { bg: '#FF69B4', fg: '#000000' },
-  { bg: '#00FF00', fg: '#000000' },
-  { bg: '#00FFFF', fg: '#000000' },
-  { bg: '#FF0000', fg: '#ffffff' },
-  { bg: '#0000FF', fg: '#ffffff' },
-  { bg: '#C0C0C0', fg: '#000000' },
-];
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 // ── Main class ────────────────────────────────────────────────────────────────
 
@@ -97,140 +32,184 @@ export class WebCollage extends Algorithm {
 
   get metadata() {
     return {
-      name: 'Web Collage',
-      eq:   'y2k × text',
+      name: 'Fragment',
+      eq:   'slice × scatter',
       cat:  'Data Art',
-      desc: 'Early 2000s web text spam — Geocities, forums, popup ads, highlighted links, chaotic fonts and colors.',
+      desc: 'Slices the canvas into tiles and rearranges them — like cutting a photo with scissors and reassembling it wrong.',
     };
   }
 
   get params() {
     return [
-      { id: 'wc_count',     label: 'Count',     min: 50,  max: 300, step: 10,   default: 150  },
-      { id: 'wc_size',      label: 'Size',       min: 0.3, max: 1,   step: 0.05, default: 0.6  },
-      { id: 'wc_highlight', label: 'Highlight',  min: 0,   max: 1,   step: 0.05, default: 0.35 },
-      { id: 'wc_chaos',     label: 'Chaos',      min: 0,   max: 1,   step: 0.05, default: 0.5  },
-      { id: 'wc_seed',      label: 'Seed',       min: 0,   max: 100, step: 1,    default: 42   },
+      { id: 'frag_cols',    label: 'Columns',  min: 2,   max: 20,  step: 1,    default: 6    },
+      { id: 'frag_rows',    label: 'Rows',     min: 2,   max: 15,  step: 1,    default: 4    },
+      { id: 'frag_shuffle', label: 'Shuffle',  min: 0,   max: 1,   step: 0.01, default: 0.5  },
+      { id: 'frag_gap',     label: 'Gap',      min: 0,   max: 20,  step: 1,    default: 2    },
+      { id: 'frag_zoom',    label: 'Zoom',     min: 0,   max: 1,   step: 0.01, default: 0.3  },
+      { id: 'frag_rotate',  label: 'Rotate',   min: 0,   max: 1,   step: 0.01, default: 0.2  },
+      { id: 'frag_seed',    label: 'Seed',     min: 0,   max: 100, step: 1,    default: 42   },
     ];
   }
 
   get detailParam() {
-    return { id: 'wc_count', min: 50, max: 300, step: 10 };
+    return { id: 'frag_shuffle', min: 0, max: 1, step: 0.01 };
   }
 
-  animate(world) {}
-
   render(ctx, world) {
-    const { W, H, state: s } = world;
+    const { state } = world;
+    const W = ctx.canvas.width / (window.devicePixelRatio || 1);
+    const H = ctx.canvas.height / (window.devicePixelRatio || 1);
 
-    const count     = Math.round(clamp(s.wc_count     ?? 150, 50,  300));
-    const sizeMult  = clamp(s.wc_size      ?? 0.6,  0.3, 1);
-    const highlight = clamp(s.wc_highlight ?? 0.35, 0,   1);
-    const chaos     = clamp(s.wc_chaos     ?? 0.5,  0,   1);
-    const seed      = Math.round(clamp(s.wc_seed ?? 42, 0, 100));
+    const cols    = Math.max(2, Math.round(state.frag_cols ?? 6));
+    const rows    = Math.max(2, Math.round(state.frag_rows ?? 4));
+    const shuffle_amt = state.frag_shuffle ?? 0.5;
+    const gap     = state.frag_gap ?? 2;
+    const zoom    = state.frag_zoom ?? 0.3;
+    const rotate  = state.frag_rotate ?? 0.2;
+    const seed    = state.frag_seed ?? 42;
+    const t       = world.time ?? 0;
 
-    const rng = makeLCG(seed * 6271 + 19937);
+    // ── Capture the current canvas ────────────────────────────────────────────
+    const cap = document.createElement('canvas');
+    cap.width  = ctx.canvas.width;
+    cap.height = ctx.canvas.height;
+    cap.getContext('2d').drawImage(ctx.canvas, 0, 0);
 
-    ctx.save();
-
-    // Very light dark wash — 10% so the image shows through
-    ctx.globalAlpha = 0.10;
+    // ── Clear to black ────────────────────────────────────────────────────────
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, W, H);
-    ctx.globalAlpha = 1;
 
-    // Render each text item
-    for (let i = 0; i < count; i++) {
-      const text = pickFrom(WEB_TEXT, rng);
+    const tileW = W / cols;
+    const tileH = H / rows;
+    const total = cols * rows;
 
-      // Random position across the whole canvas
-      const x = rng() * W;
-      const y = rng() * H;
+    // Build index array then decide which tiles get shuffled
+    const rng = makeLCG(seed * 9999 + 1);
+    const rngAnim = makeLCG(seed * 7373 + 3);
 
-      // Font size: 7–35px, scaled by sizeMult
-      const baseSize = 7 + rng() * 28;
-      const fontSize = Math.round(baseSize * sizeMult);
-      if (fontSize < 5) continue;
+    // Pre-generate per-tile animation offsets (stable, seeded)
+    const animOffsets = [];
+    for (let i = 0; i < total; i++) {
+      animOffsets.push({
+        driftX:  (rngAnim() - 0.5) * 2,
+        driftY:  (rngAnim() - 0.5) * 2,
+        driftT:  rngAnim() * Math.PI * 2,
+        rotDir:  rngAnim() < 0.5 ? 1 : -1,
+        pulse:   rngAnim(),
+      });
+    }
 
-      // Random font family
-      const fontFam = pickFrom(FONTS, rng);
+    // Build source indices — some tiles get remapped, rest stay
+    const indices = Array.from({ length: total }, (_, i) => i);
+    const shuffledPool = [...indices];
+    shuffleArr(shuffledPool, rng);
 
-      // Style: bold, italic, or normal
-      const styleRoll = rng();
-      let fontStyle = '';
-      const isBold   = styleRoll < 0.35;
-      const isItalic = styleRoll >= 0.35 && styleRoll < 0.55;
-      if (isBold)   fontStyle = 'bold ';
-      if (isItalic) fontStyle = 'italic ';
+    // Blend between identity and fully shuffled based on shuffle_amt
+    const srcFor = indices.map((orig, i) => {
+      if (rng() < shuffle_amt) return shuffledPool[i];
+      return orig;
+    });
 
-      ctx.font = `${fontStyle}${fontSize}px ${fontFam}`;
+    // Per-tile flags (seeded)
+    const rng2 = makeLCG(seed * 3141 + 2);
+    const tileFlags = Array.from({ length: total }, () => ({
+      zoomed:   rng2() < zoom,
+      flipped:  rng2() < 0.15,
+      bright:   (rng2() - 0.5) * 0.4,
+      rotAmt:   (rng2() - 0.5) * rotate * Math.PI * 0.5,
+      skipGap:  rng2() < 0.08,
+    }));
 
-      // Chaos: rotation
-      const maxRotation = chaos * 0.7; // up to ~40 degrees at full chaos
-      const rotation = (rng() - 0.5) * 2 * maxRotation;
+    const dpr = window.devicePixelRatio || 1;
 
-      // Should this item get a colored highlight background?
-      const doHighlight = rng() < highlight;
+    for (let ti = 0; ti < total; ti++) {
+      const col = ti % cols;
+      const row = Math.floor(ti / cols);
+
+      // Destination tile top-left
+      const destX = col * tileW + gap * 0.5;
+      const destY = row * tileH + gap * 0.5;
+      const drawW = tileW - gap;
+      const drawH = tileH - gap;
+
+      if (drawW <= 0 || drawH <= 0) continue;
+
+      // Source tile (potentially shuffled)
+      const srcIdx  = srcFor[ti];
+      const srcCol  = srcIdx % cols;
+      const srcRow  = Math.floor(srcIdx / cols);
+
+      let srcX = srcCol * tileW;
+      let srcY = srcRow * tileH;
+      let srcW = tileW;
+      let srcH = tileH;
+
+      const flags = tileFlags[ti];
+      const anim  = animOffsets[ti];
+
+      // Zoom: sample a smaller region from source tile (zoomed in)
+      if (flags.zoomed) {
+        const zf = 0.6 + rng2() * 0.3; // 60–90% of tile
+        srcW = tileW * zf;
+        srcH = tileH * zf;
+        srcX += (tileW - srcW) * 0.5;
+        srcY += (tileH - srcH) * 0.5;
+      }
+
+      // Animation: slight drift per tile
+      const driftAmt = tileW * 0.04;
+      const ox = anim.driftX * driftAmt * Math.sin(t * 0.4 + anim.driftT);
+      const oy = anim.driftY * driftAmt * Math.cos(t * 0.3 + anim.driftT);
+
+      // Rotation
+      const rotAmt = flags.rotAmt + Math.sin(t * 0.2 + anim.driftT) * rotate * 0.05 * anim.rotDir;
 
       ctx.save();
-      ctx.translate(x, y);
-      if (rotation !== 0) ctx.rotate(rotation);
 
-      if (doHighlight) {
-        const hlColor = pickFrom(HIGHLIGHT_COLORS, rng);
-        const metrics = ctx.measureText(text);
-        const tw = metrics.width;
-        const th = fontSize;
-        const pad = 2;
+      // Clip to destination tile area to avoid spillover
+      ctx.beginPath();
+      ctx.rect(destX, destY, drawW, drawH);
+      ctx.clip();
 
-        // Background rectangle
-        ctx.fillStyle = hlColor.bg;
-        ctx.fillRect(-pad, -th + 2, tw + pad * 2, th + 2);
+      ctx.translate(destX + drawW * 0.5 + ox, destY + drawH * 0.5 + oy);
+      ctx.rotate(rotAmt);
 
-        // Text on top with contrasting color
-        ctx.fillStyle = hlColor.fg;
-        ctx.fillText(text, 0, 0);
-
-        // Underline (common on web links)
-        if (rng() < 0.5) {
-          ctx.strokeStyle = hlColor.fg;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          ctx.moveTo(0, 2);
-          ctx.lineTo(tw, 2);
-          ctx.stroke();
-        }
-      } else {
-        // Plain text with random color
-        const color = pickFrom(TEXT_COLORS, rng);
-        ctx.fillStyle = color;
-        ctx.fillText(text, 0, 0);
-
-        // Underline on some non-highlighted items too
-        if (rng() < 0.15) {
-          const metrics = ctx.measureText(text);
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          ctx.moveTo(0, 2);
-          ctx.lineTo(metrics.width, 2);
-          ctx.stroke();
-        }
+      if (flags.flipped) {
+        ctx.scale(-1, 1);
       }
+
+      // Brightness via globalAlpha trick (slight variation)
+      const pulse = 1 + flags.bright * Math.sin(t * 0.5 + anim.pulse * Math.PI * 2) * 0.5;
+      ctx.globalAlpha = Math.max(0.3, Math.min(1, pulse));
+
+      // drawImage uses CSS coords because ctx has DPR transform applied
+      ctx.drawImage(
+        cap,
+        srcX * dpr, srcY * dpr, srcW * dpr, srcH * dpr,  // src in physical px
+        -drawW * 0.5, -drawH * 0.5, drawW, drawH          // dest in CSS px
+      );
 
       ctx.restore();
     }
-
-    ctx.restore();
   }
 
   randomize(state, set) {
-    set('wc_count',     Math.round(50 + Math.random() * 250));
-    set('wc_size',      parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
-    set('wc_highlight', parseFloat((Math.random()).toFixed(2)));
-    set('wc_chaos',     parseFloat((Math.random()).toFixed(2)));
-    set('wc_seed',      Math.round(Math.random() * 100));
+    set('frag_cols',    Math.round(2 + Math.random() * 18));
+    set('frag_rows',    Math.round(2 + Math.random() * 13));
+    set('frag_shuffle', parseFloat((Math.random()).toFixed(2)));
+    set('frag_gap',     Math.round(Math.random() * 12));
+    set('frag_zoom',    parseFloat((Math.random() * 0.7).toFixed(2)));
+    set('frag_rotate',  parseFloat((Math.random() * 0.6).toFixed(2)));
+    set('frag_seed',    Math.round(Math.random() * 100));
   }
+}
+
+// ── Internal shuffle (mutates array) ─────────────────────────────────────────
+
+function shuffleArr(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
