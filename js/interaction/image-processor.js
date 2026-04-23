@@ -494,6 +494,284 @@ void main() {
     }),
   },
 
+  pixelMelt: {
+    name: 'Pixel Melt',
+    params: [
+      { id: 'ip_melt_amount',    label: 'Melt Amount', min: 0, max: 1,   step: 0.01, default: 0.3 },
+      { id: 'ip_melt_speed',     label: 'Speed',       min: 0, max: 3,   step: 0.05, default: 1   },
+      { id: 'ip_melt_direction', label: 'Direction',   min: 0, max: 3,   step: 1,    default: 0   },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform float u_amount;
+uniform float u_speed;
+uniform float u_direction;
+uniform float u_time;
+
+${NOISE_2D}
+${FBM}
+
+void main() {
+  vec2 uv = v_uv;
+
+  // Sample brightness to drive melt amount — darker areas drip more
+  float bright = dot(texture2D(u_image, uv).rgb, vec3(0.299, 0.587, 0.114));
+
+  // Animated noise along the axis perpendicular to melt direction
+  float noiseCoord;
+  if (u_direction < 0.5 || u_direction > 1.5) {
+    noiseCoord = uv.x; // vertical melt uses horizontal noise
+  } else {
+    noiseCoord = uv.y; // horizontal melt uses vertical noise
+  }
+  float noise = fbm(vec2(noiseCoord * 20.0, u_time * u_speed)) * u_amount * 0.5;
+
+  float melt = (1.0 - bright) * u_amount + noise;
+
+  if (u_direction < 0.5) {
+    uv.y -= melt; // down
+  } else if (u_direction < 1.5) {
+    uv.y += melt; // up
+  } else if (u_direction < 2.5) {
+    uv.x -= melt; // left
+  } else {
+    uv.x += melt; // right
+  }
+
+  uv = clamp(uv, 0.0, 1.0);
+  gl_FragColor = texture2D(u_image, uv);
+}
+`,
+    uniforms: (s) => ({
+      u_amount:    s.ip_melt_amount    ?? 0.3,
+      u_speed:     s.ip_melt_speed     ?? 1,
+      u_direction: s.ip_melt_direction ?? 0,
+      u_time:      s.time              ?? 0,
+    }),
+  },
+
+  channelDrift: {
+    name: 'Channel Drift',
+    params: [
+      { id: 'ip_cd_amount',  label: 'Amount',  min: 0,    max: 0.1,  step: 0.002, default: 0.02 },
+      { id: 'ip_cd_angle',   label: 'Angle',   min: 0,    max: 6.28, step: 0.1,   default: 0    },
+      { id: 'ip_cd_animate', label: 'Animate', min: 0,    max: 1,    step: 1,     default: 1    },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform float u_amount;
+uniform float u_angle;
+uniform float u_animate;
+uniform float u_time;
+
+void main() {
+  float angle = u_angle + (u_animate > 0.5 ? u_time * 0.5 : 0.0);
+
+  // Red offset along angle
+  vec2 rOffset = vec2(cos(angle), sin(angle)) * u_amount;
+  // Blue offset 120 degrees (2*PI/3) ahead
+  vec2 bOffset = vec2(cos(angle + 2.09439510239), sin(angle + 2.09439510239)) * u_amount;
+
+  float r = texture2D(u_image, clamp(v_uv + rOffset, 0.0, 1.0)).r;
+  float g = texture2D(u_image, v_uv).g;
+  float b = texture2D(u_image, clamp(v_uv + bOffset, 0.0, 1.0)).b;
+  float a = texture2D(u_image, v_uv).a;
+
+  gl_FragColor = vec4(r, g, b, a);
+}
+`,
+    uniforms: (s) => ({
+      u_amount:  s.ip_cd_amount  ?? 0.02,
+      u_angle:   s.ip_cd_angle   ?? 0,
+      u_animate: s.ip_cd_animate ?? 1,
+      u_time:    s.time          ?? 0,
+    }),
+  },
+
+  dataCorrupt: {
+    name: 'Data Corrupt',
+    params: [
+      { id: 'ip_dc_intensity',  label: 'Intensity',   min: 0, max: 1,  step: 0.02, default: 0.3  },
+      { id: 'ip_dc_blockSize',  label: 'Block Size',  min: 4, max: 40, step: 2,    default: 12   },
+      { id: 'ip_dc_animate',    label: 'Animate',     min: 0, max: 1,  step: 1,    default: 1    },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_intensity;
+uniform float u_blockSize;
+uniform float u_animate;
+uniform float u_time;
+
+void main() {
+  float blockSizeUV = u_blockSize / u_resolution.y;
+  vec2 block = floor(v_uv / blockSizeUV);
+
+  // Hash changes per frame when animated
+  float timeSlot = u_animate > 0.5 ? floor(u_time * 2.0) : 0.0;
+  float h = fract(sin(dot(block, vec2(127.1, 311.7)) + timeSlot) * 43758.5453);
+
+  if (h < u_intensity) {
+    // Corrupted block — displace the UV to a wrong location
+    float h2 = fract(h * 127.1);
+    float h3 = fract(h * 311.7);
+    vec2 offset = (vec2(h2, h3) - 0.5) * 0.3;
+    vec4 col = texture2D(u_image, clamp(v_uv + offset, 0.0, 1.0));
+
+    // Random colour channel manipulation based on sub-hashes
+    if (h2 > 0.7) col.rgb = col.gbr;           // channel swap
+    if (h3 > 0.8) col.rgb *= vec3(0.0, 1.5, 1.5); // cyan tint
+    if (h2 < 0.2) col.rgb = vec3(dot(col.rgb, vec3(0.333))); // desaturate
+
+    gl_FragColor = col;
+  } else {
+    gl_FragColor = texture2D(u_image, v_uv);
+  }
+}
+`,
+    uniforms: (s) => ({
+      u_intensity: s.ip_dc_intensity ?? 0.3,
+      u_blockSize: s.ip_dc_blockSize ?? 12,
+      u_animate:   s.ip_dc_animate   ?? 1,
+      u_time:      s.time            ?? 0,
+    }),
+  },
+
+  recursiveZoom: {
+    name: 'Recursive Zoom',
+    params: [
+      { id: 'ip_rz_depth',   label: 'Depth',    min: 1,    max: 5,    step: 1,    default: 3  },
+      { id: 'ip_rz_scale',   label: 'Scale',    min: 0.2,  max: 0.8,  step: 0.05, default: 0.5 },
+      { id: 'ip_rz_offsetX', label: 'Offset X', min: -0.5, max: 0.5,  step: 0.05, default: 0  },
+      { id: 'ip_rz_offsetY', label: 'Offset Y', min: -0.5, max: 0.5,  step: 0.05, default: 0  },
+      { id: 'ip_rz_rotate',  label: 'Rotate',   min: 0,    max: 6.28, step: 0.1,  default: 0  },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform float u_depth;
+uniform float u_scale;
+uniform float u_offsetX;
+uniform float u_offsetY;
+uniform float u_rotate;
+
+void main() {
+  vec2 uv = v_uv;
+  vec4 col = texture2D(u_image, uv);
+
+  for (int i = 0; i < 5; i++) {
+    if (float(i) >= u_depth) break;
+
+    // Zoom into the image: pull UV towards (0.5 + offset) by dividing by scale
+    uv = (uv - 0.5 - vec2(u_offsetX, u_offsetY)) / u_scale + 0.5;
+
+    // Optional per-level rotation
+    if (u_rotate > 0.01) {
+      float c = cos(u_rotate);
+      float s = sin(u_rotate);
+      vec2 centered = uv - 0.5;
+      uv = vec2(centered.x * c - centered.y * s,
+                centered.x * s + centered.y * c) + 0.5;
+    }
+
+    // Only sample if the transformed UV is inside [0,1]
+    if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+      col = texture2D(u_image, uv);
+    }
+  }
+
+  gl_FragColor = col;
+}
+`,
+    uniforms: (s) => ({
+      u_depth:   s.ip_rz_depth   ?? 3,
+      u_scale:   s.ip_rz_scale   ?? 0.5,
+      u_offsetX: s.ip_rz_offsetX ?? 0,
+      u_offsetY: s.ip_rz_offsetY ?? 0,
+      u_rotate:  s.ip_rz_rotate  ?? 0,
+    }),
+  },
+
+  crtMonitor: {
+    name: 'CRT Monitor',
+    params: [
+      { id: 'ip_crt_curve',     label: 'Curvature',    min: 0, max: 0.5,  step: 0.02,  default: 0.15  },
+      { id: 'ip_crt_scanlines', label: 'Scanlines',    min: 0, max: 1,    step: 0.05,  default: 0.5   },
+      { id: 'ip_crt_phosphor',  label: 'Phosphor',     min: 0, max: 1,    step: 0.05,  default: 0.4   },
+      { id: 'ip_crt_bleed',     label: 'Color Bleed',  min: 0, max: 0.01, step: 0.001, default: 0.003 },
+      { id: 'ip_crt_vignette',  label: 'Vignette',     min: 0, max: 1,    step: 0.05,  default: 0.5   },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_curve;
+uniform float u_scanlines;
+uniform float u_phosphor;
+uniform float u_bleed;
+uniform float u_vignette;
+
+#define PI 3.14159265359
+
+void main() {
+  // Barrel distortion — pulls corners inward for CRT screen curve
+  vec2 uv = v_uv - 0.5;
+  float r2 = dot(uv, uv);
+  uv *= 1.0 + u_curve * r2;
+  uv += 0.5;
+
+  // Pixels outside the curved screen area are black (bezel)
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
+
+  // Color bleeding — sample R, G, B at slight horizontal offsets
+  float r = texture2D(u_image, clamp(uv + vec2( u_bleed, 0.0), 0.0, 1.0)).r;
+  float g = texture2D(u_image, uv).g;
+  float b = texture2D(u_image, clamp(uv - vec2( u_bleed, 0.0), 0.0, 1.0)).b;
+  vec3 col = vec3(r, g, b);
+
+  // Scanlines — darken horizontal gaps between phosphor rows
+  float scanline = sin(uv.y * u_resolution.y * PI) * 0.5 + 0.5;
+  col *= 1.0 - u_scanlines * (1.0 - scanline) * 0.5;
+
+  // Phosphor RGB sub-pixel mask — each column is slightly tinted
+  float px = mod(gl_FragCoord.x, 3.0);
+  vec3 mask = vec3(1.0);
+  if (px < 1.0) {
+    mask = vec3(1.0, 1.0 - u_phosphor * 0.5, 1.0 - u_phosphor * 0.5);
+  } else if (px < 2.0) {
+    mask = vec3(1.0 - u_phosphor * 0.5, 1.0, 1.0 - u_phosphor * 0.5);
+  } else {
+    mask = vec3(1.0 - u_phosphor * 0.5, 1.0 - u_phosphor * 0.5, 1.0);
+  }
+  col *= mask;
+
+  // Vignette — darken screen edges
+  float vig = 1.0 - r2 * u_vignette * 4.0;
+  col *= max(0.0, vig);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_curve:     s.ip_crt_curve     ?? 0.15,
+      u_scanlines: s.ip_crt_scanlines ?? 0.5,
+      u_phosphor:  s.ip_crt_phosphor  ?? 0.4,
+      u_bleed:     s.ip_crt_bleed     ?? 0.003,
+      u_vignette:  s.ip_crt_vignette  ?? 0.5,
+    }),
+  },
+
   needlework: {
     name: 'Needlework',
     params: [

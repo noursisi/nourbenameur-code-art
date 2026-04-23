@@ -74,6 +74,16 @@ export const state = {
   ascii_colorMode: 0,
   // Halftone distortion
   ip_ht_dotsize: 8, ip_ht_angle: 45,
+  // Pixel Melt distortion
+  ip_melt_amount: 0.3, ip_melt_speed: 1, ip_melt_direction: 0,
+  // Channel Drift distortion
+  ip_cd_amount: 0.02, ip_cd_angle: 0, ip_cd_animate: 1,
+  // Data Corrupt distortion
+  ip_dc_intensity: 0.3, ip_dc_blockSize: 12, ip_dc_animate: 1,
+  // Recursive Zoom distortion
+  ip_rz_depth: 3, ip_rz_scale: 0.5, ip_rz_offsetX: 0, ip_rz_offsetY: 0, ip_rz_rotate: 0,
+  // CRT Monitor distortion
+  ip_crt_curve: 0.15, ip_crt_scanlines: 0.5, ip_crt_phosphor: 0.4, ip_crt_bleed: 0.003, ip_crt_vignette: 0.5,
   // Needlework distortion
   ip_nw_dotsize: 6, ip_nw_spacing: 1, ip_nw_threshold: 0.4, ip_nw_contrast: 1, ip_nw_mirror: 0, ip_nw_invert: 0,
   // ASCII distortion
