@@ -46,9 +46,7 @@ export class DesktopGlitch extends Algorithm {
   }
 
   render(ctx, world) {
-    const { state } = world;
-    const W = ctx.canvas.width / (window.devicePixelRatio || 1);
-    const H = ctx.canvas.height / (window.devicePixelRatio || 1);
+    const { W, H, state } = world;
 
     const count    = Math.max(2, Math.round(state.shred_count   ?? 20));
     const offsetAmt = state.shred_offset  ?? 0.5;
@@ -56,7 +54,7 @@ export class DesktopGlitch extends Algorithm {
     const vary     = state.shred_vary     ?? 0.5;
     const channel  = state.shred_channel  ?? 0.3;
     const seed     = state.shred_seed     ?? 42;
-    const t        = world.time ?? 0;
+    const t        = state.time ?? 0;
 
     const dpr = window.devicePixelRatio || 1;
     const dim  = vertical ? W : H;     // dimension we slice along

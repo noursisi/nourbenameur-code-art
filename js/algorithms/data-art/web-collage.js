@@ -56,9 +56,7 @@ export class WebCollage extends Algorithm {
   }
 
   render(ctx, world) {
-    const { state } = world;
-    const W = ctx.canvas.width / (window.devicePixelRatio || 1);
-    const H = ctx.canvas.height / (window.devicePixelRatio || 1);
+    const { W, H, state } = world;
 
     const cols    = Math.max(2, Math.round(state.frag_cols ?? 6));
     const rows    = Math.max(2, Math.round(state.frag_rows ?? 4));
@@ -67,7 +65,7 @@ export class WebCollage extends Algorithm {
     const zoom    = state.frag_zoom ?? 0.3;
     const rotate  = state.frag_rotate ?? 0.2;
     const seed    = state.frag_seed ?? 42;
-    const t       = world.time ?? 0;
+    const t       = state.time ?? 0;
 
     // ── Capture the current canvas ────────────────────────────────────────────
     const cap = document.createElement('canvas');

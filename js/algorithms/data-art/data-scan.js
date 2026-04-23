@@ -47,9 +47,7 @@ export class DataScan extends Algorithm {
   }
 
   render(ctx, world) {
-    const { state } = world;
-    const W = ctx.canvas.width / (window.devicePixelRatio || 1);
-    const H = ctx.canvas.height / (window.devicePixelRatio || 1);
+    const { W, H, state } = world;
 
     const echoCount = Math.max(1, Math.round(state.echo_count  ?? 5));
     const scale     = state.echo_scale  ?? 0.85;
@@ -58,7 +56,7 @@ export class DataScan extends Algorithm {
     const fade      = state.echo_fade   ?? 0.3;
     const tint      = state.echo_tint   ?? 0;
     const seed      = state.echo_seed   ?? 42;
-    const t         = world.time ?? 0;
+    const t         = state.time ?? 0;
 
     // ── Capture the current canvas ────────────────────────────────────────────
     const cap = document.createElement('canvas');
