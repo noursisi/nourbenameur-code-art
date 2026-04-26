@@ -114,7 +114,7 @@ export const state = {
   shred_count: 20, shred_offset: 0.5, shred_vertical: 0, shred_vary: 0.5, shred_channel: 0.3, shred_seed: 42,
   // Echo — layered image ghosts
   echo_count: 5, echo_scale: 0.85, echo_spread: 30, echo_rotate: 0.1, echo_fade: 0.3, echo_tint: 0, echo_seed: 42,
-  // Circuit Board — metallic silver PCB rendering
+  // Circuit Board — realistic PCB with copper traces and Blinn-Phong lighting
   pcb_scale: 1.5, pcb_density: 0.6, pcb_layers: 2,
   pcb_shine: 0.7, pcb_light: 0.8, pcb_warmth: 0.0,
   // Camera
