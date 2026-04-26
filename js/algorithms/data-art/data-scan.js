@@ -59,10 +59,26 @@ export class DataScan extends Algorithm {
     const t         = state.time ?? 0;
 
     // ── Capture the current canvas ────────────────────────────────────────────
+    const dpr = window.devicePixelRatio || 1;
     const cap = document.createElement('canvas');
-    cap.width  = ctx.canvas.width;
-    cap.height = ctx.canvas.height;
-    cap.getContext('2d').drawImage(ctx.canvas, 0, 0);
+    cap.width  = Math.round(W * dpr);
+    cap.height = Math.round(H * dpr);
+    const capCtx = cap.getContext('2d');
+    capCtx.drawImage(ctx.canvas, 0, 0);
+
+    // Fallback if canvas is empty
+    try {
+      const sample = capCtx.getImageData(Math.floor(cap.width/2), Math.floor(cap.height/2), 1, 1).data;
+      if (sample[0]+sample[1]+sample[2] < 15) {
+        const g = capCtx.createRadialGradient(cap.width/2, cap.height/2, 0, cap.width/2, cap.height/2, cap.width*0.6);
+        g.addColorStop(0, '#1a1a2e'); g.addColorStop(1, '#0a0a10');
+        capCtx.fillStyle = g; capCtx.fillRect(0, 0, cap.width, cap.height);
+        for (let i = 0; i < 1500; i++) {
+          capCtx.fillStyle = `rgba(255,255,255,${Math.random()*0.06})`;
+          capCtx.fillRect(Math.random()*cap.width, Math.random()*cap.height, 1, 1);
+        }
+      }
+    } catch(e) {}
 
     // ── Build per-echo parameters (seeded, stable) ────────────────────────────
     const rng = makeLCG(seed * 5555 + 1);

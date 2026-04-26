@@ -386,19 +386,22 @@ void main() {
   float hU = heightMap + (noise(pU * 60.0) - noise(p * 60.0)) * 0.1;
 
   vec3 normal = normalize(vec3(
-    (heightMap - hR) * 8.0,
-    (heightMap - hU) * 8.0,
-    1.0
+    (heightMap - hR) * 20.0,
+    (heightMap - hU) * 20.0,
+    0.5
   ));
 
   // ── Lighting (Blinn-Phong) ────────────────────────────────────────────
   float la = u_lightAngle;
-  vec3 lightDir = normalize(vec3(cos(la) * 0.7, sin(la) * 0.7, 1.0));
+  vec3 lightDir = normalize(vec3(cos(la) * 0.8, sin(la) * 0.8, 0.6));
+  vec3 fillLight = normalize(vec3(-cos(la) * 0.4, -sin(la) * 0.4, 0.3));
   vec3 viewDir = vec3(0.0, 0.0, 1.0);
   vec3 halfVec = normalize(lightDir + viewDir);
 
-  float diff = max(dot(normal, lightDir), 0.0);
-  float spec = pow(max(dot(normal, halfVec), 0.0), 32.0 + u_shine * 96.0);
+  float diff = max(dot(normal, lightDir), 0.0) + max(dot(normal, fillLight), 0.0) * 0.15;
+  float spec = pow(max(dot(normal, halfVec), 0.0), 64.0 + u_shine * 192.0);
+  // Fresnel rim
+  float fresnel = pow(1.0 - abs(dot(viewDir, normal)), 3.0) * 0.4;
   float ambient = 0.15;
 
   // ── Substrate (PCB board color) ───────────────────────────────────────
@@ -413,17 +416,18 @@ void main() {
   substrate += boardNoise * vec3(0.03) * u_warmth;
 
   // ── Copper color ──────────────────────────────────────────────────────
-  vec3 copperBase = vec3(0.72, 0.45, 0.20);
-  vec3 copperBright = vec3(0.85, 0.65, 0.30);
+  vec3 copperBase = mix(vec3(0.50, 0.52, 0.55), vec3(0.72, 0.45, 0.20), u_warmth);
+  vec3 copperBright = mix(vec3(0.75, 0.78, 0.82), vec3(0.85, 0.65, 0.30), u_warmth);
   vec3 copperColor = mix(copperBase, copperBright, diff * 0.5);
-  copperColor += spec * u_shine * vec3(1.0, 0.85, 0.5); // specular highlight
+  vec3 specTint = mix(vec3(0.95, 0.97, 1.0), vec3(1.0, 0.85, 0.5), u_warmth);
+  copperColor += (spec + fresnel) * u_shine * specTint; // specular + fresnel
 
   // ── Solder mask (green translucent over copper) ───────────────────────
   vec3 maskGreen = mix(vec3(0.05, 0.18, 0.06), vec3(0.06, 0.06, 0.06), u_warmth);
   vec3 maskOverCopper = mix(maskGreen, copperColor * 0.3, 0.2); // green tinted copper
 
   // ── Pad color (exposed copper, brighter) ──────────────────────────────
-  vec3 padColor = copperColor * 1.2 + spec * u_shine * vec3(0.5, 0.4, 0.2);
+  vec3 padColor = copperColor * 1.2 + spec * u_shine * specTint * 0.6;
 
   // ── Via color ─────────────────────────────────────────────────────────
   vec3 viaColor = copperBright * (diff * 0.6 + 0.4) + spec * u_shine * 0.8;
@@ -442,7 +446,7 @@ void main() {
   pinColor += spec * u_shine * 0.6;
 
   // ── SMD pad color ─────────────────────────────────────────────────────
-  vec3 smdColor = copperColor * 1.1 + spec * u_shine * vec3(0.4, 0.3, 0.15);
+  vec3 smdColor = copperColor * 1.1 + spec * u_shine * specTint * 0.5;
 
   // ── Silkscreen color ──────────────────────────────────────────────────
   vec3 silkColor = mix(vec3(0.75, 0.82, 0.72), vec3(0.85, 0.85, 0.85), u_warmth);

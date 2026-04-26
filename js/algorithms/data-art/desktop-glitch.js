@@ -57,14 +57,29 @@ export class DesktopGlitch extends Algorithm {
     const t        = state.time ?? 0;
 
     const dpr = window.devicePixelRatio || 1;
-    const dim  = vertical ? W : H;     // dimension we slice along
-    const cross = vertical ? H : W;    // perpendicular dimension
+    const dim  = vertical ? W : H;
+    const cross = vertical ? H : W;
 
     // ── Capture the current canvas ────────────────────────────────────────────
     const cap = document.createElement('canvas');
-    cap.width  = ctx.canvas.width;
-    cap.height = ctx.canvas.height;
-    cap.getContext('2d').drawImage(ctx.canvas, 0, 0);
+    cap.width  = Math.round(W * dpr);
+    cap.height = Math.round(H * dpr);
+    const capCtx = cap.getContext('2d');
+    capCtx.drawImage(ctx.canvas, 0, 0);
+
+    // Fallback if canvas is empty
+    try {
+      const sample = capCtx.getImageData(Math.floor(cap.width/2), Math.floor(cap.height/2), 1, 1).data;
+      if (sample[0]+sample[1]+sample[2] < 15) {
+        const g = capCtx.createLinearGradient(0, 0, cap.width, cap.height);
+        g.addColorStop(0, '#1a1a2e'); g.addColorStop(0.5, '#0f0a1a'); g.addColorStop(1, '#1a1e1a');
+        capCtx.fillStyle = g; capCtx.fillRect(0, 0, cap.width, cap.height);
+        for (let i = 0; i < 2000; i++) {
+          capCtx.fillStyle = `rgba(255,255,255,${Math.random()*0.1})`;
+          capCtx.fillRect(Math.random()*cap.width, Math.random()*cap.height, 1+Math.random()*3, 1);
+        }
+      }
+    } catch(e) {}
 
     // ── Clear to black ────────────────────────────────────────────────────────
     ctx.fillStyle = '#000000';
