@@ -488,6 +488,79 @@ export class CircuitBoard extends Algorithm {
     });
 
     ctx.drawImage(glCanvas, 0, 0, W, H);
+
+    // ── Silkscreen text overlay (Canvas 2D) ──────────────────────────────────
+    this._drawSilkscreen(ctx, W, H, s);
+  }
+
+  _drawSilkscreen(ctx, W, H, s) {
+    const scale = s.pcb_scale ?? 1.5;
+    const density = s.pcb_density ?? 0.6;
+    const seed = Math.round(scale * 1000 + density * 100);
+
+    // Seeded RNG
+    let rngState = (seed * 7919 + 31337) >>> 0;
+    const rng = () => {
+      rngState = Math.imul(rngState, 1664525) + 1013904223 | 0;
+      return (rngState >>> 0) / 0xFFFFFFFF;
+    };
+
+    // Component designator pool
+    const prefixes = ['C', 'R', 'U', 'Q', 'D', 'J', 'L', 'TP', 'SW', 'F', 'T', 'X', 'Y', 'FB'];
+    const chips = ['74HC595', '74LS04', 'ATmega328P', 'LM7805', 'NE555', 'AD9850', 'TL072',
+      'MAX232', 'ULN2803', 'CD4017', 'LM358', 'TDA7294', 'MOSEL', 'Canon', 'TOSHIBA',
+      'T7891A', 'MC68000', 'Z80A', 'SAA1099', 'YM2612', '6502', '8086'];
+    const labels = ['REV A.3', 'REV 2.1', 'MADE IN JAPAN', 'MADE IN TAIWAN', 'FG1-8358',
+      '41014108', 'FH11069', 'PWR', 'GND', 'VCC', '+5V', '+3.3V', '+12V', 'CLK',
+      'DATA', 'RESET', 'TX', 'RX', 'SCL', 'SDA', 'CS', 'MISO', 'MOSI'];
+
+    const count = Math.round(40 + density * 80);
+    ctx.save();
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i < count; i++) {
+      const x = rng() * W;
+      const y = rng() * H;
+      const type = rng();
+      let text, size, color, alpha;
+
+      if (type < 0.5) {
+        // Component designator: C301, R15, U4, etc.
+        const pre = prefixes[Math.floor(rng() * prefixes.length)];
+        const num = Math.floor(rng() * 900) + 1;
+        text = pre + num;
+        size = 5 + rng() * 4;
+        color = s.transparent ? 'rgba(200,205,210,' : 'rgba(180,190,180,';
+        alpha = 0.25 + rng() * 0.25;
+      } else if (type < 0.75) {
+        // IC chip label
+        text = chips[Math.floor(rng() * chips.length)];
+        size = 6 + rng() * 5;
+        color = s.transparent ? 'rgba(220,225,230,' : 'rgba(160,170,160,';
+        alpha = 0.2 + rng() * 0.2;
+      } else {
+        // Board label
+        text = labels[Math.floor(rng() * labels.length)];
+        size = 5 + rng() * 6;
+        color = s.transparent ? 'rgba(200,205,210,' : 'rgba(170,180,170,';
+        alpha = 0.15 + rng() * 0.2;
+      }
+
+      ctx.font = `${size}px monospace`;
+      ctx.fillStyle = color + alpha + ')';
+
+      // Some labels are rotated 90 degrees
+      if (rng() < 0.3) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(text, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.fillText(text, x, y);
+      }
+    }
+    ctx.restore();
   }
 
   collectSVG(world) {
