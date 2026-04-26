@@ -137,8 +137,6 @@ export class WebCollage extends Algorithm {
       skipGap:  rng2() < 0.08,
     }));
 
-    const dpr = window.devicePixelRatio || 1;
-
     for (let ti = 0; ti < total; ti++) {
       const col = ti % cols;
       const row = Math.floor(ti / cols);
