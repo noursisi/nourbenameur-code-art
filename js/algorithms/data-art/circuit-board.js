@@ -1,55 +1,435 @@
 /**
- * Circuit Board — Canvas 2D procedural PCB generator.
- * Generates a realistic-looking circuit board with varied components,
- * real text labels, metallic traces, and organic imperfection.
- * NOT a tiled pattern — every component is unique.
+ * Circuit Board — Dense pixel-art tech collage.
+ * Packs dozens of different micro-visualizations into a grid:
+ * bar charts, pie charts, knobs, dot matrices, waveforms, tables,
+ * circuit traces, pixel art, buttons, sliders, globe, LED displays.
+ * Monochrome. Every pixel filled. No gaps.
  */
 
 import { Algorithm } from '../base.js';
 
-// ── Seeded RNG ───────────────────────────────────────────────────────────────
-
 function makeLCG(seed) {
   let s = (seed | 0) >>> 0;
-  return () => {
-    s = Math.imul(s, 1664525) + 1013904223 | 0;
-    return (s >>> 0) / 0xFFFFFFFF;
-  };
+  return () => { s = Math.imul(s, 1664525) + 1013904223 | 0; return (s >>> 0) / 0xFFFFFFFF; };
 }
-
-function pick(arr, rng) { return arr[Math.floor(rng() * arr.length)]; }
+function pick(a, r) { return a[Math.floor(r() * a.length)]; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
-// ── Component data ───────────────────────────────────────────────────────────
+// ── Widget drawing functions ─────────────────────────────────────────────────
+// Each takes (ctx, x, y, w, h, rng, fg, dim) and fills its rectangle completely.
 
-const IC_NAMES = [
-  'ATmega328P', '74HC595', '74LS04', 'LM7805', 'NE555', 'AD9850',
-  'TL072', 'MAX232', 'ULN2803', 'CD4017', 'LM358', 'MC68000',
-  'Z80A CPU', 'SAA1099', 'YM2612', '6502', '8086', 'TDA7294',
-  'TOSHIBA\nT7891A', 'Canon', 'MOSEL\nMS6264', 'HD6301', 'AY-3-8910',
-  'AM27C256', 'W65C02S', 'SN76489', 'TMP8255AP-5', 'HM62256',
-  'MB8464A', 'D8255AC', 'uPD71054', 'TC5565', 'M5M5256',
+function drawBarChart(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x, y, w, h);
+  const bars = Math.max(3, Math.floor(w / 4));
+  const bw = Math.floor(w / bars);
+  const pad = 1;
+  // Axes
+  ctx.strokeStyle = dim;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y + 2);
+  ctx.lineTo(x + 2, y + h - 2);
+  ctx.lineTo(x + w - 2, y + h - 2);
+  ctx.stroke();
+  for (let i = 0; i < bars; i++) {
+    const bh = Math.floor(rng() * (h - 8)) + 2;
+    ctx.fillStyle = rng() < 0.2 ? fg : dim;
+    ctx.fillRect(x + 3 + i * bw + pad, y + h - 2 - bh, bw - pad * 2, bh);
+  }
+}
+
+function drawLineGraph(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x, y, w, h);
+  // Grid
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 0.3;
+  for (let gx = x; gx < x + w; gx += Math.max(6, w / 8)) {
+    ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx, y + h); ctx.stroke();
+  }
+  for (let gy = y; gy < y + h; gy += Math.max(6, h / 6)) {
+    ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + w, gy); ctx.stroke();
+  }
+  // Line
+  ctx.strokeStyle = fg;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const pts = Math.max(5, Math.floor(w / 3));
+  for (let i = 0; i <= pts; i++) {
+    const px = x + (i / pts) * w;
+    const py = y + h * 0.2 + rng() * h * 0.6;
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+}
+
+function drawPieChart(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x, y, w, h);
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2 - 3;
+  let angle = -Math.PI / 2;
+  const segs = 3 + Math.floor(rng() * 5);
+  for (let i = 0; i < segs; i++) {
+    const sweep = (rng() * 0.4 + 0.05) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angle, angle + sweep);
+    ctx.closePath();
+    ctx.fillStyle = i === 0 ? fg : `rgba(255,255,255,${0.1 + rng() * 0.3})`;
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    angle += sweep;
+  }
+}
+
+function drawDotMatrix(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#080808';
+  ctx.fillRect(x, y, w, h);
+  const sp = Math.max(2, Math.floor(Math.min(w, h) / 12));
+  const cols = Math.floor(w / sp);
+  const rows = Math.floor(h / sp);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const on = rng() < 0.4;
+      ctx.fillStyle = on ? (rng() < 0.1 ? fg : dim) : '#111';
+      const dr = Math.max(1, sp * 0.35);
+      ctx.beginPath();
+      ctx.arc(x + c * sp + sp / 2, y + r * sp + sp / 2, dr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawKnob(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0c0c0c';
+  ctx.fillRect(x, y, w, h);
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2 - 4;
+  // Outer ring
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = dim; ctx.lineWidth = 1.5; ctx.stroke();
+  // Tick marks
+  const ticks = 8 + Math.floor(rng() * 8);
+  for (let i = 0; i < ticks; i++) {
+    const a = (i / ticks) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * (r - 2), cy + Math.sin(a) * (r - 2));
+    ctx.lineTo(cx + Math.cos(a) * (r + 2), cy + Math.sin(a) * (r + 2));
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+  // Inner circle
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a1a'; ctx.fill();
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5; ctx.stroke();
+  // Pointer
+  const pa = rng() * Math.PI * 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(pa) * r * 0.55, cy + Math.sin(pa) * r * 0.55);
+  ctx.strokeStyle = fg; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+function drawWaveform(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#080808';
+  ctx.fillRect(x, y, w, h);
+  // Center line
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
+  // Wave
+  ctx.strokeStyle = fg; ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  const freq = 2 + rng() * 8;
+  const amp = h * 0.3 + rng() * h * 0.15;
+  for (let i = 0; i <= w; i++) {
+    const v = Math.sin(i / w * Math.PI * freq + rng() * 0.3) * amp;
+    const py = y + h / 2 + v;
+    i === 0 ? ctx.moveTo(x + i, py) : ctx.lineTo(x + i, py);
+  }
+  ctx.stroke();
+}
+
+function drawTextBlock(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x, y, w, h);
+  const texts = ['SYSTEM OK', 'ERR 0x42', 'MEM: 64K', 'CPU: 87%', 'DISK: 94%',
+    'NET: 12Mb', 'CACHE HIT', 'PID 2847', 'ROOT', 'STDIN', 'STDOUT', '/dev/null',
+    'chmod 755', 'grep -r', 'sudo rm', 'ping 8.8', 'ssh root@', 'tar -xvf',
+    'NODE_ENV', 'PORT 443', 'HTTP 200', 'TCP/IP', 'FTP 21', 'DNS OK',
+    'BIOS v3.2', 'IRQ 7', 'DMA CH2', 'I/O 0x3F8', 'INT 21h', 'MOV AX,BX'];
+  const fs = Math.max(4, Math.min(7, Math.floor(h / 8)));
+  ctx.font = `${fs}px monospace`;
+  ctx.textBaseline = 'top';
+  const lineH = fs + 1;
+  const lines = Math.floor(h / lineH);
+  for (let i = 0; i < lines; i++) {
+    ctx.fillStyle = rng() < 0.15 ? fg : `rgba(255,255,255,${0.1 + rng() * 0.2})`;
+    ctx.fillText(pick(texts, rng), x + 2, y + 1 + i * lineH);
+  }
+}
+
+function drawHeatmap(ctx, x, y, w, h, rng, fg, dim) {
+  const cellSz = Math.max(2, Math.floor(Math.min(w, h) / 10));
+  const cols = Math.floor(w / cellSz);
+  const rows = Math.floor(h / cellSz);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const v = rng();
+      const b = Math.floor(v * 80);
+      ctx.fillStyle = `rgb(${b},${b},${b})`;
+      ctx.fillRect(x + c * cellSz, y + r * cellSz, cellSz - 0.5, cellSz - 0.5);
+    }
+  }
+}
+
+function drawProgressBars(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x, y, w, h);
+  const barH = Math.max(3, Math.floor(h / 8));
+  const bars = Math.floor(h / (barH + 2));
+  for (let i = 0; i < bars; i++) {
+    const by = y + 2 + i * (barH + 2);
+    const fill = rng();
+    ctx.fillStyle = '#151515';
+    ctx.fillRect(x + 2, by, w - 4, barH);
+    ctx.fillStyle = fill > 0.8 ? fg : dim;
+    ctx.fillRect(x + 2, by, (w - 4) * fill, barH);
+  }
+}
+
+function drawCircuitTrace(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#080808';
+  ctx.fillRect(x, y, w, h);
+  const count = 5 + Math.floor(rng() * 10);
+  for (let i = 0; i < count; i++) {
+    let tx = x + rng() * w, ty = y + rng() * h;
+    ctx.beginPath(); ctx.moveTo(tx, ty);
+    const segs = 2 + Math.floor(rng() * 5);
+    let dir = rng() < 0.5 ? 0 : 1;
+    for (let s = 0; s < segs; s++) {
+      const len = 5 + rng() * Math.max(w, h) * 0.4;
+      if (dir === 0) tx = Math.max(x, Math.min(x + w, tx + (rng() < 0.5 ? len : -len)));
+      else ty = Math.max(y, Math.min(y + h, ty + (rng() < 0.5 ? len : -len)));
+      ctx.lineTo(tx, ty);
+      dir = 1 - dir;
+    }
+    ctx.strokeStyle = rng() < 0.3 ? fg : dim;
+    ctx.lineWidth = rng() < 0.2 ? 1.5 : 0.5;
+    ctx.stroke();
+    // Pad at end
+    ctx.beginPath(); ctx.arc(tx, ty, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = dim; ctx.fill();
+  }
+}
+
+function drawGlobe(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#050505';
+  ctx.fillRect(x, y, w, h);
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2 - 3;
+  // Outer circle
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = dim; ctx.lineWidth = 1; ctx.stroke();
+  // Latitude lines
+  for (let i = 1; i < 5; i++) {
+    const ly = r * (i / 5 * 2 - 1);
+    const lr = Math.sqrt(r * r - ly * ly);
+    ctx.beginPath(); ctx.ellipse(cx, cy + ly, lr, lr * 0.15, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+  // Longitude lines
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * Math.abs(Math.cos(a)), r, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+  // Random "land" dots
+  for (let i = 0; i < 40; i++) {
+    const a = rng() * Math.PI * 2;
+    const d = rng() * r * 0.9;
+    const dx = cx + Math.cos(a) * d;
+    const dy = cy + Math.sin(a) * d * 0.8;
+    if (rng() < 0.5) { ctx.fillStyle = dim; ctx.fillRect(dx, dy, 1, 1); }
+  }
+}
+
+function drawSliders(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x, y, w, h);
+  const count = Math.max(2, Math.floor(w / 8));
+  const sp = w / count;
+  for (let i = 0; i < count; i++) {
+    const sx = x + i * sp + sp / 2;
+    const trackTop = y + 3;
+    const trackBot = y + h - 3;
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(sx, trackTop); ctx.lineTo(sx, trackBot); ctx.stroke();
+    const val = rng();
+    const handleY = trackTop + (trackBot - trackTop) * (1 - val);
+    ctx.fillStyle = fg;
+    ctx.fillRect(sx - 2, handleY - 1, 4, 3);
+  }
+}
+
+function drawLEDNumber(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#050505';
+  ctx.fillRect(x, y, w, h);
+  const num = String(Math.floor(rng() * 10000)).padStart(4, '0');
+  const digitW = Math.floor(w / 5);
+  const fs = Math.max(6, Math.min(digitW * 1.5, h - 4));
+  ctx.font = `bold ${fs}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = i === 0 && rng() < 0.3 ? '#330000' : (rng() < 0.15 ? fg : `rgba(255,255,255,${0.3 + rng() * 0.4})`);
+    ctx.fillText(num[i], x + digitW / 2 + i * digitW + digitW / 2, y + h / 2);
+  }
+}
+
+function drawButtonRow(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0c0c0c';
+  ctx.fillRect(x, y, w, h);
+  const labels = ['OK', 'SET', 'RST', 'RUN', 'CLR', 'SND', 'RCV', 'PWR', 'HLT', 'ACK', 'NAK', 'BRK'];
+  const bw = Math.max(14, Math.floor(w / 4));
+  const bh = Math.max(8, Math.floor(h / 3));
+  const cols = Math.floor((w - 4) / (bw + 2));
+  const rows = Math.floor((h - 4) / (bh + 2));
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const bx = x + 2 + c * (bw + 2);
+      const by = y + 2 + r * (bh + 2);
+      const active = rng() < 0.2;
+      ctx.fillStyle = active ? '#333' : '#1a1a1a';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 0.5;
+      ctx.strokeRect(bx, by, bw, bh);
+      if (bw > 10 && bh > 6) {
+        ctx.font = `${Math.min(6, bh - 2)}px monospace`;
+        ctx.fillStyle = active ? fg : dim;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(pick(labels, rng), bx + bw / 2, by + bh / 2);
+      }
+    }
+  }
+}
+
+function drawTable(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x, y, w, h);
+  const cols = Math.max(2, Math.floor(w / 20));
+  const rows = Math.max(2, Math.floor(h / 8));
+  const cw = w / cols;
+  const rh = h / rows;
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.5;
+  for (let c = 0; c <= cols; c++) {
+    ctx.beginPath(); ctx.moveTo(x + c * cw, y); ctx.lineTo(x + c * cw, y + h); ctx.stroke();
+  }
+  for (let r = 0; r <= rows; r++) {
+    ctx.beginPath(); ctx.moveTo(x, y + r * rh); ctx.lineTo(x + w, y + r * rh); ctx.stroke();
+  }
+  // Header row
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x, y, w, rh);
+  // Cell content
+  ctx.font = `${Math.max(3, Math.min(5, rh - 2))}px monospace`;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      ctx.fillStyle = r === 0 ? fg : (rng() < 0.1 ? fg : `rgba(255,255,255,${0.08 + rng() * 0.15})`);
+      const val = r === 0 ? String.fromCharCode(65 + c) : (rng() < 0.3 ? String(Math.floor(rng() * 100)) : '');
+      ctx.fillText(val, x + c * cw + cw / 2, y + r * rh + rh / 2);
+    }
+  }
+}
+
+function drawPixelArt(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#080808';
+  ctx.fillRect(x, y, w, h);
+  const px = Math.max(2, Math.floor(Math.min(w, h) / 12));
+  const cols = Math.floor(w / px);
+  const rows = Math.floor(h / px);
+  // Generate symmetric pixel art (mirror left to right)
+  const halfCols = Math.ceil(cols / 2);
+  const grid = [];
+  for (let r = 0; r < rows; r++) {
+    grid[r] = [];
+    for (let c = 0; c < halfCols; c++) {
+      grid[r][c] = rng() < 0.35 ? 1 : 0;
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const mirrorC = c < halfCols ? c : cols - 1 - c;
+      if (grid[r][mirrorC]) {
+        ctx.fillStyle = fg;
+        ctx.fillRect(x + c * px, y + r * px, px - 0.5, px - 0.5);
+      }
+    }
+  }
+}
+
+function drawRadar(ctx, x, y, w, h, rng, fg, dim) {
+  ctx.fillStyle = '#050505';
+  ctx.fillRect(x, y, w, h);
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2 - 3;
+  // Concentric rings
+  for (let i = 1; i <= 3; i++) {
+    ctx.beginPath(); ctx.arc(cx, cy, r * i / 3, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+  // Cross
+  ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+  ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.5; ctx.stroke();
+  // Sweep line
+  const sweepAngle = rng() * Math.PI * 2;
+  ctx.beginPath(); ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(sweepAngle) * r, cy + Math.sin(sweepAngle) * r);
+  ctx.strokeStyle = fg; ctx.lineWidth = 0.8; ctx.stroke();
+  // Blips
+  for (let i = 0; i < 5; i++) {
+    const ba = rng() * Math.PI * 2;
+    const bd = rng() * r;
+    ctx.fillStyle = fg;
+    ctx.fillRect(cx + Math.cos(ba) * bd - 0.5, cy + Math.sin(ba) * bd - 0.5, 2, 2);
+  }
+}
+
+// Widget list
+const WIDGETS = [
+  drawBarChart, drawLineGraph, drawPieChart, drawDotMatrix, drawKnob,
+  drawWaveform, drawTextBlock, drawHeatmap, drawProgressBars, drawCircuitTrace,
+  drawGlobe, drawSliders, drawLEDNumber, drawButtonRow, drawTable,
+  drawPixelArt, drawRadar,
 ];
 
-const LABELS = [
-  'REV A.3', 'REV 2.1B', 'MADE IN JAPAN', 'MADE IN TAIWAN',
-  'FG1-8358', '41014108', 'FH11069', 'PWB-A', 'ASSY 250469',
-  '(C) 1989', '(C) 1994', 'PAT.PEND.', 'TESTED OK', 'LOT 2847',
-  'DATE: 94.03', 'PCB-REV4', 'DO NOT REMOVE',
-];
+// ── BSP tree packing ─────────────────────────────────────────────────────────
 
-const PIN_LABELS = [
-  'VCC', 'GND', 'CLK', 'DATA', 'RST', 'TX', 'RX', 'SCL', 'SDA',
-  'CS', 'MISO', 'MOSI', 'A0', 'A1', 'D0', 'D1', 'D2', 'D3',
-  '+5V', '+3V3', '+12V', '-12V', 'NC', 'EN', 'OUT', 'IN',
-];
+function bspSplit(x, y, w, h, depth, maxDepth, rng, cells) {
+  if (depth >= maxDepth || (w < 20 && h < 20)) {
+    cells.push({ x, y, w, h });
+    return;
+  }
+  // Decide split direction based on aspect ratio
+  const splitH = w > h ? (rng() < 0.7) : (rng() < 0.3);
+  if (splitH) {
+    const split = Math.floor(w * (0.25 + rng() * 0.5));
+    if (split < 15 || w - split < 15) { cells.push({ x, y, w, h }); return; }
+    bspSplit(x, y, split, h, depth + 1, maxDepth, rng, cells);
+    bspSplit(x + split, y, w - split, h, depth + 1, maxDepth, rng, cells);
+  } else {
+    const split = Math.floor(h * (0.25 + rng() * 0.5));
+    if (split < 15 || h - split < 15) { cells.push({ x, y, w, h }); return; }
+    bspSplit(x, y, w, split, depth + 1, maxDepth, rng, cells);
+    bspSplit(x, y + split, w, h - split, depth + 1, maxDepth, rng, cells);
+  }
+}
 
-const WIRE_COLORS = [
-  '#cc2222', '#2255cc', '#22aa22', '#ccaa22', '#cc6600',
-  '#aa22aa', '#22aaaa', '#666666', '#884422', '#ffffff',
-];
-
-// ── Algorithm ────────────────────────────────────────────────────────────────
+// ── Algorithm class ──────────────────────────────────────────────────────────
 
 export class CircuitBoard extends Algorithm {
   constructor(engine) {
@@ -61,9 +441,9 @@ export class CircuitBoard extends Algorithm {
   get metadata() {
     return {
       name: 'Circuit Board',
-      eq: 'PCB × silver',
+      eq: 'data × grid',
       cat: 'Data Art',
-      desc: 'Procedural motherboard — ICs, capacitors, traces, silkscreen labels, wires. Every board unique.',
+      desc: 'Dense tech collage — dozens of micro-visualizations packed together. Bar charts, knobs, circuits, dot matrices, pixel art.',
     };
   }
 
@@ -71,47 +451,34 @@ export class CircuitBoard extends Algorithm {
     return [
       { id: 'pcb_scale',   label: 'Scale',    min: 0.5, max: 3,   step: 0.1  },
       { id: 'pcb_density', label: 'Density',   min: 0.2, max: 1,   step: 0.05 },
-      { id: 'pcb_layers',  label: 'Layers',    min: 1,   max: 3,   step: 1    },
-      { id: 'pcb_shine',   label: 'Shine',     min: 0,   max: 1,   step: 0.05 },
-      { id: 'pcb_light',   label: 'Light',     min: 0,   max: 6.28,step: 0.1  },
-      { id: 'pcb_warmth',  label: 'Warmth',    min: 0,   max: 1,   step: 0.05 },
+      { id: 'pcb_layers',  label: 'Depth',     min: 3,   max: 8,   step: 1    },
+      { id: 'pcb_shine',   label: 'Bright',    min: 0,   max: 1,   step: 0.05 },
+      { id: 'pcb_light',   label: 'Unused',    min: 0,   max: 6.28,step: 0.1  },
+      { id: 'pcb_warmth',  label: 'Seed',      min: 0,   max: 100, step: 1    },
     ];
   }
 
   get detailParam() { return { id: 'pcb_density', min: 0.2, max: 1, step: 0.05 }; }
 
-  get cursorMap() {
-    return (mx, my, s) => {
-      s.pcb_light = mx * 6.28;
-      s.pcb_scale = 0.5 + (1 - my) * 2.5;
-    };
-  }
-
-  animate(world) {
-    world.state.pcb_light = ((world.state.pcb_light ?? 0.8) + 0.003) % 6.2832;
-  }
+  animate() {}
 
   randomize(state, set) {
     set('pcb_scale',   parseFloat((0.6 + Math.random() * 2).toFixed(1)));
     set('pcb_density', parseFloat((0.3 + Math.random() * 0.65).toFixed(2)));
-    set('pcb_layers',  Math.ceil(Math.random() * 3));
+    set('pcb_layers',  Math.floor(3 + Math.random() * 5));
     set('pcb_shine',   parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
-    set('pcb_light',   parseFloat((Math.random() * 6.28).toFixed(2)));
-    set('pcb_warmth',  parseFloat((Math.random() * 0.5).toFixed(2)));
+    set('pcb_warmth',  Math.floor(Math.random() * 100));
   }
 
   render(ctx, world) {
     const { W, H, state: s } = world;
-    const scale = s.pcb_scale ?? 1.5;
     const density = s.pcb_density ?? 0.6;
-    const layers = s.pcb_layers ?? 2;
-    const shine = s.pcb_shine ?? 0.7;
-    const light = s.pcb_light ?? 0.8;
-    const warmth = s.pcb_warmth ?? 0;
-    const seed = Math.round(scale * 100 + density * 50 + layers);
+    const depth = Math.round(s.pcb_layers ?? 5);
+    const bright = s.pcb_shine ?? 0.7;
+    const seed = Math.round(s.pcb_warmth ?? 42);
+    const scale = s.pcb_scale ?? 1;
 
-    // Cache key — only regenerate when params change
-    const key = `${seed}-${W}-${H}-${Math.round(light*10)}-${Math.round(shine*10)}-${Math.round(warmth*10)}`;
+    const key = `${seed}-${depth}-${Math.round(W)}-${Math.round(H)}-${Math.round(density*100)}-${Math.round(bright*100)}`;
     if (this._cache && this._cacheKey === key) {
       ctx.drawImage(this._cache, 0, 0, W, H);
       return;
@@ -119,338 +486,36 @@ export class CircuitBoard extends Algorithm {
 
     const rng = makeLCG(seed * 7919 + 31337);
 
-    // Light direction for shadows/highlights
-    const lx = Math.cos(light) * 1.5;
-    const ly = Math.sin(light) * 1.5;
+    const fg = `rgba(255,255,255,${0.5 + bright * 0.5})`;
+    const dim = `rgba(255,255,255,${0.15 + bright * 0.15})`;
 
-    // Material colors
-    const silver = warmth < 0.5
-      ? [lerp(140, 170, shine), lerp(145, 175, shine), lerp(150, 180, shine)]
-      : [lerp(170, 195, shine), lerp(155, 170, shine), lerp(110, 130, shine)];
-    const traceColor = `rgb(${silver[0]},${silver[1]},${silver[2]})`;
-    const traceHighlight = `rgba(255,255,255,${shine * 0.4})`;
-    const boardColor = warmth < 0.3 ? '#0a0f0a' : '#0d1a0d';
-
-    // ── Board substrate ──────────────────────────────────────────────────────
-    ctx.fillStyle = boardColor;
+    // Black background
+    ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
 
-    // Board texture (subtle noise via tiny dots)
-    ctx.globalAlpha = 0.06;
-    for (let i = 0; i < W * H * 0.003 * density; i++) {
-      ctx.fillStyle = rng() < 0.5 ? '#1a2a1a' : '#0a150a';
-      ctx.fillRect(rng() * W, rng() * H, 1, 1);
+    // BSP split canvas into cells
+    const cells = [];
+    bspSplit(0, 0, W, H, 0, depth, rng, cells);
+
+    // Draw a widget in each cell
+    for (const cell of cells) {
+      const widget = WIDGETS[Math.floor(rng() * WIDGETS.length)];
+      widget(ctx, cell.x, cell.y, cell.w, cell.h, rng, fg, dim);
+      // Thin border
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(cell.x, cell.y, cell.w, cell.h);
+    }
+
+    // Subtle scanlines over everything
+    ctx.globalAlpha = 0.03;
+    for (let y = 0; y < H; y += 2) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, y, W, 1);
     }
     ctx.globalAlpha = 1;
 
-    // ── Mounting holes (corners) ─────────────────────────────────────────────
-    const holes = [[15, 15], [W - 15, 15], [15, H - 15], [W - 15, H - 15]];
-    for (const [hx, hy] of holes) {
-      // Pad
-      ctx.beginPath();
-      ctx.arc(hx, hy, 8, 0, Math.PI * 2);
-      ctx.fillStyle = '#888';
-      ctx.fill();
-      // Hole
-      ctx.beginPath();
-      ctx.arc(hx, hy, 3, 0, Math.PI * 2);
-      ctx.fillStyle = '#222';
-      ctx.fill();
-    }
-
-    // ── Trace routing ────────────────────────────────────────────────────────
-    const traceCount = Math.round(60 + density * 200);
-    for (let i = 0; i < traceCount; i++) {
-      const tw = rng() < 0.15 ? lerp(2, 5, rng()) : lerp(0.3, 1.5, rng());
-      let x = rng() * W;
-      let y = rng() * H;
-      const segs = 3 + Math.floor(rng() * 8);
-      let dir = rng() < 0.5 ? 0 : 1;
-
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      for (let seg = 0; seg < segs; seg++) {
-        const len = 10 + rng() * W * 0.25;
-        if (dir === 0) x += (rng() < 0.5 ? len : -len);
-        else y += (rng() < 0.5 ? len : -len);
-        x = Math.max(5, Math.min(W - 5, x));
-        y = Math.max(5, Math.min(H - 5, y));
-        ctx.lineTo(x, y);
-        dir = 1 - dir;
-      }
-
-      // Shadow
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.lineWidth = tw + 1;
-      ctx.stroke();
-      // Trace
-      ctx.strokeStyle = traceColor;
-      ctx.lineWidth = tw;
-      ctx.stroke();
-      // Highlight edge
-      if (tw > 1 && shine > 0.3) {
-        ctx.strokeStyle = traceHighlight;
-        ctx.lineWidth = tw * 0.3;
-        ctx.stroke();
-      }
-
-      // Pads at endpoints
-      if (rng() < 0.6) {
-        ctx.beginPath();
-        ctx.arc(x, y, tw * 2 + 1, 0, Math.PI * 2);
-        ctx.fillStyle = traceColor;
-        ctx.fill();
-      }
-    }
-
-    // ── Vias ─────────────────────────────────────────────────────────────────
-    const viaCount = Math.round(30 + density * 100);
-    for (let i = 0; i < viaCount; i++) {
-      const vx = rng() * W;
-      const vy = rng() * H;
-      const vr = 1.5 + rng() * 2.5;
-      ctx.beginPath();
-      ctx.arc(vx, vy, vr + 1, 0, Math.PI * 2);
-      ctx.fillStyle = traceColor;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(vx, vy, vr * 0.4, 0, Math.PI * 2);
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fill();
-    }
-
-    // ── IC Chips ─────────────────────────────────────────────────────────────
-    const icCount = Math.round(8 + density * 25);
-    for (let i = 0; i < icCount; i++) {
-      const icW = lerp(15, 80, rng());
-      const icH = lerp(10, 50, rng());
-      const ix = rng() * (W - icW);
-      const iy = rng() * (H - icH);
-      const name = pick(IC_NAMES, rng);
-
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(ix + lx, iy + ly, icW, icH);
-      // Body (dark)
-      ctx.fillStyle = rng() < 0.7 ? '#1a1a1a' : '#222222';
-      ctx.fillRect(ix, iy, icW, icH);
-      // Bevel highlight (top/left edge)
-      ctx.fillStyle = 'rgba(80,80,80,0.3)';
-      ctx.fillRect(ix, iy, icW, 1);
-      ctx.fillRect(ix, iy, 1, icH);
-
-      // Pin 1 dot
-      ctx.beginPath();
-      ctx.arc(ix + 3, iy + 3, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#555';
-      ctx.fill();
-
-      // Pins on edges
-      const pinSpacing = icW > 40 ? 3 : 2;
-      const pinLen = 3;
-      // Top/bottom pins
-      for (let px = ix + pinSpacing; px < ix + icW - 1; px += pinSpacing) {
-        ctx.fillStyle = traceColor;
-        ctx.fillRect(px, iy - pinLen, 1, pinLen);
-        ctx.fillRect(px, iy + icH, 1, pinLen);
-      }
-      // Left/right pins
-      for (let py = iy + pinSpacing; py < iy + icH - 1; py += pinSpacing) {
-        ctx.fillStyle = traceColor;
-        ctx.fillRect(ix - pinLen, py, pinLen, 1);
-        ctx.fillRect(ix + icW, py, pinLen, 1);
-      }
-
-      // Chip label
-      const fontSize = Math.max(4, Math.min(8, icW * 0.12));
-      ctx.font = `${fontSize}px monospace`;
-      ctx.fillStyle = `rgba(180,180,180,${0.5 + shine * 0.3})`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const lines = name.split('\n');
-      for (let li = 0; li < lines.length; li++) {
-        ctx.fillText(lines[li], ix + icW / 2, iy + icH / 2 + (li - (lines.length - 1) / 2) * (fontSize + 1));
-      }
-    }
-
-    // ── SMD Capacitors / Resistors ───────────────────────────────────────────
-    const smdCount = Math.round(40 + density * 150);
-    for (let i = 0; i < smdCount; i++) {
-      const sw = lerp(3, 10, rng());
-      const sh = lerp(1.5, 5, rng());
-      const sx = rng() * W;
-      const sy = rng() * H;
-      const rot = rng() < 0.5 ? 0 : Math.PI / 2;
-
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(rot);
-
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.fillRect(lx * 0.5, ly * 0.5, sw, sh);
-      // Body
-      const bodyColor = rng() < 0.4 ? '#1a1a1a' : rng() < 0.5 ? '#332211' : '#111122';
-      ctx.fillStyle = bodyColor;
-      ctx.fillRect(0, 0, sw, sh);
-      // End caps (solder)
-      ctx.fillStyle = traceColor;
-      ctx.fillRect(0, 0, sw * 0.25, sh);
-      ctx.fillRect(sw * 0.75, 0, sw * 0.25, sh);
-
-      ctx.restore();
-    }
-
-    // ── Electrolytic Capacitors (top view = circle) ──────────────────────────
-    const capCount = Math.round(5 + density * 15);
-    for (let i = 0; i < capCount; i++) {
-      const cr = lerp(4, 14, rng());
-      const cx = cr + rng() * (W - cr * 2);
-      const cy = cr + rng() * (H - cr * 2);
-
-      // Shadow
-      ctx.beginPath();
-      ctx.arc(cx + lx, cy + ly, cr, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.fill();
-      // Body
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
-      ctx.fillStyle = rng() < 0.5 ? '#111111' : '#0a0a2a';
-      ctx.fill();
-      // Top marking (stripe)
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr, -0.4, 0.4);
-      ctx.lineTo(cx, cy);
-      ctx.fillStyle = 'rgba(150,150,150,0.2)';
-      ctx.fill();
-      // Center cross
-      ctx.strokeStyle = 'rgba(100,100,100,0.3)';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx - cr * 0.5, cy);
-      ctx.lineTo(cx + cr * 0.5, cy);
-      ctx.moveTo(cx, cy - cr * 0.5);
-      ctx.lineTo(cx, cy + cr * 0.5);
-      ctx.stroke();
-      // Polarity marker
-      ctx.font = '5px monospace';
-      ctx.fillStyle = 'rgba(150,150,150,0.4)';
-      ctx.textAlign = 'center';
-      ctx.fillText('+', cx - cr * 0.3, cy - cr * 0.3);
-    }
-
-    // ── Connectors / Headers ─────────────────────────────────────────────────
-    const connCount = Math.round(3 + density * 8);
-    for (let i = 0; i < connCount; i++) {
-      const isVertical = rng() < 0.5;
-      const pins = Math.floor(4 + rng() * 20);
-      const pinRows = rng() < 0.4 ? 2 : 1;
-      const pinSp = 2.5;
-      const cw = isVertical ? pinRows * pinSp + 4 : pins * pinSp + 4;
-      const ch = isVertical ? pins * pinSp + 4 : pinRows * pinSp + 4;
-      const cx = rng() * (W - cw);
-      const cy = rng() * (H - ch);
-
-      // Housing
-      ctx.fillStyle = rng() < 0.5 ? '#222' : '#1a1a0a';
-      ctx.fillRect(cx, cy, cw, ch);
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(cx, cy, cw, ch);
-
-      // Pin grid
-      for (let r = 0; r < pinRows; r++) {
-        for (let p = 0; p < pins; p++) {
-          const px = isVertical ? cx + 2 + r * pinSp + pinSp / 2 : cx + 2 + p * pinSp + pinSp / 2;
-          const py = isVertical ? cy + 2 + p * pinSp + pinSp / 2 : cy + 2 + r * pinSp + pinSp / 2;
-          ctx.beginPath();
-          ctx.arc(px, py, 0.8, 0, Math.PI * 2);
-          ctx.fillStyle = traceColor;
-          ctx.fill();
-        }
-      }
-    }
-
-    // ── Wires / Jumpers ──────────────────────────────────────────────────────
-    if (layers > 1) {
-      const wireCount = Math.round(3 + density * 10);
-      for (let i = 0; i < wireCount; i++) {
-        const x1 = rng() * W, y1 = rng() * H;
-        const x2 = rng() * W, y2 = rng() * H;
-        const cpx = lerp(x1, x2, 0.5) + (rng() - 0.5) * 100;
-        const cpy = lerp(y1, y2, 0.5) + (rng() - 0.5) * 100;
-
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.quadraticCurveTo(cpx, cpy, x2, y2);
-        ctx.strokeStyle = pick(WIRE_COLORS, rng);
-        ctx.lineWidth = 0.8 + rng() * 1.2;
-        ctx.stroke();
-
-        // Solder points at ends
-        for (const [wx, wy] of [[x1, y1], [x2, y2]]) {
-          ctx.beginPath();
-          ctx.arc(wx, wy, 2, 0, Math.PI * 2);
-          ctx.fillStyle = traceColor;
-          ctx.fill();
-        }
-      }
-    }
-
-    // ── Silkscreen text (component designators) ──────────────────────────────
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    const textCount = Math.round(50 + density * 150);
-    const prefixes = ['C', 'R', 'U', 'Q', 'D', 'J', 'L', 'TP', 'SW', 'F', 'T', 'X', 'FB', 'K'];
-    for (let i = 0; i < textCount; i++) {
-      const type = rng();
-      let text, size;
-      if (type < 0.6) {
-        text = pick(prefixes, rng) + (Math.floor(rng() * 999) + 1);
-        size = 3.5 + rng() * 3;
-      } else if (type < 0.85) {
-        text = pick(PIN_LABELS, rng);
-        size = 3 + rng() * 2.5;
-      } else {
-        text = pick(LABELS, rng);
-        size = 4 + rng() * 4;
-      }
-
-      ctx.font = `${size}px monospace`;
-      ctx.fillStyle = `rgba(120,140,120,${0.15 + rng() * 0.25})`;
-
-      const tx = rng() * W;
-      const ty = rng() * H;
-      if (rng() < 0.3) {
-        ctx.save();
-        ctx.translate(tx, ty);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText(text, 0, 0);
-        ctx.restore();
-      } else {
-        ctx.fillText(text, tx, ty);
-      }
-    }
-
-    // ── Board edge line ──────────────────────────────────────────────────────
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(2, 2, W - 4, H - 4);
-
-    // ── Edge connector (gold fingers at bottom) ──────────────────────────────
-    if (rng() < 0.6) {
-      const fingerCount = Math.floor(W / 4);
-      const fingerY = H - 10;
-      for (let f = 0; f < fingerCount; f++) {
-        const fx = 10 + f * 3.5;
-        if (fx > W - 10) break;
-        ctx.fillStyle = warmth > 0.3 ? '#998844' : '#aaaaaa';
-        ctx.fillRect(fx, fingerY, 1.5, 8);
-      }
-    }
-
-    // Cache the result
+    // Cache
     const cache = document.createElement('canvas');
     cache.width = ctx.canvas.width;
     cache.height = ctx.canvas.height;
