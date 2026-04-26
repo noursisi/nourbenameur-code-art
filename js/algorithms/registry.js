@@ -24,11 +24,6 @@ import { AsciiRender }         from './data-art/ascii-render.js';
 import { AttractorZoo }        from './nature/attractor-zoo.js';
 import { Moire }               from './physics/moire.js';
 import { Penrose }             from './data-art/penrose.js';
-import { Cybercore }           from './data-art/cybercore.js';
-import { WebCollage }          from './data-art/web-collage.js';
-import { DesktopGlitch }       from './data-art/desktop-glitch.js';
-import { DataScan }            from './data-art/data-scan.js';
-import { CircuitBoard }        from './data-art/circuit-board.js';
 import { TextSilhouette }      from './camera-art/text-silhouette.js';
 import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 import { BodyParticles }       from './camera-art/body-particles.js';
@@ -138,14 +133,6 @@ registry.register('ascii-render',   AsciiRender);
 registry.register('attractor-zoo',  AttractorZoo);
 registry.register('moire',          Moire);
 registry.register('penrose',        Penrose);
-registry.register('cybercore',      Cybercore);
-registry.register('web-collage',    WebCollage);
-registry.register('desktop-glitch', DesktopGlitch);
-registry.register('data-scan',      DataScan);
-
-// Data Art (additions)
-registry.register('circuit-board',   CircuitBoard);
-
 // Camera Art
 registry.register('text-silhouette', TextSilhouette);
 registry.register('pixel-mosaic',    PixelMosaic);

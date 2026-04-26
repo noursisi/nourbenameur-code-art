@@ -105,18 +105,6 @@ export const state = {
   pm_cols: 20, pm_rows: 15, pm_gap: 2, pm_textDensity: 0.15, pm_sizeVariation: 0.3, pm_roundness: 0,
   // Body Particles
   bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
-  // Cybercore — Y2K/cybercore collage
-  cyber_density: 0.6, cyber_text: 0.7, cyber_windows: 8, cyber_glitch: 0.3,
-  cyber_scanlines: 0.25, cyber_cursors: 6, cyber_coords: 0.5, cyber_tint: 0.2, cyber_seed: 42,
-  // Fragment — tile-slice and scatter
-  frag_cols: 6, frag_rows: 4, frag_shuffle: 0.5, frag_gap: 2, frag_zoom: 0.3, frag_rotate: 0.2, frag_seed: 42,
-  // Shred — strip tear and offset
-  shred_count: 20, shred_offset: 0.5, shred_vertical: 0, shred_vary: 0.5, shred_channel: 0.3, shred_seed: 42,
-  // Echo — layered image ghosts
-  echo_count: 5, echo_scale: 0.85, echo_spread: 30, echo_rotate: 0.1, echo_fade: 0.3, echo_tint: 0, echo_seed: 42,
-  // Circuit Board — realistic PCB with copper traces and Blinn-Phong lighting
-  pcb_scale: 1.5, pcb_density: 0.6, pcb_layers: 2,
-  pcb_shine: 0.7, pcb_light: 0.8, pcb_warmth: 0.0,
   // Camera
   cameraActive: false,
   // Layers
