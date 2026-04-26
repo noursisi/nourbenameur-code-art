@@ -35,165 +35,265 @@ uniform float u_warmth;
 uniform bool  u_transparent;
 uniform float u_time;
 
-// ── Hash / noise ─────────────────────────────────────────────────────────────
+// ── Hash ─────────────────────────────────────────────────────────────────────
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
-float hash1(float n) {
-  return fract(sin(n) * 43758.5453);
+vec2 hash2(vec2 p) {
+  return vec2(hash(p), hash(p + vec2(37.1, 91.7)));
 }
 
-// ── Trace presence helpers ────────────────────────────────────────────────────
-
-float hTrace(vec2 cell, float density) {
-  return step(1.0 - density, hash(cell * 1.31 + vec2(0.7, 2.4)));
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-float vTrace(vec2 cell, float density) {
-  return step(1.0 - density, hash(cell * 2.17 + vec2(1.3, 0.9)));
+// ── SDF helpers ──────────────────────────────────────────────────────────────
+
+float sdBox(vec2 p, vec2 b) {
+  vec2 d = abs(p) - b;
+  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
-// ── Smooth step for trace edges (anti-aliased width) ─────────────────────────
+float sdCircle(vec2 p, float r) { return length(p) - r; }
 
-float traceEdge(float dist, float width, float aa) {
-  return smoothstep(width + aa, width - aa, dist);
+float sm(float d, float aa) { return smoothstep(aa, -aa, d); }
+
+// ── Zone map: decides what component type goes where ─────────────────────────
+// Returns 0-6: trace area, IC large, IC small, capacitor cluster, connector,
+//              via field, bus route
+
+float zoneType(vec2 zoneCell) {
+  float h = hash(zoneCell * 7.31 + vec2(13.7, 29.3));
+  if (h < 0.15) return 1.0; // large IC
+  if (h < 0.28) return 2.0; // small IC cluster
+  if (h < 0.42) return 3.0; // capacitor/resistor field
+  if (h < 0.52) return 4.0; // connector/slot
+  if (h < 0.62) return 5.0; // via field
+  if (h < 0.75) return 6.0; // bus traces
+  return 0.0; // standard trace routing
 }
 
-// ── Circuit height at a given UV and scale ────────────────────────────────────
-//   Returns: 0.0 = board, 0.3 = trace, 0.4 = via/pad, 0.5 = large pad, 0.7 = chip
+// ── Standard trace routing ───────────────────────────────────────────────────
 
-float circuitHeight(vec2 uv, float scale, float density) {
-  vec2 gridUV = uv * scale;
-  vec2 cell   = floor(gridUV);
-  vec2 local  = fract(gridUV);
+float tracePattern(vec2 uv, float scale, float density) {
+  vec2 g = uv * scale;
+  vec2 cell = floor(g);
+  vec2 f = fract(g);
+  float h = 0.0;
+  float tw = 0.04 + (1.0 - density) * 0.03;
+  float aa = 0.006;
 
-  float height    = 0.0;
-  float traceW    = 0.06 + (1.0 - density) * 0.04; // narrower traces when dense
-  float aa        = 0.008;
-
-  float hT = hTrace(cell, density);
-  float vT = vTrace(cell, density);
-
-  // Horizontal trace through vertical centre of cell
-  if (hT > 0.5) {
-    float d = abs(local.y - 0.5);
-    height = max(height, traceEdge(d, traceW, aa) * 0.3);
+  // Horizontal/vertical traces based on hash
+  float hT = step(1.0 - density, hash(cell * 1.31 + 0.7));
+  float vT = step(1.0 - density, hash(cell * 2.17 + 1.3));
+  if (hT > 0.5) h = max(h, sm(abs(f.y - 0.5) - tw, aa) * 0.3);
+  if (vT > 0.5) h = max(h, sm(abs(f.x - 0.5) - tw, aa) * 0.3);
+  // Junction pad
+  if (hT > 0.5 && vT > 0.5) h = max(h, sm(length(f - 0.5) - tw * 2.5, aa) * 0.45);
+  // Via
+  if (hash(cell * 3.7 + 5.4) > 0.8) {
+    float d = length(f - 0.5);
+    h = max(h, sm(d - tw * 2.0, aa) * 0.5 * sm(-(d - tw * 0.8), aa));
   }
+  return h;
+}
 
-  // Vertical trace through horizontal centre of cell
-  if (vT > 0.5) {
-    float d = abs(local.x - 0.5);
-    height = max(height, traceEdge(d, traceW, aa) * 0.3);
+// ── Large IC package (BGA/QFP) ───────────────────────────────────────────────
+
+float largeIC(vec2 local, vec2 cellHash) {
+  float h = 0.0;
+  float aa = 0.005;
+  // Body
+  float bodyW = 0.3 + cellHash.x * 0.15;
+  float bodyH = 0.2 + cellHash.y * 0.12;
+  float body = sm(sdBox(local - 0.5, vec2(bodyW, bodyH)), aa);
+  h = max(h, body * 0.7);
+  // Pin 1 marker (dot in corner)
+  h = max(h, sm(sdCircle(local - vec2(0.5 - bodyW + 0.04, 0.5 - bodyH + 0.04), 0.015), aa) * 0.75);
+  // Pin grid (BGA style)
+  if (sdBox(local - 0.5, vec2(bodyW - 0.03, bodyH - 0.03)) < 0.0) {
+    vec2 pinGrid = fract(local * 16.0);
+    float pin = sm(length(pinGrid - 0.5) - 0.18, 0.02);
+    h = max(h, pin * 0.55 * body);
   }
+  // Edge pins (QFP style)
+  for (float side = 0.0; side < 4.0; side++) {
+    vec2 edgeLocal = local - 0.5;
+    if (side < 1.0) edgeLocal = edgeLocal; // bottom
+    else if (side < 2.0) edgeLocal = vec2(-edgeLocal.y, edgeLocal.x); // right
+    else if (side < 3.0) edgeLocal = -edgeLocal; // top
+    else edgeLocal = vec2(edgeLocal.y, -edgeLocal.x); // left
 
-  // Junction pad at crossing
-  if (hT > 0.5 && vT > 0.5) {
-    float d = length(local - 0.5);
-    height = max(height, traceEdge(d, traceW * 2.2, aa) * 0.45);
-  }
-
-  // Endpoint pad: appears at trace ends (no crossing, cell boundary logic)
-  if (hT > 0.5 && vT < 0.5) {
-    // Pad at left or right end based on neighbour
-    float leftNeigh  = vTrace(cell + vec2(-1.0, 0.0), density);
-    float rightNeigh = vTrace(cell + vec2( 1.0, 0.0), density);
-    if (leftNeigh < 0.5 && local.x < 0.18) {
-      float d = length(local - vec2(0.0, 0.5));
-      height = max(height, traceEdge(d, traceW * 1.8, aa) * 0.4);
-    }
-    if (rightNeigh < 0.5 && local.x > 0.82) {
-      float d = length(local - vec2(1.0, 0.5));
-      height = max(height, traceEdge(d, traceW * 1.8, aa) * 0.4);
-    }
-  }
-
-  // Via holes (small ring: raised outer, sunken inner)
-  float viaRand = hash(cell * 3.71 + vec2(5.4, 8.1));
-  if (viaRand > 0.82) {
-    vec2  viaPos = vec2(0.5) + (vec2(hash(cell * 4.1), hash(cell * 5.3 + 1.0)) - 0.5) * 0.3;
-    float d      = length(local - viaPos);
-    float outer  = traceEdge(d, traceW * 2.0, aa);
-    float inner  = traceEdge(d, traceW * 0.9, aa);
-    height = max(height, outer * 0.45 - inner * 0.45);
-    // Annular ring highlight
-    height = max(height, outer * 0.5 * (1.0 - inner));
-  }
-
-  // IC chips (rare, large rectangles with pin rows)
-  float chipRand = hash(cell * 0.37 + vec2(99.0, 44.0));
-  if (chipRand > 0.93) {
-    vec2  chipLocal = local - 0.5;
-    float chipW     = 0.38;
-    float chipH     = 0.22;
-    if (abs(chipLocal.x) < chipW && abs(chipLocal.y) < chipH) {
-      // Body
-      height = max(height, 0.65);
-      // Silk-screen border (slightly raised edge line)
-      float edgeX = abs(chipLocal.x) - chipW + 0.025;
-      float edgeY = abs(chipLocal.y) - chipH + 0.025;
-      if (max(edgeX, edgeY) > 0.0) {
-        height = max(height, 0.70);
-      }
-      // Pin rows along top and bottom
-      float pinSpacing = 0.11;
-      float pinWidth   = 0.035;
-      bool  inTopRow   = chipLocal.y > chipH - 0.06;
-      bool  inBotRow   = chipLocal.y < -chipH + 0.06;
-      if (inTopRow || inBotRow) {
-        float px = mod(chipLocal.x + chipW, pinSpacing);
-        if (px < pinWidth) height = max(height, 0.5);
+    if (edgeLocal.y > bodyH && edgeLocal.y < bodyH + 0.06) {
+      float pinX = mod(edgeLocal.x + bodyW, 0.04);
+      if (pinX < 0.02 && abs(edgeLocal.x) < bodyW) {
+        h = max(h, 0.45);
       }
     }
-    // Pads outside chip body (exposed leads)
-    vec2 padZone = vec2(chipW + 0.06, chipH);
-    if (abs(chipLocal.x) < padZone.x && abs(chipLocal.x) > chipW - 0.01
-        && abs(chipLocal.y) < padZone.y - 0.04) {
-      float px = mod(chipLocal.y + chipH, 0.11);
-      if (px < 0.04) height = max(height, 0.42);
-    }
   }
-
-  // Capacitors / resistors (small rounded rectangles)
-  float compRand = hash(cell * 1.93 + vec2(17.3, 33.7));
-  if (compRand > 0.88 && chipRand < 0.93) {
-    vec2 cOff   = vec2(hash(cell * 2.3) - 0.5, hash(cell * 3.1 + 1.0) - 0.5) * 0.3;
-    vec2 cLocal = local - 0.5 - cOff;
-    float cW    = 0.09;
-    float cH    = 0.045;
-    // Rounded rect distance
-    vec2 q = abs(cLocal) - vec2(cW, cH);
-    float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-    height = max(height, traceEdge(d, 0.0, aa) * 0.55);
-    // End caps (metallic solder pads)
-    float capDist = abs(cLocal.x) - cW + 0.02;
-    if (capDist < 0.0 && abs(cLocal.y) < cH + 0.01) {
-      height = max(height, 0.42);
-    }
-  }
-
-  return height;
+  return h;
 }
 
-// ── Multi-scale height field ──────────────────────────────────────────────────
+// ── Small IC / SOT package ───────────────────────────────────────────────────
+
+float smallIC(vec2 local, vec2 cellHash) {
+  float h = 0.0;
+  float aa = 0.005;
+  // Multiple small ICs scattered in the zone
+  for (float i = 0.0; i < 4.0; i++) {
+    vec2 pos = vec2(hash(cellHash + i * 0.3), hash(cellHash + i * 0.7 + 1.0)) * 0.6 + 0.2;
+    vec2 sz = vec2(0.06 + hash(cellHash + i) * 0.08, 0.03 + hash(cellHash + i + 5.0) * 0.04);
+    float body = sm(sdBox(local - pos, sz), aa);
+    h = max(h, body * 0.6);
+    // Pins on two sides
+    if (abs(local.y - pos.y) > sz.y - 0.005 && abs(local.y - pos.y) < sz.y + 0.02) {
+      float px = mod((local.x - pos.x + sz.x) * 30.0, 1.0);
+      if (px < 0.4 && abs(local.x - pos.x) < sz.x) h = max(h, 0.4);
+    }
+  }
+  return h;
+}
+
+// ── Capacitor / resistor cluster ─────────────────────────────────────────────
+
+float capCluster(vec2 local, vec2 cellHash) {
+  float h = 0.0;
+  float aa = 0.005;
+  for (float i = 0.0; i < 8.0; i++) {
+    vec2 pos = vec2(hash(cellHash + i * 1.3), hash(cellHash + i * 2.1 + 3.0)) * 0.7 + 0.15;
+    float rot = hash(cellHash + i * 0.7) * 3.14159;
+    float isElectrolytic = step(0.7, hash(cellHash + i * 4.0));
+
+    if (isElectrolytic > 0.5) {
+      // Electrolytic capacitor (cylinder, viewed from top = circle)
+      float r = 0.025 + hash(cellHash + i * 3.0) * 0.03;
+      float d = sdCircle(local - pos, r);
+      float cap = sm(d, aa);
+      h = max(h, cap * 0.8);
+      // Top marking stripe
+      h = max(h, sm(d + r * 0.3, aa) * sm(-(d + r * 0.1), aa) * 0.85);
+    } else {
+      // SMD resistor/capacitor
+      vec2 sz = vec2(0.04, 0.018);
+      vec2 rl = local - pos;
+      float c = cos(rot), s = sin(rot);
+      rl = vec2(rl.x * c - rl.y * s, rl.x * s + rl.y * c);
+      float body = sm(sdBox(rl, sz), aa);
+      h = max(h, body * 0.5);
+      // Solder end caps
+      if (abs(rl.x) > sz.x - 0.01 && abs(rl.y) < sz.y + 0.003) {
+        h = max(h, body * 0.42);
+      }
+    }
+  }
+  return h;
+}
+
+// ── Connector / slot ─────────────────────────────────────────────────────────
+
+float connector(vec2 local, vec2 cellHash) {
+  float h = 0.0;
+  float aa = 0.005;
+  float isVertical = step(0.5, cellHash.x);
+  vec2 sz = isVertical > 0.5 ? vec2(0.08, 0.4) : vec2(0.4, 0.08);
+  float body = sm(sdBox(local - 0.5, sz), aa);
+  h = max(h, body * 0.6);
+  // Pin holes along the slot
+  float along = isVertical > 0.5 ? local.y : local.x;
+  float across = isVertical > 0.5 ? local.x : local.y;
+  float center = 0.5;
+  if (abs(across - center) < (isVertical > 0.5 ? sz.x : sz.y) - 0.01) {
+    float pins = mod(along * 40.0, 1.0);
+    if (pins < 0.3 && body > 0.5) h = max(h, 0.35);
+  }
+  // Mounting pads at ends
+  vec2 pad1 = isVertical > 0.5 ? vec2(0.5, 0.5 - sz.y - 0.03) : vec2(0.5 - sz.x - 0.03, 0.5);
+  vec2 pad2 = isVertical > 0.5 ? vec2(0.5, 0.5 + sz.y + 0.03) : vec2(0.5 + sz.x + 0.03, 0.5);
+  h = max(h, sm(sdCircle(local - pad1, 0.025), aa) * 0.5);
+  h = max(h, sm(sdCircle(local - pad2, 0.025), aa) * 0.5);
+  return h;
+}
+
+// ── Via field ────────────────────────────────────────────────────────────────
+
+float viaField(vec2 local, vec2 cellHash) {
+  float h = 0.0;
+  float aa = 0.005;
+  float spacing = 0.06 + cellHash.x * 0.04;
+  vec2 vg = fract(local / spacing);
+  vec2 vc = floor(local / spacing);
+  float present = step(0.3, hash(vc * 17.3 + cellHash));
+  if (present > 0.5) {
+    float d = length(vg - 0.5) * spacing;
+    float outer = sm(d - 0.018, aa);
+    float inner = sm(d - 0.006, aa);
+    h = max(h, outer * 0.5 * (1.0 - inner * 0.8));
+  }
+  return h;
+}
+
+// ── Bus traces (wide parallel lines) ─────────────────────────────────────────
+
+float busTraces(vec2 local, vec2 cellHash) {
+  float h = 0.0;
+  float aa = 0.005;
+  float isHoriz = step(0.5, cellHash.y);
+  float along = isHoriz > 0.5 ? local.x : local.y;
+  float across = isHoriz > 0.5 ? local.y : local.x;
+  float nTraces = 4.0 + floor(cellHash.x * 6.0);
+  float spacing = 0.8 / nTraces;
+  float start = 0.1;
+  for (float i = 0.0; i < 10.0; i++) {
+    if (i >= nTraces) break;
+    float center = start + i * spacing;
+    float tw = 0.008 + hash(cellHash + i) * 0.006;
+    h = max(h, sm(abs(across - center) - tw, aa) * 0.3);
+  }
+  return h;
+}
+
+// ── Full height combining zones ──────────────────────────────────────────────
 
 float getHeight(vec2 uv) {
-  float scale    = u_scale;
-  float density  = u_density;
-
+  float scale = u_scale;
+  float density = u_density;
   float h = 0.0;
-  // Large feature layer
-  h = max(h, circuitHeight(uv,               8.0 * scale,  density));
-  // Medium detail layer
-  h = max(h, circuitHeight(uv + vec2(0.37, 0.13), 24.0 * scale, density) * 0.80);
-  // Fine detail layer (only when layers > 1)
+
+  // Fine trace layer (always present)
+  h = max(h, tracePattern(uv, 20.0 * scale, density));
+
+  // Zone layer — large cells, each gets a unique component type
+  float zoneScale = 3.0 * scale;
+  vec2 zg = uv * zoneScale;
+  vec2 zoneCell = floor(zg);
+  vec2 zoneLocal = fract(zg);
+  vec2 zoneHash = hash2(zoneCell);
+  float zt = zoneType(zoneCell);
+
+  if (zt < 0.5) h = max(h, tracePattern(uv + 0.37, 40.0 * scale, density * 0.9) * 0.7);
+  else if (zt < 1.5) h = max(h, largeIC(zoneLocal, zoneHash));
+  else if (zt < 2.5) h = max(h, smallIC(zoneLocal, zoneHash));
+  else if (zt < 3.5) h = max(h, capCluster(zoneLocal, zoneHash));
+  else if (zt < 4.5) h = max(h, connector(zoneLocal, zoneHash));
+  else if (zt < 5.5) h = max(h, viaField(zoneLocal, zoneHash));
+  else h = max(h, busTraces(zoneLocal, zoneHash));
+
+  // Medium trace layer
   if (u_layers > 1.5) {
-    h = max(h, circuitHeight(uv + vec2(0.71, 0.55), 60.0 * scale, density * 0.85) * 0.60);
+    h = max(h, tracePattern(uv + vec2(0.71, 0.55), 60.0 * scale, density * 0.85) * 0.5);
   }
-  // Ultra-fine (only when layers == 3)
+  // Ultra-fine traces
   if (u_layers > 2.5) {
-    h = max(h, circuitHeight(uv + vec2(0.19, 0.83), 140.0 * scale, density * 0.7) * 0.45);
+    h = max(h, tracePattern(uv + vec2(0.19, 0.83), 120.0 * scale, density * 0.7) * 0.35);
   }
 
   return h;
@@ -202,81 +302,75 @@ float getHeight(vec2 uv) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 void main() {
-  vec2 uv     = v_uv;
-  // Correct for aspect ratio so the board pattern isn't squashed
+  vec2 uv = v_uv;
   float aspect = u_resolution.x / u_resolution.y;
-  vec2 aUV     = vec2(uv.x * aspect, uv.y);
+  vec2 aUV = vec2(uv.x * aspect, uv.y);
 
   float height = getHeight(aUV);
 
-  // ── Normal from finite differences ─────────────────────────────────────────
-  float eps = 1.0 / u_resolution.y;
-  float hL  = getHeight(aUV - vec2(eps * aspect, 0.0));
-  float hR  = getHeight(aUV + vec2(eps * aspect, 0.0));
-  float hD  = getHeight(aUV - vec2(0.0, eps));
-  float hU  = getHeight(aUV + vec2(0.0, eps));
+  // ── Normals ────────────────────────────────────────────────────────────────
+  float eps = 0.8 / u_resolution.y;
+  float hL = getHeight(aUV - vec2(eps * aspect, 0.0));
+  float hR = getHeight(aUV + vec2(eps * aspect, 0.0));
+  float hD = getHeight(aUV - vec2(0.0, eps));
+  float hU = getHeight(aUV + vec2(0.0, eps));
 
-  // Scale the xy gradient relative to the height step so normals look steep
-  float bumpScale = 8.0;
-  vec3 normal = normalize(vec3((hL - hR) * bumpScale, (hD - hU) * bumpScale, 0.12));
+  float bumpScale = 14.0;
+  vec3 normal = normalize(vec3((hL - hR) * bumpScale, (hD - hU) * bumpScale, 0.08));
 
-  // ── Lighting ────────────────────────────────────────────────────────────────
-  float la       = u_lightAngle;
-  vec3 lightDir  = normalize(vec3(cos(la), sin(la), 0.85));
-  vec3 lightDir2 = normalize(vec3(-cos(la) * 0.5, -sin(la) * 0.5, 0.4)); // fill light
-  vec3 viewDir   = vec3(0.0, 0.0, 1.0);
+  // ── Ambient occlusion (darken crevices) ────────────────────────────────────
+  float ao = 1.0;
+  float aoEps = eps * 3.0;
+  float hCenter = height;
+  float hAvg = (getHeight(aUV + vec2(aoEps, 0.0)) + getHeight(aUV - vec2(aoEps, 0.0))
+              + getHeight(aUV + vec2(0.0, aoEps)) + getHeight(aUV - vec2(0.0, aoEps))) * 0.25;
+  ao = 0.5 + 0.5 * smoothstep(-0.1, 0.1, hCenter - hAvg + 0.02);
 
-  // Primary light
-  float diff1    = max(dot(normal, lightDir),  0.0);
-  // Fill light (opposite, dimmer)
-  float diff2    = max(dot(normal, lightDir2), 0.0) * 0.25;
-  float diff     = diff1 + diff2;
+  // ── Lighting ───────────────────────────────────────────────────────────────
+  float la = u_lightAngle;
+  vec3 lightDir = normalize(vec3(cos(la), sin(la), 0.7));
+  vec3 lightDir2 = normalize(vec3(-cos(la) * 0.6, -sin(la) * 0.6, 0.3));
+  vec3 viewDir = vec3(0.0, 0.0, 1.0);
 
-  // Blinn-Phong specular (primary only)
-  vec3  halfDir  = normalize(lightDir + viewDir);
-  float shininess= 64.0 + u_shine * 192.0;
-  float spec1    = pow(max(dot(normal, halfDir), 0.0), shininess);
+  float diff1 = max(dot(normal, lightDir), 0.0);
+  float diff2 = max(dot(normal, lightDir2), 0.0) * 0.2;
+  float diff = diff1 + diff2;
 
-  // Fresnel-like rim — amplify spec at grazing angles in XY
-  float fresnel  = 1.0 - abs(dot(viewDir, normal));
-  fresnel        = pow(fresnel, 3.0) * 0.6;
+  vec3 halfDir = normalize(lightDir + viewDir);
+  float shininess = 80.0 + u_shine * 256.0;
+  float spec = pow(max(dot(normal, halfDir), 0.0), shininess);
 
-  // ── Material colours ────────────────────────────────────────────────────────
-  // Silver base colour, blended toward gold by warmth
-  vec3 silverBase = vec3(0.55, 0.57, 0.60);
-  vec3 goldBase   = vec3(0.72, 0.62, 0.38);
-  vec3 baseColor  = mix(silverBase, goldBase, u_warmth);
+  float fresnel = pow(1.0 - abs(dot(viewDir, normal)), 4.0) * 0.8;
 
-  // Specular colour also warms slightly
-  vec3 specColor  = mix(vec3(0.92, 0.94, 0.97), vec3(0.98, 0.90, 0.72), u_warmth * 0.5);
+  // ── Material ───────────────────────────────────────────────────────────────
+  vec3 silver = vec3(0.58, 0.60, 0.63);
+  vec3 gold = vec3(0.75, 0.63, 0.38);
+  vec3 baseColor = mix(silver, gold, u_warmth);
+  vec3 specColor = mix(vec3(0.95, 0.97, 1.0), vec3(1.0, 0.92, 0.7), u_warmth * 0.5);
 
-  // Circuit element colour (traces, pads, chips)
-  vec3 ambient    = baseColor * 0.12;
-  vec3 diffuse    = baseColor * diff * 0.65;
-  vec3 specular   = specColor * (spec1 + fresnel) * u_shine;
+  vec3 circuitCol = baseColor * 0.1 + baseColor * diff * 0.7 + specColor * (spec + fresnel) * u_shine;
+  circuitCol *= ao;
 
-  vec3 circuitCol = ambient + diffuse + specular;
+  // Board substrate — add subtle noise texture
+  float boardNoise = noise(aUV * 200.0 * u_scale) * 0.015;
+  vec3 boardDark = vec3(0.012 + boardNoise, 0.018 + boardNoise, 0.014 + boardNoise);
+  vec3 boardColor = boardDark * (0.6 + diff1 * 0.4) * ao;
 
-  // Board substrate — very dark (FR4 green-black, or near-black)
-  vec3 boardDark  = vec3(0.015, 0.022, 0.018);
-  vec3 boardColor = boardDark + boardDark * diff1 * 0.35;
+  // Solder mask subtle color (very dark green or black)
+  float maskNoise = noise(aUV * 80.0 * u_scale) * 0.01;
+  boardColor += vec3(0.0, maskNoise, 0.0);
 
-  // Blend board and circuit by height
-  float isCircuit = smoothstep(0.01, 0.08, height);
-  vec3  color     = mix(boardColor, circuitCol, isCircuit);
+  float isCircuit = smoothstep(0.01, 0.06, height);
+  vec3 color = mix(boardColor, circuitCol, isCircuit);
 
-  // Very subtle board surface micro-texture variation
-  float microBump = (hL - hR) * 0.12 + (hD - hU) * 0.12;
-  color          += boardDark * microBump * (1.0 - isCircuit);
-
-  // ── Transparency ─────────────────────────────────────────────────────────────
-  float alpha;
-  if (u_transparent) {
-    // Board areas = transparent, circuit elements = opaque
-    alpha = smoothstep(0.02, 0.12, height);
-  } else {
-    alpha = 1.0;
+  // Silkscreen text (subtle white markings on board areas)
+  float silk = noise(aUV * 300.0 * u_scale);
+  if (silk > 0.85 && isCircuit < 0.1) {
+    color += vec3(0.03) * (silk - 0.85) * 6.0;
   }
+
+  // ── Transparency ──────────────────────────────────────────────────────────
+  float alpha = u_transparent ? smoothstep(0.02, 0.1, height) : 1.0;
 
   gl_FragColor = vec4(color * alpha, alpha);
 }
