@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-i loaded');
+console.log('[BlobTrack] build 2026-04-29-j loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -91,27 +91,181 @@ function regionLightScore(canvas, bbox) {
   } catch { return 0; }
 }
 
-// ── COCO-SSD model management ────────────────────────────────────────────────
+// ── COCO-SSD model management (pluggable bases) ──────────────────────────────
+// Three COCO-SSD variants — speed/accuracy trade-off. Hot-swappable: when
+// the user changes bt_model the active model is unloaded and the new one
+// loads in the background; detection pauses briefly until ready.
+
+// COCO-SSD ships two bases out of the box. YOLOv8 / DETR can be plugged
+// in here later — same { detect(canvas) -> [{class,score,bbox}] } interface.
+const MODEL_BASES = ['lite_mobilenet_v2', 'mobilenet_v2'];
+const MODEL_NAMES = ['Fast (Lite)', 'Accurate (Mobile)'];
 
 let cocoModel = null;
 let cocoLoading = false;
-let cocoFailed = false;
+let cocoLoadedBase = null;
 
-async function loadCoco() {
-  if (cocoModel || cocoLoading || cocoFailed) return;
+async function loadCoco(baseIdx = 1) {
+  const base = MODEL_BASES[baseIdx] ?? 'mobilenet_v2';
+  if (cocoLoadedBase === base && cocoModel) return;
+  if (cocoLoading) return;
   cocoLoading = true;
+  cocoModel = null;
   try {
     if (typeof cocoSsd !== 'undefined') {
-      cocoModel = await cocoSsd.load({ base: 'mobilenet_v2' });
-      console.log('[BlobTrack] COCO-SSD model loaded (mobilenet_v2)');
-    } else {
-      cocoFailed = true;
+      cocoModel = await cocoSsd.load({ base });
+      cocoLoadedBase = base;
+      console.log(`[BlobTrack] COCO-SSD loaded — ${MODEL_NAMES[baseIdx]} (${base})`);
     }
   } catch (e) {
-    console.error('[BlobTrack] COCO-SSD failed:', e);
-    cocoFailed = true;
+    console.error('[BlobTrack] COCO-SSD load failed:', e);
   }
   cocoLoading = false;
+}
+
+// ── Detect-then-track: low-res template tracker ─────────────────────────────
+// Real-time tracking architecture:
+//   1. COCO detector runs at ~4 Hz (every 250 ms) — slow, but gives labels
+//      and authoritative bounding boxes.
+//   2. Between detections, every frame, each tracked target updates its
+//      position via template matching on a 320×180 low-resolution copy of
+//      the canvas. Cheap (CPU SAD over a small search window) and smooth.
+//   3. When a fresh detection arrives, we IoU-match new detections to
+//      existing tracks, refresh templates on matched ones, spawn new
+//      tracks for unmatched detections, and let unmatched tracks coast.
+//
+// Templates live at low res (4× smaller per axis) so the per-pixel cost
+// per match candidate is ~64× cheaper than at native resolution. The work
+// frame is captured ONCE per frame so all tracking shares the readback.
+
+const WORK_W = 320;
+const WORK_H = 180;
+const TPL_MAX = 28; // template max edge in work-pixels — caps perf
+
+class TemplateTracker {
+  constructor() {
+    this._work = document.createElement('canvas');
+    this._work.width = WORK_W;
+    this._work.height = WORK_H;
+    this._workCtx = this._work.getContext('2d', { willReadFrequently: true });
+    this._workData = null;
+    this._scale = 1;
+    this._offX = 0;
+    this._offY = 0;
+  }
+
+  // Capture the source canvas once per frame into the low-res work buffer.
+  captureFrame(srcCanvas, srcW, srcH) {
+    const sx = WORK_W / srcW;
+    const sy = WORK_H / srcH;
+    const fitScale = Math.min(sx, sy);
+    const drawW = srcW * fitScale;
+    const drawH = srcH * fitScale;
+    this._scale = fitScale;
+    this._offX = (WORK_W - drawW) / 2;
+    this._offY = (WORK_H - drawH) / 2;
+    this._workCtx.fillStyle = '#000';
+    this._workCtx.fillRect(0, 0, WORK_W, WORK_H);
+    this._workCtx.drawImage(srcCanvas, this._offX, this._offY, drawW, drawH);
+    this._workData = this._workCtx.getImageData(0, 0, WORK_W, WORK_H).data;
+  }
+
+  // Convert source → work coordinates
+  toWork(x, y) {
+    return { x: x * this._scale + this._offX, y: y * this._scale + this._offY };
+  }
+
+  // Extract a template patch from the current work frame, in work coords.
+  // Returns { data, w, h } or null if patch is too small / off-canvas.
+  extractTemplate(srcX, srcY, srcW, srcH) {
+    const w = Math.min(TPL_MAX, Math.max(8, Math.round(srcW * this._scale)));
+    const h = Math.min(TPL_MAX, Math.max(8, Math.round(srcH * this._scale)));
+    const wp = this.toWork(srcX, srcY);
+    const sx = Math.round(wp.x - w / 2);
+    const sy = Math.round(wp.y - h / 2);
+    return { data: this._readRegion(sx, sy, w, h), w, h };
+  }
+
+  // Sample the work buffer into a plain RGB array — boundary clamps to black.
+  _readRegion(x, y, w, h) {
+    const out = new Uint8ClampedArray(w * h * 3);
+    const data = this._workData;
+    for (let py = 0; py < h; py++) {
+      const srcY = y + py;
+      const rowOK = srcY >= 0 && srcY < WORK_H;
+      for (let px = 0; px < w; px++) {
+        const srcX = x + px;
+        const dst = (py * w + px) * 3;
+        if (!rowOK || srcX < 0 || srcX >= WORK_W) continue;
+        const sIdx = (srcY * WORK_W + srcX) * 4;
+        out[dst]     = data[sIdx];
+        out[dst + 1] = data[sIdx + 1];
+        out[dst + 2] = data[sIdx + 2];
+      }
+    }
+    return out;
+  }
+
+  // Find the best position near (workCenterX, workCenterY) for the template.
+  // Returns { dx, dy, score, conf } where (dx, dy) are work-space offsets
+  // from the supplied center, and conf is in [0, 1] (1 = perfect match).
+  match(template, workCenterX, workCenterY, searchRadius) {
+    const { data: tpl, w: tw, h: th } = template;
+    const data = this._workData;
+    const halfW = tw / 2, halfH = th / 2;
+    const tplBytes = tw * th * 3;
+    const maxSad = tplBytes * 96; // realistic worst-case for confidence
+
+    // Coarse pass at stride 3
+    let bestScore = Infinity, bestDx = 0, bestDy = 0;
+    const stride = 3;
+    for (let dy = -searchRadius; dy <= searchRadius; dy += stride) {
+      const startY = Math.round(workCenterY + dy - halfH);
+      for (let dx = -searchRadius; dx <= searchRadius; dx += stride) {
+        const startX = Math.round(workCenterX + dx - halfW);
+        const score = this._sad(tpl, tw, th, startX, startY, bestScore);
+        if (score < bestScore) { bestScore = score; bestDx = dx; bestDy = dy; }
+      }
+    }
+    // Fine pass at stride 1 in best window
+    for (let dy = bestDy - stride; dy <= bestDy + stride; dy++) {
+      const startY = Math.round(workCenterY + dy - halfH);
+      for (let dx = bestDx - stride; dx <= bestDx + stride; dx++) {
+        const startX = Math.round(workCenterX + dx - halfW);
+        const score = this._sad(tpl, tw, th, startX, startY, bestScore);
+        if (score < bestScore) { bestScore = score; bestDx = dx; bestDy = dy; }
+      }
+    }
+    const conf = Math.max(0, Math.min(1, 1 - bestScore / maxSad));
+    return { dx: bestDx, dy: bestDy, score: bestScore, conf };
+  }
+
+  // Sum of absolute differences with early-exit if we already exceed best.
+  _sad(tpl, tw, th, x, y, bailOut) {
+    const data = this._workData;
+    let score = 0;
+    for (let py = 0; py < th; py++) {
+      const wy = y + py;
+      const offRow = (wy < 0 || wy >= WORK_H);
+      const rowBase = wy * WORK_W;
+      const tBase = py * tw * 3;
+      for (let px = 0; px < tw; px++) {
+        const wx = x + px;
+        const tIdx = tBase + px * 3;
+        if (offRow || wx < 0 || wx >= WORK_W) {
+          // Off-canvas pixel — penalize as if mid-gray distance
+          score += Math.abs(tpl[tIdx]) + Math.abs(tpl[tIdx + 1]) + Math.abs(tpl[tIdx + 2]);
+        } else {
+          const wIdx = (rowBase + wx) * 4;
+          score += Math.abs(data[wIdx]     - tpl[tIdx])
+                +  Math.abs(data[wIdx + 1] - tpl[tIdx + 1])
+                +  Math.abs(data[wIdx + 2] - tpl[tIdx + 2]);
+        }
+      }
+      if (score >= bailOut) return score; // can't improve, bail
+    }
+    return score;
+  }
 }
 
 // ── Motion detection (frame differencing) ──────────────────────────────────
@@ -202,7 +356,9 @@ export class BlobTrack extends Algorithm {
     this._cocoDetections = [];
     this._lastCocoTime = 0;
     this._cocoPending = false;
-    loadCoco();
+    this._tracker = new TemplateTracker();
+    this._currentModelIdx = 1;
+    loadCoco(1);
   }
 
   get metadata() {
@@ -218,6 +374,7 @@ export class BlobTrack extends Algorithm {
   get params() {
     return [
       { id: 'bt_aiOnly',     label: 'Mode',        min: 0,    max: 1,    step: 1    },
+      { id: 'bt_model',      label: 'Model',       min: 0,    max: 1,    step: 1    },
       { id: 'bt_classFilter',label: 'Class Filter',min: 0,    max: 4,    step: 1    },
       { id: 'bt_lightFilter',label: 'Light Filter',min: 0,    max: 1,    step: 0.02 },
       { id: 'bt_threshold',  label: 'Threshold',   min: 0.02, max: 0.5,  step: 0.01 },
@@ -249,7 +406,16 @@ export class BlobTrack extends Algorithm {
   render(ctx, world) {
     const { W, H, state: s } = world;
     const aiOnly      = Math.round(s.bt_aiOnly ?? 1) === 1;
+    const modelIdx    = Math.round(s.bt_model ?? 1);
     const classFilter = Math.round(s.bt_classFilter ?? 0);
+
+    // Hot-swap detector when the user changes the model slider
+    if (modelIdx !== this._currentModelIdx) {
+      this._currentModelIdx = modelIdx;
+      cocoModel = null;
+      cocoLoadedBase = null;
+      loadCoco(modelIdx);
+    }
     const lightFilter = s.bt_lightFilter ?? 0.25;
     // Drop a region if its lightScore is above this. lightFilter goes 0..1;
     // threshold = 1 - lightFilter*0.6, so:
@@ -277,9 +443,33 @@ export class BlobTrack extends Algorithm {
     this._cap.height = Math.round(H);
     this._cap.getContext('2d').drawImage(ctx.canvas, 0, 0, Math.round(W), Math.round(H));
 
-    // ── COCO-SSD detection (async, every 150ms) ─────────────────────────────
+    // ── Update tracker work-frame once per frame ────────────────────────────
+    // Every blob's per-frame template match reads from this single buffer.
+    this._tracker.captureFrame(this._cap, W, H);
+
+    // ── Track every existing blob (between detections) ──────────────────────
+    // Each tracked blob updates its position via SAD template matching on
+    // the work frame. This is the "track" half of detect-then-track.
+    for (const b of this._blobs) {
+      if (!b.template) continue;
+      const wp = this._tracker.toWork(b.x, b.y);
+      const sr = Math.max(8, Math.min(b.template.w, b.template.h) * 0.7);
+      const m = this._tracker.match(b.template, wp.x, wp.y, sr);
+      // Only commit the move if confidence is decent — otherwise the box
+      // would drift onto a similar-looking patch (sky, wall, etc.).
+      if (m.conf > 0.55) {
+        b.x += m.dx / this._tracker._scale;
+        b.y += m.dy / this._tracker._scale;
+        b.trackConf = m.conf;
+        b.trackedAge++;
+      } else {
+        b.trackConf = m.conf;
+      }
+    }
+
+    // ── COCO-SSD detection (async, every 250ms) ─────────────────────────────
     const now = performance.now();
-    if (cocoModel && !this._cocoPending && now - this._lastCocoTime > 150) {
+    if (cocoModel && !this._cocoPending && now - this._lastCocoTime > 250) {
       this._cocoPending = true;
       this._lastCocoTime = now;
       const cap = this._cap;
@@ -376,6 +566,10 @@ export class BlobTrack extends Algorithm {
         // can no longer grow past maxBoxDim
         blob.w = Math.min(maxBoxDim, blob.w + (det.w - blob.w) * 0.08);
         blob.h = Math.min(maxBoxDim, blob.h + (det.h - blob.h) * 0.08);
+        // Refresh template every COCO call so appearance drift is absorbed
+        // (subject turns, lighting changes, etc.).
+        blob.template = this._tracker.extractTemplate(blob.x, blob.y, blob.w, blob.h);
+        blob.trackedAge = 0;
         // Sticky label — require new class to win 2 consecutive calls before overwriting
         if (det.label && det.score >= 0.6) {
           if (!blob.label || det.label === blob.label) {
@@ -412,10 +606,11 @@ export class BlobTrack extends Algorithm {
       if (usedD.has(di)) continue;
       if (this._blobs.length >= maxBlobs) break;
       const det = allDetections[di];
+      const newW = Math.min(maxBoxDim, det.w || 50);
+      const newH = Math.min(maxBoxDim, det.h || 35);
       this._blobs.push({
         x: det.x, y: det.y,
-        w: Math.min(maxBoxDim, det.w || 50),
-        h: Math.min(maxBoxDim, det.h || 35),
+        w: newW, h: newH,
         vx: 0, vy: 0,
         id: this._nextId++,
         label: det.label || null,
@@ -425,6 +620,9 @@ export class BlobTrack extends Algorithm {
         textIdx: Math.floor(Math.random() * TEXT_POOL.length),
         colorIdx: Math.floor(Math.random() * MULTI_COLORS.length),
         age: 0, missing: 0, confirmed: 1,
+        template: this._tracker.extractTemplate(det.x, det.y, newW, newH),
+        trackedAge: 0,
+        trackConf: 1,
       });
     }
 
