@@ -34,40 +34,6 @@ const DISTORTIONS = {
     frag: null,
   },
 
-  displacement: {
-    name: 'Displacement Map',
-    params: [
-      { id: 'ip_displace_amount', label: 'Amount', min: 0, max: 0.3, step: 0.005, default: 0.05 },
-      { id: 'ip_displace_scale', label: 'Scale', min: 1, max: 20, step: 0.5, default: 4 },
-      { id: 'ip_displace_speed', label: 'Speed', min: 0, max: 2, step: 0.05, default: 0.3 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform float u_amount;
-uniform float u_scale;
-uniform float u_time;
-
-${NOISE_2D}
-${FBM}
-
-void main() {
-  vec2 uv = v_uv;
-  float n1 = fbm(uv * u_scale + u_time * 0.5);
-  float n2 = fbm(uv * u_scale + vec2(5.2, 1.3) + u_time * 0.5);
-  uv += vec2(n1, n2) * u_amount;
-  uv = clamp(uv, 0.0, 1.0);
-  gl_FragColor = texture2D(u_image, uv);
-}
-`,
-    uniforms: (s) => ({
-      u_amount: s.ip_displace_amount ?? 0.05,
-      u_scale: s.ip_displace_scale ?? 4,
-      u_time: s.time ?? 0,
-    }),
-  },
-
   pixelsort: {
     name: 'Pixel Sort',
     params: [
@@ -192,38 +158,6 @@ void main() {
     }),
   },
 
-  wave: {
-    name: 'Wave Distortion',
-    params: [
-      { id: 'ip_wave_amp', label: 'Amplitude', min: 0, max: 0.1, step: 0.002, default: 0.02 },
-      { id: 'ip_wave_freq', label: 'Frequency', min: 1, max: 40, step: 0.5, default: 10 },
-      { id: 'ip_wave_speed', label: 'Speed', min: 0, max: 5, step: 0.1, default: 1 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform float u_amp;
-uniform float u_freq;
-uniform float u_speed;
-uniform float u_time;
-
-void main() {
-  vec2 uv = v_uv;
-  uv.x += sin(uv.y * u_freq + u_time * u_speed) * u_amp;
-  uv.y += cos(uv.x * u_freq + u_time * u_speed * 0.7) * u_amp;
-  uv = clamp(uv, 0.0, 1.0);
-  gl_FragColor = texture2D(u_image, uv);
-}
-`,
-    uniforms: (s) => ({
-      u_amp: s.ip_wave_amp ?? 0.02,
-      u_freq: s.ip_wave_freq ?? 10,
-      u_speed: s.ip_wave_speed ?? 1,
-      u_time: s.time ?? 0,
-    }),
-  },
-
   polar: {
     name: 'Polar Coordinates',
     params: [
@@ -335,68 +269,6 @@ void main() {
     }),
   },
 
-  halftone: {
-    name: 'Halftone',
-    params: [
-      { id: 'ip_ht_dotsize', label: 'Dot Size', min: 2, max: 20, step: 1, default: 8 },
-      { id: 'ip_ht_angle',   label: 'Angle',    min: 0, max: 90, step: 1, default: 45 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform vec2 u_resolution;
-uniform float u_dotsize;
-uniform float u_angle;
-
-#define PI 3.14159265359
-
-float brightness(vec3 c) {
-  return dot(c, vec3(0.299, 0.587, 0.114));
-}
-
-void main() {
-  // Build rotated grid
-  float rad = u_angle * PI / 180.0;
-  float cosA = cos(rad);
-  float sinA = sin(rad);
-
-  // Convert current UV to pixel space, rotate, then snap to dot grid
-  vec2 px = v_uv * u_resolution;
-  vec2 rotPx = vec2(cosA * px.x - sinA * px.y, sinA * px.x + cosA * px.y);
-
-  // Cell in the rotated grid
-  vec2 cell = floor(rotPx / u_dotsize);
-  vec2 cellCenter = (cell + 0.5) * u_dotsize;
-
-  // Rotate cell center back to UV space for sampling
-  vec2 samplePx = vec2(cosA * cellCenter.x + sinA * cellCenter.y,
-                      -sinA * cellCenter.x + cosA * cellCenter.y);
-  vec2 sampleUV = clamp(samplePx / u_resolution, 0.0, 1.0);
-
-  vec4 col = texture2D(u_image, sampleUV);
-  float bright = brightness(col.rgb);
-
-  // Distance from rotated cell center
-  vec2 localPos = rotPx - cellCenter;
-  float dist = length(localPos);
-
-  // Dot radius scales with brightness — brighter = bigger dot
-  float maxRadius = u_dotsize * 0.5;
-  float radius = bright * maxRadius;
-
-  // Antialiased circle
-  float edge = smoothstep(radius + 0.8, radius - 0.8, dist);
-
-  gl_FragColor = vec4(vec3(edge), 1.0);
-}
-`,
-    uniforms: (s) => ({
-      u_dotsize: s.ip_ht_dotsize ?? 8,
-      u_angle:   s.ip_ht_angle   ?? 45,
-    }),
-  },
-
   pixelMelt: {
     name: 'Pixel Melt',
     params: [
@@ -492,57 +364,6 @@ void main() {
       u_angle:   s.ip_cd_angle   ?? 0,
       u_animate: s.ip_cd_animate ?? 1,
       u_time:    s.time          ?? 0,
-    }),
-  },
-
-  dataCorrupt: {
-    name: 'Data Corrupt',
-    params: [
-      { id: 'ip_dc_intensity',  label: 'Intensity',   min: 0, max: 1,  step: 0.02, default: 0.3  },
-      { id: 'ip_dc_blockSize',  label: 'Block Size',  min: 4, max: 40, step: 2,    default: 12   },
-      { id: 'ip_dc_animate',    label: 'Animate',     min: 0, max: 1,  step: 1,    default: 1    },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform vec2 u_resolution;
-uniform float u_intensity;
-uniform float u_blockSize;
-uniform float u_animate;
-uniform float u_time;
-
-void main() {
-  float blockSizeUV = u_blockSize / u_resolution.y;
-  vec2 block = floor(v_uv / blockSizeUV);
-
-  // Hash changes per frame when animated
-  float timeSlot = u_animate > 0.5 ? floor(u_time * 2.0) : 0.0;
-  float h = fract(sin(dot(block, vec2(127.1, 311.7)) + timeSlot) * 43758.5453);
-
-  if (h < u_intensity) {
-    // Corrupted block — displace the UV to a wrong location
-    float h2 = fract(h * 127.1);
-    float h3 = fract(h * 311.7);
-    vec2 offset = (vec2(h2, h3) - 0.5) * 0.3;
-    vec4 col = texture2D(u_image, clamp(v_uv + offset, 0.0, 1.0));
-
-    // Random colour channel manipulation based on sub-hashes
-    if (h2 > 0.7) col.rgb = col.gbr;           // channel swap
-    if (h3 > 0.8) col.rgb *= vec3(0.0, 1.5, 1.5); // cyan tint
-    if (h2 < 0.2) col.rgb = vec3(dot(col.rgb, vec3(0.333))); // desaturate
-
-    gl_FragColor = col;
-  } else {
-    gl_FragColor = texture2D(u_image, v_uv);
-  }
-}
-`,
-    uniforms: (s) => ({
-      u_intensity: s.ip_dc_intensity ?? 0.3,
-      u_blockSize: s.ip_dc_blockSize ?? 12,
-      u_animate:   s.ip_dc_animate   ?? 1,
-      u_time:      s.time            ?? 0,
     }),
   },
 
@@ -746,77 +567,6 @@ void main() {
     uniforms: (s) => ({
       u_cellsize: s.ip_ascii_size   ?? 8,
       u_levels:   s.ip_ascii_levels ?? 5,
-    }),
-  },
-
-  dataMosaic: {
-    name: 'Data Mosaic',
-    params: [
-      { id: 'ip_dm_minBlock', label: 'Min Block', min: 2,  max: 10, step: 1,    default: 4  },
-      { id: 'ip_dm_maxBlock', label: 'Max Block', min: 10, max: 40, step: 2,    default: 20 },
-      { id: 'ip_dm_scatter',  label: 'Scatter',   min: 0,  max: 1,  step: 0.05, default: 0.3 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform vec2 u_resolution;
-uniform float u_minBlock;
-uniform float u_maxBlock;
-uniform float u_scatter;
-
-float brightness(vec3 c) {
-  return dot(c, vec3(0.299, 0.587, 0.114));
-}
-
-// Simple hash
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
-void main() {
-  vec2 px = v_uv * u_resolution;
-
-  // First pass: determine block size from a coarse grid sample
-  float coarseSize = u_maxBlock;
-  vec2 coarseCell = floor(px / coarseSize);
-  vec2 coarseCenter = (coarseCell + 0.5) * coarseSize;
-  vec2 coarseUV = clamp(coarseCenter / u_resolution, 0.0, 1.0);
-
-  float coarseBright = brightness(texture2D(u_image, coarseUV).rgb);
-
-  // Block size: larger in dark areas, smaller in bright areas
-  float t = 1.0 - coarseBright;
-  float blockSize = mix(u_minBlock, u_maxBlock, t);
-
-  // Optional scatter — offset block grid per-cell by a hash
-  vec2 baseCell = floor(px / blockSize);
-  float scatterX = (hash(baseCell) - 0.5) * u_scatter * blockSize;
-  float scatterY = (hash(baseCell + vec2(7.3, 2.1)) - 0.5) * u_scatter * blockSize;
-
-  // Re-snap with scatter applied
-  vec2 cellOrigin = baseCell * blockSize + vec2(scatterX, scatterY);
-  vec2 cellCenter = cellOrigin + blockSize * 0.5;
-  vec2 sampleUV = clamp(cellCenter / u_resolution, 0.0, 1.0);
-
-  vec4 col = texture2D(u_image, sampleUV);
-
-  // Thin border between blocks for structure
-  vec2 local = px - cellOrigin;
-  float border = 0.06;
-  float onBorder = 1.0 - step(border * blockSize, local.x) *
-                         step(border * blockSize, local.y) *
-                         step(local.x, blockSize * (1.0 - border)) *
-                         step(local.y, blockSize * (1.0 - border));
-
-  col.rgb = mix(col.rgb, col.rgb * 0.25, onBorder * 0.8);
-  gl_FragColor = col;
-}
-`,
-    uniforms: (s) => ({
-      u_minBlock: s.ip_dm_minBlock ?? 4,
-      u_maxBlock: s.ip_dm_maxBlock ?? 20,
-      u_scatter:  s.ip_dm_scatter  ?? 0.3,
     }),
   },
 
@@ -1107,44 +857,6 @@ void main() {
     }),
   },
 
-  bulge: {
-    name: 'Bulge',
-    params: [
-      { id: 'ip_bg_strength', label: 'Strength', min: -1,  max: 1,    step: 0.05, default: 0.5 },
-      { id: 'ip_bg_radius',   label: 'Radius',   min: 0.1, max: 1,    step: 0.05, default: 0.6 },
-      { id: 'ip_bg_centerX',  label: 'Center X', min: 0,   max: 1,    step: 0.02, default: 0.5 },
-      { id: 'ip_bg_centerY',  label: 'Center Y', min: 0,   max: 1,    step: 0.02, default: 0.5 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform vec2 u_resolution;
-uniform float u_strength;
-uniform float u_radius;
-uniform float u_centerX;
-uniform float u_centerY;
-
-void main() {
-  vec2 center = vec2(u_centerX, u_centerY);
-  float aspect = u_resolution.x / u_resolution.y;
-  vec2 d = (v_uv - center) * vec2(aspect, 1.0);
-  float r = length(d);
-  // Bell curve falloff inside u_radius. Negative strength = pinch.
-  float t = 1.0 - smoothstep(0.0, u_radius, r);
-  float bulge = 1.0 + u_strength * t * t;
-  vec2 src = center + (v_uv - center) * (1.0 / bulge);
-  src = clamp(src, 0.0, 1.0);
-  gl_FragColor = texture2D(u_image, src);
-}
-`,
-    uniforms: (s) => ({
-      u_strength: s.ip_bg_strength ?? 0.5,
-      u_radius:   s.ip_bg_radius   ?? 0.6,
-      u_centerX:  s.ip_bg_centerX  ?? 0.5,
-      u_centerY:  s.ip_bg_centerY  ?? 0.5,
-    }),
-  },
 };
 
 // ── ImageProcessor class ────────────────────────────────────────────────────

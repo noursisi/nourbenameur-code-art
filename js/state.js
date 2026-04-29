@@ -55,7 +55,9 @@ export const state = {
   intf_sources: 7, intf_wavelength: 0.025, intf_speed: 2,
   intf_layout: 1, intf_amplitude: 1.0, intf_decay: 0.2, intf_palette: 0,
   // Image Processor
-  ip_enabled: false, ip_effect: 'none', ip_mixWithAlgo: false, ip_scale: 1, ip_offsetX: 0, ip_offsetY: 0,
+  // ip_enabled is always-on now (toggle removed). ip_effect 'none' = pass-through.
+  // ip_mixWithAlgo removed entirely — image always sits behind the algorithm.
+  ip_enabled: true, ip_effect: 'none', ip_mixWithAlgo: false, ip_scale: 1, ip_offsetX: 0, ip_offsetY: 0,
   ip_displace_amount: 0.05, ip_displace_scale: 4, ip_displace_speed: 0.3,
   ip_sort_threshold: 0.3, ip_sort_direction: 0, ip_sort_intensity: 30,
   ip_thresh_level: 0.5, ip_thresh_smooth: 0.02,
