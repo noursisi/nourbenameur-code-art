@@ -154,6 +154,18 @@ class Engine {
     }
 
     // ── 4. Layers / Algorithm (skip when solo effect is active) ────────────
+    // When an image/video source is loaded, clip the algorithm drawing to
+    // the image's rendered rectangle so generative overlays don't paint
+    // over the empty background. Algorithms that explicitly want full-canvas
+    // (wantsCleanBackground, e.g. Blob Track) opt out of clipping.
+    const imgBounds = imageProcessor.getRenderedBounds(W, H, s);
+    const wantsClip = imgBounds && !wantsClean;
+    if (wantsClip) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(imgBounds.x, imgBounds.y, imgBounds.w, imgBounds.h);
+      ctx.clip();
+    }
     if (!isSoloEffect) {
       if (useMultiLayer) {
         this._renderMultiLayer(ctx, W, H, s, layers);
@@ -161,6 +173,7 @@ class Engine {
         this._renderSingleLayer(ctx, W, H, s);
       }
     }
+    if (wantsClip) ctx.restore();
 
     // ── 5. Image Processor (on top if mix mode) ─────────────────────────────
     if (imageProcessor.hasSource() && s.ip_mixWithAlgo && !wantsClean) {
@@ -189,8 +202,19 @@ class Engine {
     // ── 6. Post-process: tint, glow, blur ─────────────────────────────────────
     // wantsCleanBackground algos (Blob Track) skip post-process so the
     // detection overlay isn't blurred/glowed into a smear over the image.
+    // When an image is loaded, clip post-process to the image's bounds so
+    // tint/glow/blur don't bleed across the empty background.
     if (!wantsClean) {
-      postProcess(this.canvas, ctx, W, H, s);
+      if (imgBounds) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(imgBounds.x, imgBounds.y, imgBounds.w, imgBounds.h);
+        ctx.clip();
+        postProcess(this.canvas, ctx, W, H, s);
+        ctx.restore();
+      } else {
+        postProcess(this.canvas, ctx, W, H, s);
+      }
     }
 
     // ── 7. Image — front layer (legacy) ────────────────────────────────────────

@@ -612,6 +612,15 @@ input[type="range"]::-moz-range-thumb:hover {
    Layers
    ============================================================ */
 
+#layer-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+#layer-list::-webkit-scrollbar { width: 3px; }
+#layer-list::-webkit-scrollbar-track { background: transparent; }
+#layer-list::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+
 .layer-item {
   display: flex;
   align-items: center;

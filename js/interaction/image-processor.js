@@ -1268,6 +1268,27 @@ class ImageProcessor {
     return !!this._source;
   }
 
+  /**
+   * Returns the rectangle (in canvas CSS pixels) where the source image is
+   * actually rendered after fit-to-canvas + user scale + offset. Returns
+   * null if no source. Used by the engine to clip algorithm/post-process
+   * output to the image bounds so effects don't bleed onto the empty
+   * background.
+   */
+  getRenderedBounds(W, H, state) {
+    if (!this._source) return null;
+    const iw = this._source.videoWidth || this._source.naturalWidth || this._source.width;
+    const ih = this._source.videoHeight || this._source.naturalHeight || this._source.height;
+    if (!iw || !ih) return null;
+    const scale = (state.ip_scale || 1);
+    const fitScale = Math.min(W / iw, H / ih) * scale;
+    const dw = iw * fitScale;
+    const dh = ih * fitScale;
+    const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
+    const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
+    return { x: dx, y: dy, w: dw, h: dh };
+  }
+
   /** Get all available distortion definitions */
   static getDistortions() {
     return DISTORTIONS;
