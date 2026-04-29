@@ -949,6 +949,25 @@ class ImageProcessor {
     });
   }
 
+  /** Load a video file as the processor source */
+  loadVideo(file) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.playsInline = true;
+      video.muted = true;
+      video.loop = true;
+      video.onloadeddata = () => {
+        video.play();
+        this._source = video;
+        this._sourceType = 'video';
+        this._hasPrevFrame = false;
+        resolve(video);
+      };
+      video.onerror = () => reject(new Error('Failed to load video'));
+      video.src = URL.createObjectURL(file);
+    });
+  }
+
   /** Set a video element as the processor source (for camera) */
   setVideoSource(video) {
     this._source = video;

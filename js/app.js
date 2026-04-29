@@ -147,8 +147,15 @@ document.getElementById('btn-ip-upload')?.addEventListener('click', () => {
 document.getElementById('ip-file-input')?.addEventListener('change', e => {
   const file = e.target.files?.[0];
   if (!file) return;
-  imageProcessor.loadImage(file).then(() => {
+  const isVideo = file.type.startsWith('video/');
+  const loader = isVideo ? imageProcessor.loadVideo(file) : imageProcessor.loadImage(file);
+  loader.then(() => {
     if (ipControls) ipControls.style.display = '';
+    // Auto-play for video so frames update
+    if (isVideo && !state.playing) {
+      set('playing', true);
+      updatePlayUI();
+    }
     markDirty();
   });
 });
@@ -643,8 +650,8 @@ function tick() {
     markDirty();
   }
 
-  // Camera: continuously mark dirty for live feed
-  if (state.cameraActive && state.ip_enabled) {
+  // Camera or video: continuously mark dirty for live feed
+  if ((state.cameraActive || imageProcessor._sourceType === 'video') && state.ip_enabled) {
     markDirty();
   }
 
