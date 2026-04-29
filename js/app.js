@@ -144,8 +144,11 @@ document.getElementById('btn-ip-upload')?.addEventListener('click', () => {
   document.getElementById('ip-file-input')?.click();
 });
 
-document.getElementById('ip-file-input')?.addEventListener('change', e => {
-  const file = e.target.files?.[0];
+function _hideWelcome() {
+  document.getElementById('welcome')?.classList.add('hidden');
+}
+
+function _ingestFile(file) {
   if (!file) return;
   const isVideo = file.type.startsWith('video/');
   const loader = isVideo ? imageProcessor.loadVideo(file) : imageProcessor.loadImage(file);
@@ -155,18 +158,37 @@ document.getElementById('ip-file-input')?.addEventListener('change', e => {
       set('playing', true);
       updatePlayUI();
     }
+    _hideWelcome();
     markDirty();
   }).catch(err => {
     console.error('Failed to load file:', err);
-    // Fallback: try loading as image even if type says video
     if (isVideo) {
       imageProcessor.loadImage(file).then(() => {
         if (ipControls) ipControls.style.display = '';
+        _hideWelcome();
         markDirty();
       });
     }
   });
+}
+
+document.getElementById('ip-file-input')?.addEventListener('change', e => {
+  _ingestFile(e.target.files?.[0]);
 });
+
+// Drag-and-drop the source file directly onto the canvas
+const _canvasArea = document.getElementById('canvas-area');
+if (_canvasArea) {
+  ['dragenter', 'dragover'].forEach(ev =>
+    _canvasArea.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); })
+  );
+  _canvasArea.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) _ingestFile(file);
+  });
+}
 
 // Camera toggle
 document.getElementById('btn-ip-camera')?.addEventListener('click', async () => {
@@ -178,6 +200,7 @@ document.getElementById('btn-ip-camera')?.addEventListener('click', async () => 
     if (ipControls) ipControls.style.display = '';
     const toggle = document.getElementById('ip-enabled-toggle');
     if (toggle) toggle.classList.add('on');
+    _hideWelcome();
   } else {
     if (btn) { btn.classList.remove('active'); btn.textContent = 'Camera'; }
   }

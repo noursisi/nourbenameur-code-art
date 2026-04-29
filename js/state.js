@@ -107,6 +107,12 @@ export const state = {
   bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
   // Blob Track
   bt_aiOnly: 1, bt_model: 1, bt_classFilter: 0, bt_lightFilter: 0.25, bt_threshold: 0.08, bt_maxBlobs: 15, bt_boxSize: 1, bt_lines: 0, bt_text: 11, bt_color: 0, bt_seed: 42,
+  // Edge Glow
+  eg_density: 0.7, eg_threshold: 0.15, eg_glow: 0.5, eg_lineWidth: 1.4, eg_color: 1,
+  // Image Flow
+  if_count: 1200, if_speed: 1.4, if_trail: 0.92, if_alpha: 0.5, if_life: 100,
+  // Tone Contour
+  tc_levels: 9, tc_lineWidth: 1, tc_palette: 1, tc_resolution: 140, tc_alpha: 0.7,
   // Camera
   cameraActive: false,
   // Layers

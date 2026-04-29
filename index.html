@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CANVAS</title>
+  <title>codart</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" />
@@ -22,6 +22,13 @@
 
       <!-- Loading indicator — removed by app.js once initialised -->
       <div id="loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#555;font-family:monospace;font-size:12px;letter-spacing:2px;text-transform:uppercase;pointer-events:none;z-index:10;">Loading...</div>
+
+      <!-- Welcome / first-run overlay — auto-hides when source loaded -->
+      <div class="welcome" id="welcome">
+        <h1 class="welcome-mark">codart</h1>
+        <p class="welcome-tagline">drop an image or video to begin</p>
+        <p class="welcome-hint">or click <span class="welcome-key">Upload</span> in the panel</p>
+      </div>
 
       <!-- HUD top-left -->
       <div class="canvas-hud" id="canvas-hud">
@@ -46,7 +53,7 @@
 
       <!-- Header -->
       <div class="panel-header">
-        <h1>CANVAS</h1>
+        <h1>codart</h1>
         <span class="status-paused" id="play-status">PAUSED</span>
       </div>
 

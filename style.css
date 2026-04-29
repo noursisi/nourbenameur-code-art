@@ -83,6 +83,78 @@ html, body {
   min-height: 0;
 }
 
+/* ============================================================
+   Welcome / first-run overlay
+   ============================================================ */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.6s var(--ease-out);
+  /* faint vignette + subtle texture so the background isn't dead black */
+  background:
+    radial-gradient(ellipse at center, rgba(232,199,158,0.04) 0%, transparent 65%),
+    var(--bg-canvas);
+}
+
+.welcome.hidden {
+  opacity: 0;
+}
+
+.welcome-mark {
+  font-family: 'Instrument Serif', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 96px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  background: linear-gradient(180deg, var(--text-primary) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
+  animation: welcome-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes welcome-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.2) drop-shadow(0 0 24px rgba(232,199,158,0.18)); }
+}
+
+.welcome-tagline {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.welcome-hint {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.welcome-key {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--bg-control);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .canvas-area:active {
   cursor: grabbing;
 }
