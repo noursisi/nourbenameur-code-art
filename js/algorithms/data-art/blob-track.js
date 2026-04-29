@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-n loaded');
+console.log('[BlobTrack] build 2026-04-29-o loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -126,6 +126,10 @@ async function loadCoco(baseIdx = 1) {
           cocoModel = newModel;
           cocoLoadedBase = base;
           console.log(`[BlobTrack] active model: ${MODEL_NAMES[targetIdx]} (${base})`);
+          // Force a re-render so still-image users see detection start —
+          // without this, the render loop is idle on a paused image and
+          // COCO never gets a chance to fire its first detection.
+          markDirty();
         }
       } catch (e) {
         console.error('[BlobTrack] model load failed:', e);
