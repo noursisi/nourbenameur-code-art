@@ -920,51 +920,104 @@ void main() {
   vhs: {
     name: 'VHS Tape',
     params: [
-      { id: 'ip_vhs_aberration', label: 'Aberration', min: 0,    max: 0.04,  step: 0.001, default: 0.012 },
-      { id: 'ip_vhs_scanlines',  label: 'Scanlines',  min: 0,    max: 1,     step: 0.05,  default: 0.6   },
-      { id: 'ip_vhs_noise',      label: 'Noise',      min: 0,    max: 0.5,   step: 0.02,  default: 0.15  },
-      { id: 'ip_vhs_wobble',     label: 'Wobble',     min: 0,    max: 0.04,  step: 0.001, default: 0.008 },
+      { id: 'ip_vhs_chroma',    label: 'Chroma Bleed', min: 0,    max: 1,    step: 0.02,  default: 0.55 },
+      { id: 'ip_vhs_tracking',  label: 'Tracking',     min: 0,    max: 1,    step: 0.05,  default: 0.3  },
+      { id: 'ip_vhs_grain',     label: 'Tape Grain',   min: 0,    max: 1,    step: 0.02,  default: 0.18 },
+      { id: 'ip_vhs_softness',  label: 'Softness',     min: 0,    max: 1,    step: 0.05,  default: 0.4  },
     ],
+    // Real VHS encodes color as YIQ. Luma (Y) is broadcast at full bandwidth,
+    // chroma (I, Q) is subsampled to ~25% horizontal — that's what makes
+    // colors smear sideways while edges stay sharp. Then add tape grain on
+    // chroma only, gentle scanline modulation on luma, occasional tracking
+    // jitter on horizontal scan position.
     frag: /* glsl */`
 precision highp float;
 varying vec2 v_uv;
 uniform sampler2D u_image;
 uniform vec2 u_resolution;
-uniform float u_aberration;
-uniform float u_scanlines;
-uniform float u_noise;
-uniform float u_wobble;
+uniform float u_chroma;
+uniform float u_tracking;
+uniform float u_grain;
+uniform float u_softness;
 uniform float u_time;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
+vec3 rgb2yiq(vec3 c) {
+  return vec3(
+    dot(c, vec3(0.299,    0.587,    0.114)),
+    dot(c, vec3(0.595716,-0.274453,-0.321263)),
+    dot(c, vec3(0.211456,-0.522591, 0.311135))
+  );
+}
+vec3 yiq2rgb(vec3 c) {
+  return vec3(
+    c.x + 0.9563*c.y + 0.6210*c.z,
+    c.x - 0.2721*c.y - 0.6474*c.z,
+    c.x - 1.1070*c.y + 1.7046*c.z
+  );
+}
+
 void main() {
-  vec2 uv = v_uv;
-  // Horizontal wobble that drifts with time
-  uv.x += sin(uv.y * 80.0 + u_time * 4.0) * u_wobble;
-  // Chromatic aberration — split RGB
-  float r = texture2D(u_image, clamp(uv + vec2(u_aberration, 0.0), 0.0, 1.0)).r;
-  float g = texture2D(u_image, uv).g;
-  float b = texture2D(u_image, clamp(uv - vec2(u_aberration, 0.0), 0.0, 1.0)).b;
-  vec3 col = vec3(r, g, b);
-  // Scanlines — every other row darkened
-  float scan = sin(uv.y * u_resolution.y * 1.5) * 0.5 + 0.5;
-  col *= mix(1.0, scan, u_scanlines * 0.5);
-  // Tape noise — snowy speckle
-  float n = hash(uv * u_resolution + u_time * 60.0);
-  col += (n - 0.5) * u_noise;
-  // Slight saturation crush — VHS magnetic decay
-  float gray = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(vec3(gray), col, 0.85);
-  gl_FragColor = vec4(col, 1.0);
+  // Tracking errors — horizontal scan-line jitter that drifts vertically
+  // with tape time. Concentrated in occasional bands, not constant noise.
+  float band = smoothstep(0.985, 1.0, fract(v_uv.y * 8.0 - u_time * 0.05));
+  float bandJitter = (hash(vec2(floor(v_uv.y * 240.0), floor(u_time * 20.0))) - 0.5)
+                     * 0.04 * band * u_tracking;
+  vec2 uv = vec2(v_uv.x + bandJitter, v_uv.y);
+
+  // Sample luma at full resolution
+  float yLuma = rgb2yiq(texture2D(u_image, uv).rgb).x;
+
+  // Sample chroma at low horizontal resolution (chroma subsampling)
+  float chromaWidth = mix(1.0, 0.18, u_chroma);
+  float chromaPx = u_resolution.x * chromaWidth;
+  vec2 cuv = vec2(floor(uv.x * chromaPx) / chromaPx, uv.y);
+  vec3 chromaSrc = vec3(0.0);
+  // Average a few horizontal taps for soft chroma bleed
+  for (int i = -1; i <= 1; i++) {
+    vec2 o = vec2(float(i) * 1.5 / u_resolution.x, 0.0);
+    chromaSrc += texture2D(u_image, clamp(cuv + o, 0.0, 1.0)).rgb;
+  }
+  chromaSrc /= 3.0;
+  vec3 yiqC = rgb2yiq(chromaSrc);
+
+  // Combine: high-res luma + low-res chroma
+  vec3 yiq = vec3(yLuma, yiqC.y, yiqC.z);
+
+  // Soft luma blur — tape transfer isn't perfectly sharp
+  if (u_softness > 0.01) {
+    float blurred = 0.0;
+    float w = 0.0;
+    for (int i = -2; i <= 2; i++) {
+      float weight = 1.0 - abs(float(i)) * 0.25;
+      blurred += rgb2yiq(texture2D(u_image, clamp(uv + vec2(float(i) * 0.7 / u_resolution.x, 0.0), 0.0, 1.0)).rgb).x * weight;
+      w += weight;
+    }
+    yiq.x = mix(yiq.x, blurred / w, u_softness);
+  }
+
+  // Subtle scanline modulation on luma — half-pixel sine, very low amplitude
+  yiq.x *= 1.0 - 0.06 * (sin(v_uv.y * u_resolution.y * 3.14159) * 0.5 + 0.5);
+
+  // Tape grain — noise on chroma channels (color speckle, not luma snow)
+  float n1 = hash(uv * u_resolution + u_time * 47.0);
+  float n2 = hash(uv * u_resolution + u_time * 53.0 + 13.0);
+  yiq.y += (n1 - 0.5) * u_grain * 0.25;
+  yiq.z += (n2 - 0.5) * u_grain * 0.25;
+  // Faint luma snow as well
+  yiq.x += (hash(uv * u_resolution + u_time * 60.0) - 0.5) * u_grain * 0.05;
+
+  vec3 col = yiq2rgb(yiq);
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `,
     uniforms: (s) => ({
-      u_aberration: s.ip_vhs_aberration ?? 0.012,
-      u_scanlines:  s.ip_vhs_scanlines  ?? 0.6,
-      u_noise:      s.ip_vhs_noise      ?? 0.15,
-      u_wobble:     s.ip_vhs_wobble     ?? 0.008,
-      u_time:       s.time              ?? 0,
+      u_chroma:   s.ip_vhs_chroma   ?? 0.55,
+      u_tracking: s.ip_vhs_tracking ?? 0.3,
+      u_grain:    s.ip_vhs_grain    ?? 0.18,
+      u_softness: s.ip_vhs_softness ?? 0.4,
+      u_time:     s.time            ?? 0,
     }),
   },
 
@@ -1251,8 +1304,10 @@ class ImageProcessor {
       const dh = ih * fitScale;
       const dx = (W - dw) / 2 + (state.ip_offsetX || 0);
       const dy = (H - dh) / 2 + (state.ip_offsetY || 0);
-      // Mirror webcam so it feels like a mirror
-      if (this._sourceType === 'video') {
+      // Mirror only live camera streams (selfie view). Uploaded videos
+      // and images render with their natural orientation.
+      const isCameraStream = !!this._source.srcObject;
+      if (isCameraStream) {
         ctx.save();
         ctx.translate(W, 0);
         ctx.scale(-1, 1);
