@@ -106,7 +106,7 @@ export const state = {
   // Body Particles
   bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
   // Blob Track
-  bt_threshold: 0.35, bt_maxBlobs: 15, bt_boxSize: 30, bt_lines: 0.5, bt_text: 11, bt_jitter: 0.2, bt_seed: 42,
+  bt_threshold: 0.4, bt_maxBlobs: 15, bt_boxSize: 6, bt_lines: 0.5, bt_text: 11, bt_color: 0, bt_seed: 42,
   // Camera
   cameraActive: false,
   // Layers
