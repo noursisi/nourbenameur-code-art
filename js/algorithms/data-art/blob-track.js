@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-q loaded');
+console.log('[BlobTrack] build 2026-04-29-r loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -49,12 +49,12 @@ const MULTI_COLORS = ['#00ddff','#ff3344','#00ff88','#ffdd00','#ff69b4','#ff8800
 // pricey when wrong — require higher confidence. Persons + vehicles are
 // common, lower floor.
 const CLASS_MIN_CONF = {
-  cat: 0.85, dog: 0.85, bird: 0.85, horse: 0.78, cow: 0.78, sheep: 0.78,
-  elephant: 0.85, bear: 0.85, zebra: 0.85, giraffe: 0.85,
-  person: 0.65,
-  car: 0.55, truck: 0.55, bus: 0.55, motorcycle: 0.6, bicycle: 0.6,
+  cat: 0.78, dog: 0.78, bird: 0.78, horse: 0.7, cow: 0.7, sheep: 0.7,
+  elephant: 0.78, bear: 0.78, zebra: 0.78, giraffe: 0.78,
+  person: 0.45,
+  car: 0.45, truck: 0.45, bus: 0.45, motorcycle: 0.5, bicycle: 0.5,
 };
-const DEFAULT_MIN_CONF = 0.65;
+const DEFAULT_MIN_CONF = 0.55;
 
 // Compute the "light signature" of an image region: high luma + low
 // saturation = sun glare / sky / snow / blown-out highlights. A real
@@ -617,17 +617,26 @@ export class BlobTrack extends Algorithm {
       const det = allDetections[di];
       const newW = Math.min(maxBoxDim, det.w || 50);
       const newH = Math.min(maxBoxDim, det.h || 35);
-      // Reject if too close to any existing blob (proximity guard for
-      // unlabeled motion peaks). COCO-labeled detections are allowed
-      // through — they're the authoritative source.
+      // Spawn rules:
+      // - Motion (unlabeled): skip if any live blob is within proximity
+      //   guard. Stops fields of similar-looking subjects from doubling up.
+      // - COCO (labeled): always spawn, AND kill any nearby unlabeled blob
+      //   that overlaps it. The detector is authoritative; motion blobs
+      //   that happened to land near a real subject lose to the real one.
+      const guard = Math.max(newW, newH) * 1.0;
       if (!det.label) {
-        const guard = Math.max(newW, newH) * 0.9;
         let crowded = false;
         for (const b of this._blobs) {
           if (b.missing >= 120) continue;
           if (Math.hypot(det.x - b.x, det.y - b.y) < guard) { crowded = true; break; }
         }
         if (crowded) continue;
+      } else {
+        for (const b of this._blobs) {
+          if (b.label) continue;
+          if (b.missing >= 120) continue;
+          if (Math.hypot(det.x - b.x, det.y - b.y) < guard) b.missing = 240;
+        }
       }
       this._blobs.push({
         x: det.x, y: det.y,
@@ -663,10 +672,11 @@ export class BlobTrack extends Algorithm {
     this._prevFrame.height = Math.round(H);
     this._prevFrame.getContext('2d').drawImage(this._cap, 0, 0);
 
-    // IoU dedup: when the tracker drifts a blob slightly, a fresh COCO
-    // detection sometimes can't match it (centroid distance > matchR) and
-    // spawns a duplicate. Pair-check overlapping survivors and keep the
-    // stronger one (labeled > unlabeled, then more confirmed frames).
+    // Aggressive dedup: kill duplicates by EITHER box overlap OR centroid
+    // proximity. Two blobs are considered duplicates if their boxes overlap
+    // even a little (IoU > 0.1) OR if their centers are within the smaller
+    // box's diagonal. Keeps the stronger one (labeled > unlabeled, then
+    // more confirmed frames).
     const surviving = this._blobs.filter(b => b.confirmed >= 3 && b.missing < 120);
     const killed = new Set();
     for (let i = 0; i < surviving.length; i++) {
@@ -681,7 +691,9 @@ export class BlobTrack extends Algorithm {
         const aArea = a.w * a.h;
         const bArea = b.w * b.h;
         const iou = inter / (aArea + bArea - inter || 1);
-        if (iou > 0.3) {
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        const proxThresh = Math.min(Math.hypot(a.w, a.h), Math.hypot(b.w, b.h)) * 0.6;
+        if (iou > 0.1 || dist < proxThresh) {
           const aBetter = (a.label && !b.label)
             || (!!a.label === !!b.label && a.confirmed >= b.confirmed);
           if (aBetter) killed.add(j); else { killed.add(i); break; }
