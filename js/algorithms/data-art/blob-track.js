@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-u loaded');
+console.log('[BlobTrack] build 2026-04-29-v loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -541,10 +541,12 @@ export class BlobTrack extends Algorithm {
       }).catch(() => { this._cocoPending = false; });
     }
 
-    // Motion detection disabled — was the main source of duplicate boxes
-    // when subjects moved (each frame's motion peak spawned a new blob).
-    // COCO + tracker now provide both labels and motion-following.
-    const motionBlobs = [];
+    // Motion detection on — needed to catch content COCO doesn't know
+    // (flowers, abstract subjects, anything not in COCO's 80 classes).
+    // Aggressive sparsity rules below in the spawn loop prevent
+    // duplicates: motion blobs spawn far apart and need a long confirm
+    // window before becoming visible.
+    const motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs, lightCutoff);
 
     // ── Combine: COCO detections + motion blobs (motion is fallback) ─────────
     const allDetections = [...this._cocoDetections];
@@ -647,13 +649,14 @@ export class BlobTrack extends Algorithm {
       const newW = Math.min(maxBoxDim, det.w || 50);
       const newH = Math.min(maxBoxDim, det.h || 35);
       // Spawn rules:
-      // - Motion (unlabeled): skip if any live blob is within proximity
-      //   guard. Stops fields of similar-looking subjects from doubling up.
-      // - COCO (labeled): always spawn, AND kill any nearby unlabeled blob
-      //   that overlaps it. The detector is authoritative; motion blobs
-      //   that happened to land near a real subject lose to the real one.
-      const guard = Math.max(newW, newH) * 1.0;
+      // - Motion (unlabeled): VERY sparse. New motion blob can't spawn
+      //   within 3x its size of any existing live blob. Result: at most
+      //   a handful of motion boxes spread across the canvas, never
+      //   clustered on the same neighborhood.
+      // - COCO (labeled): spawn freely (NMS already deduped them) and
+      //   kill any nearby motion blob.
       if (!det.label) {
+        const guard = Math.max(newW, newH) * 3.0;
         let crowded = false;
         for (const b of this._blobs) {
           if (b.missing >= 120) continue;
@@ -661,6 +664,7 @@ export class BlobTrack extends Algorithm {
         }
         if (crowded) continue;
       } else {
+        const guard = Math.max(newW, newH) * 1.0;
         for (const b of this._blobs) {
           if (b.label) continue;
           if (b.missing >= 120) continue;
@@ -706,7 +710,12 @@ export class BlobTrack extends Algorithm {
     // even a little (IoU > 0.1) OR if their centers are within the smaller
     // box's diagonal. Keeps the stronger one (labeled > unlabeled, then
     // more confirmed frames).
-    const surviving = this._blobs.filter(b => b.confirmed >= 3 && b.missing < 120);
+    // Labeled blobs visible after 3 frames; unlabeled (motion) need 8 so
+    // transient noise doesn't flicker on screen.
+    const surviving = this._blobs.filter(b => {
+      const minConfirm = b.label ? 3 : 8;
+      return b.confirmed >= minConfirm && b.missing < 120;
+    });
     const killed = new Set();
     for (let i = 0; i < surviving.length; i++) {
       if (killed.has(i)) continue;
