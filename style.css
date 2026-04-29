@@ -227,11 +227,16 @@ html, body {
 
 .panel-header h1 {
   font-family: 'Instrument Serif', 'Times New Roman', serif;
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 400;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
   color: var(--text-primary);
   font-style: italic;
+  /* subtle gradient sheen — that "mirror" feel */
+  background: linear-gradient(180deg, var(--text-primary) 0%, rgba(232, 199, 158, 0.85) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Panel Sections */

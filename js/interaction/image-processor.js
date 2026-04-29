@@ -192,46 +192,6 @@ void main() {
     }),
   },
 
-  kaleidoscope: {
-    name: 'Kaleidoscope',
-    params: [
-      { id: 'ip_kal_segments', label: 'Segments', min: 2, max: 24, step: 1, default: 6 },
-      { id: 'ip_kal_rotation', label: 'Rotation', min: 0, max: 6.28, step: 0.05, default: 0 },
-      { id: 'ip_kal_zoom', label: 'Zoom', min: 0.2, max: 3, step: 0.05, default: 1 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform float u_segments;
-uniform float u_rotation;
-uniform float u_zoom;
-
-#define PI 3.14159265359
-
-void main() {
-  vec2 uv = (v_uv - 0.5) * u_zoom;
-
-  float angle = atan(uv.y, uv.x) + u_rotation;
-  float r = length(uv);
-
-  float segAngle = 2.0 * PI / u_segments;
-  angle = mod(angle, segAngle);
-  // Mirror
-  if (angle > segAngle * 0.5) angle = segAngle - angle;
-
-  vec2 kUV = vec2(cos(angle), sin(angle)) * r + 0.5;
-  kUV = clamp(kUV, 0.0, 1.0);
-  gl_FragColor = texture2D(u_image, kUV);
-}
-`,
-    uniforms: (s) => ({
-      u_segments: s.ip_kal_segments ?? 6,
-      u_rotation: s.ip_kal_rotation ?? 0,
-      u_zoom: s.ip_kal_zoom ?? 1,
-    }),
-  },
-
   wave: {
     name: 'Wave Distortion',
     params: [
@@ -325,63 +285,6 @@ void main() {
     uniforms: (s) => ({
       u_decay: s.ip_feedback_decay ?? 0.85,
       u_offset: s.ip_feedback_offset ?? 0.005,
-    }),
-  },
-
-  voronoiMosaic: {
-    name: 'Voronoi Mosaic',
-    params: [
-      { id: 'ip_vmosaic_cells', label: 'Cells', min: 5, max: 100, step: 1, default: 30 },
-      { id: 'ip_vmosaic_edge', label: 'Edge Width', min: 0, max: 0.05, step: 0.001, default: 0.01 },
-    ],
-    frag: /* glsl */`
-precision highp float;
-varying vec2 v_uv;
-uniform sampler2D u_image;
-uniform vec2 u_resolution;
-uniform float u_cells;
-uniform float u_edge;
-
-vec2 hash2(vec2 p) {
-  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-  return fract(sin(p) * 43758.5453);
-}
-
-void main() {
-  vec2 uv = v_uv;
-  vec2 cell = uv * u_cells;
-  vec2 iCell = floor(cell);
-  vec2 fCell = fract(cell);
-
-  float minDist = 10.0;
-  vec2 minPoint = vec2(0.0);
-
-  for (int y = -1; y <= 1; y++) {
-    for (int x = -1; x <= 1; x++) {
-      vec2 neighbor = vec2(float(x), float(y));
-      vec2 point = hash2(iCell + neighbor);
-      vec2 diff = neighbor + point - fCell;
-      float dist = length(diff);
-      if (dist < minDist) {
-        minDist = dist;
-        minPoint = (iCell + neighbor + point) / u_cells;
-      }
-    }
-  }
-
-  // Sample image at the cell center
-  vec4 col = texture2D(u_image, clamp(minPoint, 0.0, 1.0));
-
-  // Edge darkening
-  float edgeFactor = smoothstep(0.0, u_edge * u_cells, minDist);
-  col.rgb *= mix(0.2, 1.0, edgeFactor);
-
-  gl_FragColor = col;
-}
-`,
-    uniforms: (s) => ({
-      u_cells: s.ip_vmosaic_cells ?? 30,
-      u_edge: s.ip_vmosaic_edge ?? 0.01,
     }),
   },
 
@@ -1024,96 +927,115 @@ void main() {
   vaporwave: {
     name: 'Vaporwave',
     params: [
-      { id: 'ip_vw_intensity', label: 'Intensity', min: 0, max: 1,    step: 0.05, default: 0.7 },
-      { id: 'ip_vw_grid',      label: 'Grid',      min: 0, max: 1,    step: 0.05, default: 0.4 },
-      { id: 'ip_vw_glow',      label: 'Glow',      min: 0, max: 1,    step: 0.05, default: 0.5 },
+      { id: 'ip_vw_lift',       label: 'Lift Shadows',  min: 0,    max: 1,    step: 0.02, default: 0.4 },
+      { id: 'ip_vw_warmth',     label: 'Highlight Pink',min: 0,    max: 1,    step: 0.02, default: 0.5 },
+      { id: 'ip_vw_aberration', label: 'Aberration',    min: 0,    max: 0.02, step: 0.001,default: 0.004 },
+      { id: 'ip_vw_grain',      label: 'Grain',         min: 0,    max: 0.15, step: 0.005,default: 0.04 },
     ],
+    // Pastel grading instead of stickered perspective grid. Shadows lifted
+    // toward deep teal, midtones desaturated and pulled warm, highlights
+    // rolled off into soft pink. Subtle RGB shift + film grain on top.
     frag: /* glsl */`
 precision highp float;
 varying vec2 v_uv;
 uniform sampler2D u_image;
 uniform vec2 u_resolution;
-uniform float u_intensity;
-uniform float u_grid;
-uniform float u_glow;
+uniform float u_lift;
+uniform float u_warmth;
+uniform float u_aberration;
+uniform float u_grain;
+uniform float u_time;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 void main() {
-  vec3 col = texture2D(u_image, v_uv).rgb;
-  // Pastel pink/cyan duotone via luma
+  // RGB chromatic shift — pull red right, blue left
+  vec2 ab = vec2(u_aberration, 0.0);
+  float r = texture2D(u_image, clamp(v_uv + ab, 0.0, 1.0)).r;
+  float g = texture2D(u_image, v_uv).g;
+  float b = texture2D(u_image, clamp(v_uv - ab, 0.0, 1.0)).b;
+  vec3 col = vec3(r, g, b);
+
   float luma = dot(col, vec3(0.299, 0.587, 0.114));
-  vec3 pink = vec3(1.0, 0.55, 0.85);
-  vec3 cyan = vec3(0.45, 0.95, 1.0);
-  vec3 duo  = mix(vec3(0.12, 0.05, 0.25), mix(pink, cyan, luma), pow(luma, 0.7));
-  col = mix(col, duo, u_intensity);
-  // Soft glow on bright regions
-  vec3 b = vec3(0.0);
-  for (int i = -2; i <= 2; i++)
-    for (int j = -2; j <= 2; j++) {
-      vec2 o = vec2(float(i), float(j)) * 2.0 / u_resolution;
-      b += texture2D(u_image, clamp(v_uv + o, 0.0, 1.0)).rgb;
-    }
-  b /= 25.0;
-  float bright = max(0.0, dot(b, vec3(0.299, 0.587, 0.114)) - 0.55);
-  col += vec3(1.0, 0.6, 0.95) * bright * u_glow;
-  // Synthwave horizon grid — perspective lines below the lower third
-  vec2 g = v_uv;
-  if (g.y > 0.66) {
-    float persp = 1.0 / (1.0 - g.y + 0.01);
-    float vline = abs(fract((g.x - 0.5) * persp * 8.0) - 0.5);
-    float hline = abs(fract(persp * 0.5) - 0.5);
-    float gl = smoothstep(0.48, 0.5, max(vline, hline));
-    col = mix(col, vec3(1.0, 0.3, 0.9), gl * u_grid);
-  }
-  gl_FragColor = vec4(col, 1.0);
+
+  // Lift shadows toward deep teal (low end of tone curve)
+  vec3 shadowTone = vec3(0.10, 0.14, 0.22);
+  float shadowMask = 1.0 - smoothstep(0.0, 0.45, luma);
+  col = mix(col, mix(col, shadowTone, 0.6), shadowMask * u_lift);
+
+  // Roll highlights into soft pink (high end of tone curve)
+  vec3 highlightTone = vec3(1.0, 0.78, 0.86);
+  float highMask = smoothstep(0.55, 0.92, luma);
+  col = mix(col, col * highlightTone, highMask * u_warmth);
+
+  // Pull midtones slightly warm + desaturated (the vaporwave "soft" feel)
+  float midMask = smoothstep(0.2, 0.5, luma) * (1.0 - smoothstep(0.5, 0.8, luma));
+  vec3 midTone = mix(vec3(luma), col, 0.78); // gentle desaturation
+  col = mix(col, midTone, midMask * 0.6);
+
+  // Film grain
+  float n = (hash(v_uv * u_resolution + u_time * 13.0) - 0.5) * u_grain;
+  col += n;
+
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `,
     uniforms: (s) => ({
-      u_intensity: s.ip_vw_intensity ?? 0.7,
-      u_grid:      s.ip_vw_grid      ?? 0.4,
-      u_glow:      s.ip_vw_glow      ?? 0.5,
+      u_lift:       s.ip_vw_lift       ?? 0.4,
+      u_warmth:     s.ip_vw_warmth     ?? 0.5,
+      u_aberration: s.ip_vw_aberration ?? 0.004,
+      u_grain:      s.ip_vw_grain      ?? 0.04,
+      u_time:       s.time             ?? 0,
     }),
   },
 
   heatmap: {
     name: 'Thermal',
     params: [
-      { id: 'ip_th_intensity', label: 'Intensity', min: 0, max: 1, step: 0.05, default: 1.0 },
+      { id: 'ip_th_intensity', label: 'Intensity', min: 0, max: 1, step: 0.02, default: 1.0 },
+      { id: 'ip_th_contrast',  label: 'Contrast',  min: 0.5, max: 3, step: 0.05, default: 1.4 },
       { id: 'ip_th_invert',    label: 'Invert',    min: 0, max: 1, step: 1,    default: 0   },
     ],
+    // Smooth analytic palette (no banding). Shape is the classic FLIR
+    // thermal curve: cool blue/violet at low T, magenta in the midband,
+    // hot red->orange->yellow->white at the top. Built from continuous
+    // smoothstep blends rather than 6 hard segments.
     frag: /* glsl */`
 precision highp float;
 varying vec2 v_uv;
 uniform sampler2D u_image;
 uniform float u_intensity;
+uniform float u_contrast;
 uniform float u_invert;
 
 vec3 thermal(float t) {
-  // Black -> blue -> magenta -> red -> orange -> yellow -> white
-  vec3 c0 = vec3(0.00, 0.00, 0.05);
-  vec3 c1 = vec3(0.10, 0.05, 0.55);
-  vec3 c2 = vec3(0.55, 0.10, 0.55);
-  vec3 c3 = vec3(0.95, 0.20, 0.10);
-  vec3 c4 = vec3(1.00, 0.65, 0.00);
-  vec3 c5 = vec3(1.00, 0.95, 0.30);
-  vec3 c6 = vec3(1.00, 1.00, 1.00);
-  if (t < 0.166) return mix(c0, c1, t/0.166);
-  if (t < 0.333) return mix(c1, c2, (t-0.166)/0.167);
-  if (t < 0.5)   return mix(c2, c3, (t-0.333)/0.167);
-  if (t < 0.666) return mix(c3, c4, (t-0.5)/0.166);
-  if (t < 0.833) return mix(c4, c5, (t-0.666)/0.167);
-  return mix(c5, c6, (t-0.833)/0.167);
+  t = clamp(t, 0.0, 1.0);
+  vec3 c;
+  // Red rises late, peaks at 0.7, stays high. Plus a small toe in the violet midband.
+  c.r = smoothstep(0.30, 0.65, t)
+      + 0.55 * smoothstep(0.10, 0.30, t) * (1.0 - smoothstep(0.30, 0.55, t));
+  // Green rises last (orange->yellow->white)
+  c.g = smoothstep(0.55, 0.95, t);
+  // Blue falls off through the spectrum, peaks early, fades out by mid
+  c.b = smoothstep(0.0, 0.18, t)
+      - 0.85 * smoothstep(0.18, 0.55, t)
+      + smoothstep(0.85, 1.0, t); // tip back up at the top for white
+  return clamp(c, 0.0, 1.0);
 }
 
 void main() {
   vec3 src = texture2D(u_image, v_uv).rgb;
   float luma = dot(src, vec3(0.299, 0.587, 0.114));
+  // Contrast curve — pivot around 0.5 so highs get hotter, lows get colder
+  luma = clamp(0.5 + (luma - 0.5) * u_contrast, 0.0, 1.0);
   if (u_invert > 0.5) luma = 1.0 - luma;
-  vec3 t = thermal(clamp(luma, 0.0, 1.0));
+  vec3 t = thermal(luma);
   gl_FragColor = vec4(mix(src, t, u_intensity), 1.0);
 }
 `,
     uniforms: (s) => ({
       u_intensity: s.ip_th_intensity ?? 1.0,
+      u_contrast:  s.ip_th_contrast  ?? 1.4,
       u_invert:    s.ip_th_invert    ?? 0,
     }),
   },
@@ -1121,30 +1043,67 @@ void main() {
   posterize: {
     name: 'Posterize',
     params: [
-      { id: 'ip_po_levels',   label: 'Levels',     min: 2, max: 12, step: 1,    default: 4   },
-      { id: 'ip_po_saturate', label: 'Saturation', min: 0, max: 2,  step: 0.05, default: 1.4 },
+      { id: 'ip_po_levels',   label: 'Levels',     min: 2, max: 12, step: 1,    default: 5   },
+      { id: 'ip_po_saturate', label: 'Saturation', min: 0, max: 2,  step: 0.05, default: 1.3 },
+      { id: 'ip_po_dither',   label: 'Dither',     min: 0, max: 1,  step: 0.05, default: 0.5 },
     ],
+    // Color quantization with a 4×4 ordered-dither (Bayer) — banding turns
+    // into a pleasing retro-print stipple instead of harsh edges. Set
+    // Dither to 0 for clean flat regions, to 1 for full risograph feel.
     frag: /* glsl */`
 precision highp float;
 varying vec2 v_uv;
 uniform sampler2D u_image;
+uniform vec2 u_resolution;
 uniform float u_levels;
 uniform float u_saturate;
+uniform float u_dither;
+
+float bayer4(vec2 p) {
+  // 4x4 Bayer matrix, normalized to [-0.5, 0.5)
+  int x = int(mod(p.x, 4.0));
+  int y = int(mod(p.y, 4.0));
+  int idx = x + y * 4;
+  float v = 0.0;
+  if      (idx == 0)  v =  0.0;
+  else if (idx == 1)  v =  8.0;
+  else if (idx == 2)  v =  2.0;
+  else if (idx == 3)  v = 10.0;
+  else if (idx == 4)  v = 12.0;
+  else if (idx == 5)  v =  4.0;
+  else if (idx == 6)  v = 14.0;
+  else if (idx == 7)  v =  6.0;
+  else if (idx == 8)  v =  3.0;
+  else if (idx == 9)  v = 11.0;
+  else if (idx == 10) v =  1.0;
+  else if (idx == 11) v =  9.0;
+  else if (idx == 12) v = 15.0;
+  else if (idx == 13) v =  7.0;
+  else if (idx == 14) v = 13.0;
+  else                v =  5.0;
+  return (v / 16.0) - 0.5;
+}
 
 void main() {
   vec3 col = texture2D(u_image, v_uv).rgb;
-  // Boost saturation around luma
+  // Saturation curve around luma
   float luma = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(luma), col, u_saturate);
   col = clamp(col, 0.0, 1.0);
-  // Quantize to N levels per channel
-  col = floor(col * u_levels) / (u_levels - 1.0);
-  gl_FragColor = vec4(col, 1.0);
+  // Per-pixel dither offset (per channel — adds noise, hides banding)
+  vec2 px = v_uv * u_resolution;
+  float d = bayer4(px) * u_dither / max(u_levels, 2.0);
+  col += vec3(d);
+  // Quantize to N levels
+  float steps = max(u_levels - 1.0, 1.0);
+  col = floor(col * u_levels) / steps;
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `,
     uniforms: (s) => ({
-      u_levels:   s.ip_po_levels   ?? 4,
-      u_saturate: s.ip_po_saturate ?? 1.4,
+      u_levels:   s.ip_po_levels   ?? 5,
+      u_saturate: s.ip_po_saturate ?? 1.3,
+      u_dither:   s.ip_po_dither   ?? 0.5,
     }),
   },
 
