@@ -52,37 +52,50 @@ async function loadCoco() {
   cocoLoading = false;
 }
 
-// ── Brightness peak detection (fallback) ─────────────────────────────────────
+// ── Motion detection (frame differencing) ──────────────────────────────────
+// Find local peaks of pixel change between current and previous frame.
+// Catches any moving subject regardless of class — works on crowds,
+// murmurations, and anything COCO doesn't have a label for.
 
-function detectBrightness(canvas, W, H, threshold, maxBlobs) {
-  const sW = 48, sH = 36;
+function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs) {
+  if (!prevCanvas || prevCanvas.width === 0) return [];
+
+  const sW = 64, sH = 40;
   const off = document.createElement('canvas');
-  off.width = sW; off.height = sH;
+  off.width = sW * 2; off.height = sH;
   const c = off.getContext('2d', { willReadFrequently: true });
-  c.drawImage(canvas, 0, 0, sW, sH);
-  const d = c.getImageData(0, 0, sW, sH).data;
-  const cellW = W / sW, cellH = H / sH;
+  c.drawImage(curCanvas, 0, 0, sW, sH);
+  c.drawImage(prevCanvas, sW, 0, sW, sH);
 
-  const g = new Float32Array(sW * sH);
+  const cur = c.getImageData(0, 0, sW, sH).data;
+  const prev = c.getImageData(sW, 0, sW, sH).data;
+
+  // Per-cell motion = mean abs RGB delta, normalized to 0..1
+  const m = new Float32Array(sW * sH);
   for (let i = 0; i < sW * sH; i++) {
     const j = i * 4;
-    g[i] = (d[j] * 0.299 + d[j+1] * 0.587 + d[j+2] * 0.114) / 255;
+    const dr = Math.abs(cur[j]   - prev[j]);
+    const dg = Math.abs(cur[j+1] - prev[j+1]);
+    const db = Math.abs(cur[j+2] - prev[j+2]);
+    m[i] = (dr + dg + db) / 765; // /3/255
   }
 
+  const cellW = W / sW, cellH = H / sH;
   const peaks = [];
-  for (let y = 1; y < sH - 1; y++) {
-    for (let x = 1; x < sW - 1; x++) {
-      const v = g[y * sW + x];
+  // Local-max search in a 3-cell radius — gives broader peaks for moving groups
+  for (let y = 2; y < sH - 2; y++) {
+    for (let x = 2; x < sW - 2; x++) {
+      const v = m[y * sW + x];
       if (v < threshold) continue;
       let isMax = true;
-      for (let dy = -1; dy <= 1 && isMax; dy++)
-        for (let dx = -1; dx <= 1 && isMax; dx++) {
+      for (let dy = -2; dy <= 2 && isMax; dy++)
+        for (let dx = -2; dx <= 2 && isMax; dx++) {
           if (!dx && !dy) continue;
-          if (g[(y+dy) * sW + (x+dx)] >= v) isMax = false;
+          if (m[(y+dy) * sW + (x+dx)] > v) isMax = false;
         }
       if (isMax) peaks.push({
         x: (x + 0.5) * cellW, y: (y + 0.5) * cellH,
-        w: cellW * 2, h: cellH * 2,
+        w: cellW * 3, h: cellH * 3,
         label: null, score: v
       });
     }
@@ -100,6 +113,7 @@ export class BlobTrack extends Algorithm {
     this._blobs = [];
     this._nextId = 900;
     this._cap = null;
+    this._prevFrame = null;
     this._cocoDetections = [];
     this._lastCocoTime = 0;
     this._cocoPending = false;
@@ -108,12 +122,13 @@ export class BlobTrack extends Algorithm {
 
   get metadata() {
     return { name: 'Blob Track', eq: 'detect × annotate', cat: 'Data Art',
-      desc: 'Object + blob tracking. Uses AI to detect people, animals, cars. Image crops in boxes. Full mesh lines.' };
+      desc: 'Object detection overlay. AI Only = clean COCO-SSD boxes (people/animals/vehicles). Gallery mode adds motion blobs, mesh, and poetry.' };
   }
 
   get params() {
     return [
-      { id: 'bt_threshold', label: 'Threshold', min: 0.1,  max: 0.95, step: 0.02 },
+      { id: 'bt_aiOnly',    label: 'AI Only',   min: 0,    max: 1,    step: 1    },
+      { id: 'bt_threshold', label: 'Threshold', min: 0.02, max: 0.5,  step: 0.01 },
       { id: 'bt_maxBlobs',  label: 'Max Blobs', min: 2,    max: 50,   step: 1    },
       { id: 'bt_boxSize',   label: 'Box Size',  min: 15,   max: 80,   step: 1    },
       { id: 'bt_lines',     label: 'Lines',     min: 0,    max: 1,    step: 0.05 },
@@ -127,25 +142,33 @@ export class BlobTrack extends Algorithm {
   animate() {}
 
   randomize(state, set) {
-    set('bt_threshold', parseFloat((0.15 + Math.random() * 0.4).toFixed(2)));
+    // AI Only randomizes only model-relevant params; gallery mode also randomizes mesh + colors
+    const ai = Math.round(state.bt_aiOnly ?? 1) === 1;
+    set('bt_threshold', parseFloat((0.04 + Math.random() * 0.2).toFixed(2)));
     set('bt_maxBlobs',  Math.floor(5 + Math.random() * 30));
     set('bt_boxSize',   Math.floor(20 + Math.random() * 50));
-    set('bt_lines',     parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
     set('bt_text',      Math.floor(8 + Math.random() * 8));
-    set('bt_color',     Math.round(Math.random()));
     set('bt_seed',      Math.floor(Math.random() * 100));
+    if (!ai) {
+      set('bt_lines',   parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
+      set('bt_color',   Math.round(Math.random()));
+    }
   }
 
   render(ctx, world) {
     const { W, H, state: s } = world;
-    const threshold = s.bt_threshold ?? 0.4;
+    const aiOnly   = Math.round(s.bt_aiOnly ?? 1) === 1;
+    const threshold = s.bt_threshold ?? 0.08;
     const maxBlobs  = Math.round(s.bt_maxBlobs ?? 15);
     const boxSize   = s.bt_boxSize ?? 35;
-    const lineAmt   = s.bt_lines ?? 0.5;
+    const lineAmt   = s.bt_lines ?? 0;
     const textSize  = Math.round(s.bt_text ?? 11);
     const multiColor = Math.round(s.bt_color ?? 0) === 1;
     const seed      = Math.round(s.bt_seed ?? 42);
     const fg        = s.fgColor || '#ffffff';
+    const maxBoxDim = Math.min(W, H) * 0.35;
+    const minDim    = Math.min(W, H);
+    const canvasArea = W * H;
 
     // ── Capture canvas ───────────────────────────────────────────────────────
     if (!this._cap) this._cap = document.createElement('canvas');
@@ -160,7 +183,12 @@ export class BlobTrack extends Algorithm {
       this._lastCocoTime = now;
       cocoModel.detect(this._cap, maxBlobs).then(preds => {
         this._cocoDetections = preds
-          .filter(p => p.score >= 0.5)
+          .filter(p => {
+            if (p.score < 0.5) return false;
+            // Reject giant boxes — usually false positives covering most of the frame
+            if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.5) return false;
+            return true;
+          })
           .map(p => ({
             x: p.bbox[0] + p.bbox[2] / 2,
             y: p.bbox[1] + p.bbox[3] / 2,
@@ -173,21 +201,22 @@ export class BlobTrack extends Algorithm {
       }).catch(() => { this._cocoPending = false; });
     }
 
-    // ── Brightness fallback detection ────────────────────────────────────────
-    const brightBlobs = detectBrightness(ctx.canvas, W, H, threshold, maxBlobs);
+    // ── Motion fallback (frame diff) — only when AI Only mode is off ─────────
+    let motionBlobs = [];
+    if (!aiOnly) {
+      motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs);
+    }
 
-    // ── Combine: COCO detections + brightness blobs ──────────────────────────
-    // COCO detections take priority (they're real objects)
+    // ── Combine: COCO detections + motion blobs (motion is fallback) ─────────
     const allDetections = [...this._cocoDetections];
-    // Add brightness blobs that don't overlap with COCO detections
-    for (const bb of brightBlobs) {
+    for (const mb of motionBlobs) {
       let overlaps = false;
       for (const cd of this._cocoDetections) {
-        if (Math.hypot(bb.x - cd.x, bb.y - cd.y) < Math.max(cd.w, cd.h) * 0.5) {
+        if (Math.hypot(mb.x - cd.x, mb.y - cd.y) < Math.max(cd.w, cd.h) * 0.5) {
           overlaps = true; break;
         }
       }
-      if (!overlaps) allDetections.push(bb);
+      if (!overlaps) allDetections.push(mb);
     }
 
     // ── Match to existing blobs (with velocity prediction) ───────────────────
@@ -278,15 +307,27 @@ export class BlobTrack extends Algorithm {
       b.y = Math.max(5, Math.min(H - 5, b.y));
     }
 
-    // Show confirmed blobs (3+ frames)
-    const visible = this._blobs.filter(b => b.confirmed >= 3 && b.missing < 40);
+    // Save current frame as prev for next-frame motion diff
+    if (!aiOnly) {
+      if (!this._prevFrame) this._prevFrame = document.createElement('canvas');
+      this._prevFrame.width = Math.round(W);
+      this._prevFrame.height = Math.round(H);
+      this._prevFrame.getContext('2d').drawImage(this._cap, 0, 0);
+    }
+
+    // Show confirmed blobs (3+ frames). In AI-only mode, hide unlabeled blobs.
+    const visible = this._blobs.filter(b => {
+      if (b.confirmed < 3 || b.missing >= 40) return false;
+      if (aiOnly && !b.label) return false;
+      return true;
+    });
     if (visible.length === 0) return;
 
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
 
-    // ── Full mesh lines ──────────────────────────────────────────────────────
-    if (lineAmt > 0 && visible.length > 1) {
+    // ── Full mesh lines (gallery mode only — 2018-style demos have no mesh) ──
+    if (!aiOnly && lineAmt > 0 && visible.length > 1) {
       ctx.lineWidth = 0.7;
       for (let i = 0; i < visible.length; i++) {
         for (let j = i + 1; j < visible.length; j++) {
@@ -309,8 +350,9 @@ export class BlobTrack extends Algorithm {
       if (fade < 0.02) continue;
 
       const color = multiColor ? MULTI_COLORS[blob.colorIdx] : fg;
-      const bw = Math.max(20, blob.w);
-      const bh = Math.max(15, blob.h);
+      // Cap rendered box size — even if blob.w grew huge, never paint beyond ~35% of min dim
+      const bw = Math.min(maxBoxDim, Math.max(20, blob.w));
+      const bh = Math.min(maxBoxDim, Math.max(15, blob.h));
       const bx = blob.x - bw / 2;
       const by = blob.y - bh / 2;
 
@@ -331,26 +373,29 @@ export class BlobTrack extends Algorithm {
       ctx.moveTo(bx+bw-tick, by+bh); ctx.lineTo(bx+bw, by+bh); ctx.lineTo(bx+bw, by+bh-tick);
       ctx.stroke();
 
-      // Label: object name if detected, otherwise integer ID
+      // Label: 2018-style minimal in AI-only mode (just class name above box).
+      // Gallery mode keeps the labeled-box-with-confidence + integer IDs + poetry.
       ctx.font = `${textSize}px Helvetica, Arial, sans-serif`;
       ctx.fillStyle = color;
-      ctx.globalAlpha = fade * 0.9;
+      ctx.globalAlpha = fade * 0.95;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
-      if (blob.label) {
-        // Real object: show class name + confidence
-        ctx.fillText(`${blob.label} ${Math.round((blob.score || 0) * 100)}%`, bx, by + bh + 2);
+      if (aiOnly) {
+        if (blob.label) {
+          ctx.fillText(blob.label, bx, by - textSize - 2);
+        }
       } else {
-        // Brightness blob: show integer ID
-        ctx.fillText(String(blob.id), bx, by + bh + 2);
-      }
-
-      // Text annotation
-      if (blob.age > 10 && (blob.id + seed) % 3 === 0) {
-        ctx.font = `italic ${textSize - 1}px Helvetica, Arial, sans-serif`;
-        ctx.globalAlpha = fade * 0.45;
-        ctx.fillText(TEXT_POOL[blob.textIdx % TEXT_POOL.length], bx, by + bh + textSize + 5);
+        if (blob.label) {
+          ctx.fillText(`${blob.label} ${Math.round((blob.score || 0) * 100)}%`, bx, by + bh + 2);
+        } else {
+          ctx.fillText(String(blob.id), bx, by + bh + 2);
+        }
+        if (blob.age > 10 && (blob.id + seed) % 3 === 0) {
+          ctx.font = `italic ${textSize - 1}px Helvetica, Arial, sans-serif`;
+          ctx.globalAlpha = fade * 0.45;
+          ctx.fillText(TEXT_POOL[blob.textIdx % TEXT_POOL.length], bx, by + bh + textSize + 5);
+        }
       }
     }
 
