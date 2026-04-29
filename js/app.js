@@ -151,12 +151,20 @@ document.getElementById('ip-file-input')?.addEventListener('change', e => {
   const loader = isVideo ? imageProcessor.loadVideo(file) : imageProcessor.loadImage(file);
   loader.then(() => {
     if (ipControls) ipControls.style.display = '';
-    // Auto-play for video so frames update
     if (isVideo && !state.playing) {
       set('playing', true);
       updatePlayUI();
     }
     markDirty();
+  }).catch(err => {
+    console.error('Failed to load file:', err);
+    // Fallback: try loading as image even if type says video
+    if (isVideo) {
+      imageProcessor.loadImage(file).then(() => {
+        if (ipControls) ipControls.style.display = '';
+        markDirty();
+      });
+    }
   });
 });
 

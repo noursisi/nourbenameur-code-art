@@ -1,16 +1,10 @@
 /**
  * Blob Track — TouchDesigner-style blob detection overlay.
- * Detects bright/interesting regions, draws animated tracking boxes,
- * connection lines, and text annotations. Alive and scanning.
- * Re-detects every frame for video. Animates for photos.
+ * Detects bright/contrasty regions, draws cyan tracking boxes with hex IDs,
+ * full-mesh connection lines between all blobs, optional text annotations.
  */
 
 import { Algorithm } from '../base.js';
-
-function makeLCG(seed) {
-  let s = (seed | 0) >>> 0;
-  return () => { s = Math.imul(s, 1664525) + 1013904223 | 0; return (s >>> 0) / 0xFFFFFFFF; };
-}
 
 const TEXT_POOL = [
   'Heartbeat lost in frames per second,',
@@ -29,121 +23,77 @@ const TEXT_POOL = [
   'I saw the break.',
   'Signal lost between the frames,',
   'Nothing here was ever saved.',
-  'Data streams through empty veins,',
-  'Phantom motion, no one came.',
   'Every pixel holds a ghost,',
-  'Of the thing I needed most.',
-  'Contour map of what went wrong,',
-  'Binary hearts don\'t beat for long.',
-  'Rendered out, then thrown away,',
-  'Just another empty frame.',
   'The algorithm remembers you,',
-  'Even when I tell it not to.',
 ];
 
-// ── Blob detection ───────────────────────────────────────────────────────────
+// ── Fast blob detection (tiny downsampled canvas) ────────────────────────────
 
-function detectBlobs(ctx, W, H, threshold, maxBlobs) {
-  const dpr = window.devicePixelRatio || 1;
-  let imageData;
-  try {
-    imageData = ctx.getImageData(0, 0, Math.round(W * dpr), Math.round(H * dpr));
-  } catch (e) {
-    return [];
+function detectBlobs(sourceCanvas, W, H, threshold, maxBlobs) {
+  // Downsample to tiny resolution for speed
+  const sW = 80, sH = 60;
+  const off = document.createElement('canvas');
+  off.width = sW;
+  off.height = sH;
+  const offCtx = off.getContext('2d', { willReadFrequently: true });
+  offCtx.drawImage(sourceCanvas, 0, 0, sW, sH);
+  const data = offCtx.getImageData(0, 0, sW, sH).data;
+
+  const cellW = W / sW;
+  const cellH = H / sH;
+
+  // Compute brightness + edge strength
+  const grid = new Float32Array(sW * sH);
+  for (let i = 0; i < sW * sH; i++) {
+    const idx = i * 4;
+    grid[i] = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114) / 255;
   }
 
-  const data = imageData.data;
-  const imgW = imageData.width;
-  const imgH = imageData.height;
-
-  // Downsample to grid
-  const gridW = Math.min(60, Math.floor(imgW / 8));
-  const gridH = Math.min(45, Math.floor(imgH / 8));
-
-  const grid = [];
-  for (let gy = 0; gy < gridH; gy++) {
-    grid[gy] = [];
-    for (let gx = 0; gx < gridW; gx++) {
-      const sx = Math.floor((gx + 0.5) / gridW * imgW);
-      const sy = Math.floor((gy + 0.5) / gridH * imgH);
-      const idx = (sy * imgW + sx) * 4;
-      grid[gy][gx] = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114) / 255;
-    }
-  }
-
-  // Also compute edge strength (gradient magnitude)
-  const edges = [];
-  for (let gy = 1; gy < gridH - 1; gy++) {
-    edges[gy] = [];
-    for (let gx = 1; gx < gridW - 1; gx++) {
-      const gxVal = grid[gy][gx + 1] - grid[gy][gx - 1];
-      const gyVal = grid[gy + 1][gx] - grid[gy - 1][gx];
-      edges[gy][gx] = Math.sqrt(gxVal * gxVal + gyVal * gyVal);
-    }
-  }
-
-  // Find interesting points: bright OR high edge contrast
+  // Find interest points (brightness + edges)
   const peaks = [];
-  const cellW = W / gridW;
-  const cellH = H / gridH;
-
-  for (let gy = 2; gy < gridH - 2; gy++) {
-    for (let gx = 2; gx < gridW - 2; gx++) {
-      const brightness = grid[gy][gx];
-      const edge = edges[gy]?.[gx] || 0;
-      const interest = brightness * 0.6 + edge * 2.5; // combine brightness + edges
+  for (let y = 2; y < sH - 2; y++) {
+    for (let x = 2; x < sW - 2; x++) {
+      const b = grid[y * sW + x];
+      const gx = grid[y * sW + x + 1] - grid[y * sW + x - 1];
+      const gy = grid[(y + 1) * sW + x] - grid[(y - 1) * sW + x];
+      const edge = Math.sqrt(gx * gx + gy * gy);
+      const interest = b * 0.5 + edge * 3.0;
 
       if (interest < threshold) continue;
 
-      // Local maximum check (5x5 area)
+      // Local max (3x3)
       let isMax = true;
-      for (let dy = -2; dy <= 2 && isMax; dy++) {
-        for (let dx = -2; dx <= 2 && isMax; dx++) {
+      for (let dy = -1; dy <= 1 && isMax; dy++) {
+        for (let dx = -1; dx <= 1 && isMax; dx++) {
           if (dx === 0 && dy === 0) continue;
-          const ny = gy + dy, nx = gx + dx;
-          if (ny < 0 || ny >= gridH || nx < 0 || nx >= gridW) continue;
-          const nEdge = edges[ny]?.[nx] || 0;
-          const nInterest = grid[ny][nx] * 0.6 + nEdge * 2.5;
-          if (nInterest >= interest) isMax = false;
+          const ni = (y + dy) * sW + (x + dx);
+          const nb = grid[ni];
+          const ngx = grid[(y + dy) * sW + (x + dx + 1)] - grid[(y + dy) * sW + (x + dx - 1)];
+          const ngy = grid[((y + dy) + 1) * sW + (x + dx)] - grid[((y + dy) - 1) * sW + (x + dx)];
+          const ne = Math.sqrt(ngx * ngx + ngy * ngy);
+          if (nb * 0.5 + ne * 3.0 >= interest) isMax = false;
         }
       }
-
-      if (isMax) {
-        peaks.push({
-          x: (gx + 0.5) * cellW,
-          y: (gy + 0.5) * cellH,
-          brightness,
-          edge,
-          interest,
-        });
-      }
+      if (isMax) peaks.push({ x: (x + 0.5) * cellW, y: (y + 0.5) * cellH, interest });
     }
   }
 
-  // Merge nearby peaks
+  // Merge nearby
   const merged = [];
   const used = new Set();
-  const mergeRadius = Math.min(W, H) * 0.06;
-
+  const mergeR = Math.min(W, H) * 0.05;
   for (let i = 0; i < peaks.length; i++) {
     if (used.has(i)) continue;
-    let cx = peaks[i].x, cy = peaks[i].y;
-    let best = peaks[i].interest;
-    let count = 1;
-
+    let cx = peaks[i].x, cy = peaks[i].y, best = peaks[i].interest, n = 1;
     for (let j = i + 1; j < peaks.length; j++) {
       if (used.has(j)) continue;
-      const dx = peaks[i].x - peaks[j].x;
-      const dy = peaks[i].y - peaks[j].y;
-      if (Math.sqrt(dx * dx + dy * dy) < mergeRadius) {
-        cx += peaks[j].x;
-        cy += peaks[j].y;
+      if (Math.hypot(peaks[i].x - peaks[j].x, peaks[i].y - peaks[j].y) < mergeR) {
+        cx += peaks[j].x; cy += peaks[j].y;
         best = Math.max(best, peaks[j].interest);
-        count++;
-        used.add(j);
+        n++; used.add(j);
       }
     }
-    merged.push({ x: cx / count, y: cy / count, interest: best, size: count });
+    merged.push({ x: cx / n, y: cy / n, interest: best });
     used.add(i);
   }
 
@@ -156,10 +106,8 @@ function detectBlobs(ctx, W, H, threshold, maxBlobs) {
 export class BlobTrack extends Algorithm {
   constructor(engine) {
     super(engine);
-    // Persistent blob state for smooth animation
-    this._trackedBlobs = [];
-    this._blobIdCounter = 900;
-    this._lastDetectTime = 0;
+    this._tracked = [];
+    this._idCounter = 0;
   }
 
   get metadata() {
@@ -167,7 +115,7 @@ export class BlobTrack extends Algorithm {
       name: 'Blob Track',
       eq: 'detect × annotate',
       cat: 'Data Art',
-      desc: 'TouchDesigner-style blob tracking — detects bright regions, draws animated tracking boxes with IDs, connection lines, and text annotations.',
+      desc: 'TouchDesigner blob tracking — cyan boxes, hex IDs, full-mesh connection lines, text annotations.',
     };
   }
 
@@ -175,7 +123,7 @@ export class BlobTrack extends Algorithm {
     return [
       { id: 'bt_threshold', label: 'Threshold', min: 0.05, max: 0.95, step: 0.02 },
       { id: 'bt_maxBlobs',  label: 'Max Blobs', min: 3,    max: 40,   step: 1    },
-      { id: 'bt_boxSize',   label: 'Box Size',  min: 10,   max: 80,   step: 1    },
+      { id: 'bt_boxSize',   label: 'Box Size',  min: 8,    max: 60,   step: 1    },
       { id: 'bt_lines',     label: 'Lines',     min: 0,    max: 1,    step: 0.05 },
       { id: 'bt_text',      label: 'Text Size', min: 6,    max: 18,   step: 1    },
       { id: 'bt_jitter',    label: 'Jitter',    min: 0,    max: 1,    step: 0.05 },
@@ -184,140 +132,97 @@ export class BlobTrack extends Algorithm {
   }
 
   get detailParam() { return { id: 'bt_threshold', min: 0.05, max: 0.95, step: 0.02 }; }
-
-  animate(world) {
-    // Continuously re-detect for video sources, periodically for photos
-    const t = world.state.time ?? 0;
-    // Animation drives jitter — no need to mutate state here
-  }
+  animate() {}
 
   randomize(state, set) {
-    set('bt_threshold', parseFloat((0.15 + Math.random() * 0.5).toFixed(2)));
+    set('bt_threshold', parseFloat((0.1 + Math.random() * 0.5).toFixed(2)));
     set('bt_maxBlobs',  Math.floor(5 + Math.random() * 25));
-    set('bt_boxSize',   Math.floor(15 + Math.random() * 50));
-    set('bt_lines',     parseFloat((Math.random() * 0.8 + 0.1).toFixed(2)));
-    set('bt_text',      parseFloat((Math.random() * 0.8 + 0.1).toFixed(2)));
-    set('bt_jitter',    parseFloat((Math.random() * 0.6 + 0.1).toFixed(2)));
+    set('bt_boxSize',   Math.floor(12 + Math.random() * 35));
+    set('bt_lines',     parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
+    set('bt_text',      Math.floor(8 + Math.random() * 8));
+    set('bt_jitter',    parseFloat((Math.random() * 0.5).toFixed(2)));
     set('bt_seed',      Math.floor(Math.random() * 100));
   }
 
   render(ctx, world) {
     const { W, H, state: s } = world;
-
     const threshold = s.bt_threshold ?? 0.3;
     const maxBlobs  = Math.round(s.bt_maxBlobs ?? 15);
-    const boxSize   = s.bt_boxSize ?? 30;
+    const boxSize   = s.bt_boxSize ?? 25;
     const lineAmt   = s.bt_lines ?? 0.5;
     const textSize  = Math.round(s.bt_text ?? 11);
-    const jitter    = s.bt_jitter ?? 0.3;
+    const jitter    = s.bt_jitter ?? 0.2;
     const seed      = Math.round(s.bt_seed ?? 42);
     const t         = s.time ?? 0;
-    // Use the foreground color from the Style panel
     const fg        = s.fgColor || '#ffffff';
 
-    const rng = makeLCG(seed * 7919 + 31337);
+    // ── Detect every frame ───────────────────────────────────────────────────
+    const rawBlobs = detectBlobs(ctx.canvas, W, H, threshold, maxBlobs);
 
-    // ── Re-detect blobs (every frame for video, periodically for photos) ─────
-    const now = performance.now();
-    const detectInterval = 50; // ms between re-detections (faster for video)
+    // ── Track: match to existing, smooth positions ───────────────────────────
+    const newTracked = [];
+    const usedOld = new Set();
 
-    if (now - this._lastDetectTime > detectInterval) {
-      const rawBlobs = detectBlobs(ctx, W, H, threshold, maxBlobs);
-      this._lastDetectTime = now;
-
-      // Match detected blobs to existing tracked blobs (simple nearest-neighbor)
-      const newTracked = [];
-      const usedOld = new Set();
-
-      for (const raw of rawBlobs) {
-        let bestDist = Infinity;
-        let bestIdx = -1;
-
-        for (let i = 0; i < this._trackedBlobs.length; i++) {
-          if (usedOld.has(i)) continue;
-          const dx = raw.x - this._trackedBlobs[i].x;
-          const dy = raw.y - this._trackedBlobs[i].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < bestDist && dist < W * 0.15) {
-            bestDist = dist;
-            bestIdx = i;
-          }
-        }
-
-        if (bestIdx >= 0) {
-          // Smooth toward new position
-          const old = this._trackedBlobs[bestIdx];
-          usedOld.add(bestIdx);
-          newTracked.push({
-            x: old.x + (raw.x - old.x) * 0.6,
-            y: old.y + (raw.y - old.y) * 0.6,
-            interest: raw.interest,
-            size: raw.size,
-            id: old.id,
-            textIdx: old.textIdx,
-            age: old.age + 1,
-            alpha: Math.min(1, old.alpha + 0.05),
-          });
-        } else {
-          // New blob
-          newTracked.push({
-            x: raw.x,
-            y: raw.y,
-            interest: raw.interest,
-            size: raw.size,
-            id: this._blobIdCounter++,
-            textIdx: Math.floor(rng() * TEXT_POOL.length),
-            age: 0,
-            alpha: 0.1, // fade in
-          });
-        }
+    for (const raw of rawBlobs) {
+      let bestDist = Infinity, bestIdx = -1;
+      for (let i = 0; i < this._tracked.length; i++) {
+        if (usedOld.has(i)) continue;
+        const d = Math.hypot(raw.x - this._tracked[i].x, raw.y - this._tracked[i].y);
+        if (d < bestDist && d < W * 0.12) { bestDist = d; bestIdx = i; }
       }
-
-      // Keep dying blobs briefly (fade out)
-      for (let i = 0; i < this._trackedBlobs.length; i++) {
-        if (!usedOld.has(i) && this._trackedBlobs[i].alpha > 0.05) {
-          const dying = { ...this._trackedBlobs[i] };
-          dying.alpha *= 0.85; // fade out
-          dying.age++;
-          newTracked.push(dying);
-        }
+      if (bestIdx >= 0) {
+        const old = this._tracked[bestIdx];
+        usedOld.add(bestIdx);
+        newTracked.push({
+          x: old.x + (raw.x - old.x) * 0.7,
+          y: old.y + (raw.y - old.y) * 0.7,
+          interest: raw.interest,
+          id: old.id,
+          textIdx: old.textIdx,
+          age: old.age + 1,
+          alpha: Math.min(1, old.alpha + 0.1),
+        });
+      } else {
+        newTracked.push({
+          x: raw.x, y: raw.y,
+          interest: raw.interest,
+          id: this._idCounter++,
+          textIdx: Math.floor(Math.random() * TEXT_POOL.length),
+          age: 0, alpha: 0.3,
+        });
       }
-
-      this._trackedBlobs = newTracked;
     }
+    // Fade dying blobs
+    for (let i = 0; i < this._tracked.length; i++) {
+      if (!usedOld.has(i) && this._tracked[i].alpha > 0.05) {
+        const d = { ...this._tracked[i], alpha: this._tracked[i].alpha * 0.8, age: this._tracked[i].age + 1 };
+        newTracked.push(d);
+      }
+    }
+    this._tracked = newTracked;
 
-    if (this._trackedBlobs.length === 0) return;
+    if (this._tracked.length === 0) return;
 
-    const blobs = this._trackedBlobs;
-
-    ctx.save();
-
-    // Clip everything to canvas bounds
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, W, H);
     ctx.clip();
 
-    // ── Connection lines (always between ALL blobs, chain nearest) ─────────
-    if (lineAmt > 0 && blobs.length > 1) {
-      ctx.strokeStyle = fg;
-      ctx.lineWidth = 0.7;
-      ctx.globalAlpha = lineAmt * 0.6;
+    const blobs = this._tracked.filter(b => b.alpha > 0.05);
 
-      // Connect each blob to its nearest neighbor
+    // ── FULL MESH connection lines (every blob to every other blob) ──────────
+    if (lineAmt > 0 && blobs.length > 1) {
+      ctx.lineWidth = 0.6;
       for (let i = 0; i < blobs.length; i++) {
-        const a = blobs[i];
-        if (a.alpha < 0.15) continue;
-        let bestDist = Infinity, bestJ = -1;
-        for (let j = 0; j < blobs.length; j++) {
-          if (i === j || blobs[j].alpha < 0.15) continue;
-          const d = Math.sqrt((a.x - blobs[j].x) ** 2 + (a.y - blobs[j].y) ** 2);
-          if (d < bestDist) { bestDist = d; bestJ = j; }
-        }
-        if (bestJ >= 0) {
+        for (let j = i + 1; j < blobs.length; j++) {
+          const a = blobs[i], b = blobs[j];
+          const alpha = Math.min(a.alpha, b.alpha) * lineAmt * 0.5;
+          if (alpha < 0.02) continue;
+          ctx.strokeStyle = fg;
+          ctx.globalAlpha = alpha;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
-          ctx.lineTo(blobs[bestJ].x, blobs[bestJ].y);
+          ctx.lineTo(b.x, b.y);
           ctx.stroke();
         }
       }
@@ -326,68 +231,56 @@ export class BlobTrack extends Algorithm {
 
     // ── Tracking boxes ───────────────────────────────────────────────────────
     for (const blob of blobs) {
-      if (blob.alpha < 0.03) continue;
-
-      // Animated jitter
-      const jx = Math.sin(t * 3.7 + blob.id * 0.37) * jitter * 4;
-      const jy = Math.cos(t * 2.9 + blob.id * 0.53) * jitter * 4;
+      const jx = jitter > 0 ? Math.sin(t * 4.1 + blob.id * 0.37) * jitter * 3 : 0;
+      const jy = jitter > 0 ? Math.cos(t * 3.3 + blob.id * 0.53) * jitter * 3 : 0;
       const bx = blob.x + jx;
       const by = blob.y + jy;
 
-      const bw = boxSize * (0.5 + (blob.interest || 0.5) * 0.8 + (blob.size || 1) * 0.08);
-      const bh = bw * (0.5 + Math.abs(Math.sin(blob.id * 1.7)) * 0.7);
-      const dw = bw / 2, dh = bh / 2;
+      const bw = boxSize * (0.6 + (blob.interest || 0.5) * 0.6);
+      const bh = bw * (0.5 + Math.abs(Math.sin(blob.id * 1.7)) * 0.8);
+      const hw = bw / 2, hh = bh / 2;
 
-      const alpha = blob.alpha;
-
-      // Box outline
+      // Box outline (cyan like the reference)
       ctx.strokeStyle = fg;
-      ctx.globalAlpha = alpha * 0.6;
-      ctx.lineWidth = 0.8;
-      ctx.strokeRect(bx - dw, by - dh, dw * 2, dh * 2);
+      ctx.globalAlpha = blob.alpha * 0.7;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx - hw, by - hh, bw, bh);
 
       // Corner ticks
-      const tickLen = Math.min(8, dw * 0.3);
-      ctx.globalAlpha = alpha * 0.9;
-      ctx.lineWidth = 1.2;
-      const corners = [
-        [bx - dw, by - dh, 1, 1],
-        [bx + dw, by - dh, -1, 1],
-        [bx - dw, by + dh, 1, -1],
-        [bx + dw, by + dh, -1, -1],
-      ];
-      for (const [cx, cy, sx, sy] of corners) {
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - tickLen * sy);
-        ctx.lineTo(cx, cy);
-        ctx.lineTo(cx + tickLen * sx, cy);
-        ctx.stroke();
-      }
+      const tick = Math.min(6, hw * 0.3);
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = blob.alpha * 0.9;
+      // TL
+      ctx.beginPath(); ctx.moveTo(bx - hw, by - hh + tick); ctx.lineTo(bx - hw, by - hh); ctx.lineTo(bx - hw + tick, by - hh); ctx.stroke();
+      // TR
+      ctx.beginPath(); ctx.moveTo(bx + hw - tick, by - hh); ctx.lineTo(bx + hw, by - hh); ctx.lineTo(bx + hw, by - hh + tick); ctx.stroke();
+      // BL
+      ctx.beginPath(); ctx.moveTo(bx - hw, by + hh - tick); ctx.lineTo(bx - hw, by + hh); ctx.lineTo(bx - hw + tick, by + hh); ctx.stroke();
+      // BR
+      ctx.beginPath(); ctx.moveTo(bx + hw - tick, by + hh); ctx.lineTo(bx + hw, by + hh); ctx.lineTo(bx + hw, by + hh - tick); ctx.stroke();
 
-      // ID number (no blinking — always visible)
+      // Hex ID (like "0xA3")
+      const hexId = '0x' + (blob.id & 0xFF).toString(16).toUpperCase().padStart(2, '0');
       ctx.font = `${textSize}px monospace`;
       ctx.fillStyle = fg;
-      ctx.globalAlpha = alpha * 0.8;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(blob.id), bx, by);
+      ctx.globalAlpha = blob.alpha * 0.85;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(hexId, bx - hw, by - hh - 2);
 
-      // Text annotation (bigger, readable, no randomization per frame)
-      if (blob.age > 3) {
+      // Text annotation (only some blobs, based on seed)
+      if (blob.age > 2 && (blob.id + seed) % 3 === 0) {
         const text = TEXT_POOL[blob.textIdx % TEXT_POOL.length];
-        ctx.font = `italic ${textSize}px serif`;
-        ctx.fillStyle = fg;
-        ctx.globalAlpha = alpha * 0.7;
+        ctx.font = `italic ${textSize - 1}px serif`;
+        ctx.globalAlpha = blob.alpha * 0.6;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText(text, bx - dw, by + dh + 4);
+        ctx.fillText(text, bx - hw, by + hh + 3);
       }
     }
 
     ctx.globalAlpha = 1;
-
-    ctx.restore(); // end clip
-    ctx.restore(); // end save
+    ctx.restore();
   }
 
   collectSVG() { return null; }
