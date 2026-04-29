@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-t loaded');
+console.log('[BlobTrack] build 2026-04-29-u loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -464,11 +464,18 @@ export class BlobTrack extends Algorithm {
       const wp = this._tracker.toWork(b.x, b.y);
       const sr = Math.max(8, Math.min(b.template.w, b.template.h) * 0.7);
       const m = this._tracker.match(b.template, wp.x, wp.y, sr);
-      // Only commit the move if confidence is decent — otherwise the box
-      // would drift onto a similar-looking patch (sky, wall, etc.).
-      if (m.conf > 0.55) {
-        b.x += m.dx / this._tracker._scale;
-        b.y += m.dy / this._tracker._scale;
+      // Two gates before committing a tracker move:
+      //  1. Match confidence > 0.55 (don't drift onto similar-looking patches)
+      //  2. Sub-pixel deadzone — ignore moves smaller than 2 work-pixels.
+      //     SAD always finds *some* "better" match each frame from sensor
+      //     noise alone; without this gate the box visibly shakes on a
+      //     stationary subject.
+      const mag = Math.max(Math.abs(m.dx), Math.abs(m.dy));
+      if (m.conf > 0.55 && mag >= 2) {
+        // Smooth the tracker correction (0.5x) so even valid moves are
+        // damped — looks much calmer than full-step commits.
+        b.x += (m.dx * 0.5) / this._tracker._scale;
+        b.y += (m.dy * 0.5) / this._tracker._scale;
         b.trackConf = m.conf;
         b.trackedAge++;
       } else {
