@@ -975,6 +975,18 @@ class ImageProcessor {
     this._hasPrevFrame = false;
   }
 
+  /** Play / pause an uploaded video. No-op for camera streams or images. */
+  setPlaying(playing) {
+    if (!this._source || this._source.tagName !== 'VIDEO') return;
+    if (this._source.srcObject) return; // live camera stream — leave alone
+    if (playing) {
+      const p = this._source.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } else {
+      this._source.pause();
+    }
+  }
+
   /** Remove current source */
   clear() {
     this._source = null;
@@ -1210,7 +1222,9 @@ class ImageProcessor {
 
     // Mirror X for webcam (video sources)
     const mirrorLoc = gl.getUniformLocation(prog, 'u_mirror');
-    if (mirrorLoc !== null) gl.uniform1f(mirrorLoc, this._sourceType === 'video' ? 1.0 : 0.0);
+    // Mirror only live camera streams (selfie view). Uploaded videos render unflipped.
+    const isCameraStream = !!(this._source && this._source.srcObject);
+    if (mirrorLoc !== null) gl.uniform1f(mirrorLoc, isCameraStream ? 1.0 : 0.0);
 
     // Bind image texture to unit 0
     gl.activeTexture(gl.TEXTURE0);

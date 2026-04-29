@@ -546,6 +546,8 @@ function updatePlayUI() {
     playStatus.textContent = 'PAUSED';
     playStatus.className = 'status-paused';
   }
+  // Keep uploaded video element in sync with play state
+  imageProcessor.setPlaying(state.playing);
 }
 
 playPauseBtn?.addEventListener('click', () => {

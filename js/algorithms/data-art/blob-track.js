@@ -40,8 +40,8 @@ async function loadCoco() {
   cocoLoading = true;
   try {
     if (typeof cocoSsd !== 'undefined') {
-      cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
-      console.log('[BlobTrack] COCO-SSD model loaded');
+      cocoModel = await cocoSsd.load({ base: 'mobilenet_v2' });
+      console.log('[BlobTrack] COCO-SSD model loaded (mobilenet_v2)');
     } else {
       cocoFailed = true;
     }
@@ -159,14 +159,16 @@ export class BlobTrack extends Algorithm {
       this._cocoPending = true;
       this._lastCocoTime = now;
       cocoModel.detect(this._cap, maxBlobs).then(preds => {
-        this._cocoDetections = preds.map(p => ({
-          x: p.bbox[0] + p.bbox[2] / 2,
-          y: p.bbox[1] + p.bbox[3] / 2,
-          w: p.bbox[2],
-          h: p.bbox[3],
-          label: p.class,
-          score: p.score,
-        }));
+        this._cocoDetections = preds
+          .filter(p => p.score >= 0.5)
+          .map(p => ({
+            x: p.bbox[0] + p.bbox[2] / 2,
+            y: p.bbox[1] + p.bbox[3] / 2,
+            w: p.bbox[2],
+            h: p.bbox[3],
+            label: p.class,
+            score: p.score,
+          }));
         this._cocoPending = false;
       }).catch(() => { this._cocoPending = false; });
     }
@@ -188,29 +190,60 @@ export class BlobTrack extends Algorithm {
       if (!overlaps) allDetections.push(bb);
     }
 
-    // ── Match to existing blobs ──────────────────────────────────────────────
-    const matchR = Math.min(W, H) * 0.15;
+    // ── Match to existing blobs (with velocity prediction) ───────────────────
+    const matchR = Math.min(W, H) * 0.25;
     const usedD = new Set();
 
     for (const blob of this._blobs) {
+      // Predict where the blob should be this frame, based on past velocity
+      const predX = blob.x + (blob.vx || 0);
+      const predY = blob.y + (blob.vy || 0);
+
       let bestD = Infinity, bestDi = -1;
       for (let di = 0; di < allDetections.length; di++) {
         if (usedD.has(di)) continue;
-        const d = Math.hypot(allDetections[di].x - blob.x, allDetections[di].y - blob.y);
+        const d = Math.hypot(allDetections[di].x - predX, allDetections[di].y - predY);
         if (d < bestD && d < matchR) { bestD = d; bestDi = di; }
       }
       if (bestDi >= 0) {
         const det = allDetections[bestDi];
         usedD.add(bestDi);
-        blob.x += (det.x - blob.x) * 0.4;
-        blob.y += (det.y - blob.y) * 0.4;
-        blob.w += (det.w - blob.w) * 0.3;
-        blob.h += (det.h - blob.h) * 0.3;
-        if (det.label) blob.label = det.label;
-        if (det.score > 0.3) blob.score = det.score;
+        const dx = det.x - blob.x;
+        const dy = det.y - blob.y;
+        // Velocity EMA — prediction tracks bulk motion
+        blob.vx = (blob.vx || 0) * 0.7 + dx * 0.3;
+        blob.vy = (blob.vy || 0) * 0.7 + dy * 0.3;
+        // Position smoothing — low value, residual correction only
+        blob.x += dx * 0.15;
+        blob.y += dy * 0.15;
+        blob.w += (det.w - blob.w) * 0.1;
+        blob.h += (det.h - blob.h) * 0.1;
+        // Sticky label — require new class to win 2 consecutive calls before overwriting
+        if (det.label && det.score >= 0.6) {
+          if (!blob.label || det.label === blob.label) {
+            blob.label = det.label;
+            blob.score = det.score;
+            blob.candidateLabel = null;
+            blob.candidateStreak = 0;
+          } else if (det.label === blob.candidateLabel) {
+            blob.candidateStreak = (blob.candidateStreak || 0) + 1;
+            if (blob.candidateStreak >= 2) {
+              blob.label = det.label;
+              blob.score = det.score;
+              blob.candidateLabel = null;
+              blob.candidateStreak = 0;
+            }
+          } else {
+            blob.candidateLabel = det.label;
+            blob.candidateStreak = 1;
+          }
+        }
         blob.missing = 0;
         blob.confirmed = Math.min(blob.confirmed + 1, 200);
       } else {
+        // No match — decay velocity so a lost blob coasts to a stop
+        blob.vx = (blob.vx || 0) * 0.85;
+        blob.vy = (blob.vy || 0) * 0.85;
         blob.missing++;
       }
       blob.age++;
@@ -224,9 +257,12 @@ export class BlobTrack extends Algorithm {
       this._blobs.push({
         x: det.x, y: det.y,
         w: det.w || boxSize, h: det.h || boxSize * 0.7,
+        vx: 0, vy: 0,
         id: this._nextId++,
         label: det.label || null,
         score: det.score || 0,
+        candidateLabel: null,
+        candidateStreak: 0,
         textIdx: Math.floor(Math.random() * TEXT_POOL.length),
         colorIdx: Math.floor(Math.random() * MULTI_COLORS.length),
         age: 0, missing: 0, confirmed: 1,
@@ -277,14 +313,6 @@ export class BlobTrack extends Algorithm {
       const bh = Math.max(15, blob.h);
       const bx = blob.x - bw / 2;
       const by = blob.y - bh / 2;
-
-      // Image crop inside box
-      ctx.globalAlpha = fade * 0.65;
-      try {
-        const srcX = Math.max(0, Math.round(blob.x - bw * 0.7));
-        const srcY = Math.max(0, Math.round(blob.y - bh * 0.7));
-        ctx.drawImage(this._cap, srcX, srcY, Math.round(bw * 1.4), Math.round(bh * 1.4), bx, by, bw, bh);
-      } catch (e) {}
 
       // Box outline
       ctx.strokeStyle = color;
