@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-j loaded');
+console.log('[BlobTrack] build 2026-04-29-k loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -104,23 +104,37 @@ const MODEL_NAMES = ['Fast (Lite)', 'Accurate (Mobile)'];
 let cocoModel = null;
 let cocoLoading = false;
 let cocoLoadedBase = null;
+let desiredBaseIdx = 1;
 
+// Hot-swap model loader: keeps the existing model alive until the new
+// one is ready (detection never blacks out). Handles concurrent slider
+// changes by looping until the loaded base matches the latest desired.
 async function loadCoco(baseIdx = 1) {
-  const base = MODEL_BASES[baseIdx] ?? 'mobilenet_v2';
-  if (cocoLoadedBase === base && cocoModel) return;
-  if (cocoLoading) return;
+  desiredBaseIdx = baseIdx;
+  if (cocoLoading) return;        // an existing loop will pick up the new desired
+  if (typeof cocoSsd === 'undefined') return;
   cocoLoading = true;
-  cocoModel = null;
   try {
-    if (typeof cocoSsd !== 'undefined') {
-      cocoModel = await cocoSsd.load({ base });
-      cocoLoadedBase = base;
-      console.log(`[BlobTrack] COCO-SSD loaded — ${MODEL_NAMES[baseIdx]} (${base})`);
+    while (cocoLoadedBase !== MODEL_BASES[desiredBaseIdx]) {
+      const targetIdx = desiredBaseIdx;
+      const base = MODEL_BASES[targetIdx];
+      try {
+        const newModel = await cocoSsd.load({ base });
+        // If the user slid again during this load, we'll just loop again
+        // and load the new target. Otherwise commit this one.
+        if (desiredBaseIdx === targetIdx) {
+          cocoModel = newModel;
+          cocoLoadedBase = base;
+          console.log(`[BlobTrack] active model: ${MODEL_NAMES[targetIdx]} (${base})`);
+        }
+      } catch (e) {
+        console.error('[BlobTrack] model load failed:', e);
+        break;
+      }
     }
-  } catch (e) {
-    console.error('[BlobTrack] COCO-SSD load failed:', e);
+  } finally {
+    cocoLoading = false;
   }
-  cocoLoading = false;
 }
 
 // ── Detect-then-track: low-res template tracker ─────────────────────────────
@@ -409,11 +423,11 @@ export class BlobTrack extends Algorithm {
     const modelIdx    = Math.round(s.bt_model ?? 1);
     const classFilter = Math.round(s.bt_classFilter ?? 0);
 
-    // Hot-swap detector when the user changes the model slider
+    // Hot-swap detector when the user changes the model slider.
+    // The old model keeps serving detections until the new one finishes
+    // loading — no black-out window.
     if (modelIdx !== this._currentModelIdx) {
       this._currentModelIdx = modelIdx;
-      cocoModel = null;
-      cocoLoadedBase = null;
       loadCoco(modelIdx);
     }
     const lightFilter = s.bt_lightFilter ?? 0.25;
