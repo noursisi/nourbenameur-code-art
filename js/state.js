@@ -105,6 +105,8 @@ export const state = {
   pm_cols: 20, pm_rows: 15, pm_gap: 2, pm_textDensity: 0.15, pm_sizeVariation: 0.3, pm_roundness: 0,
   // Body Particles
   bp_emitRate: 10, bp_particleLife: 120, bp_particleSize: 4, bp_spread: 5, bp_gravity: 0, bp_trailMode: 0,
+  // Blob Track
+  bt_threshold: 0.35, bt_maxBlobs: 15, bt_boxSize: 30, bt_lines: 0.5, bt_text: 0.5, bt_id: 909, bt_seed: 42,
   // Camera
   cameraActive: false,
   // Layers

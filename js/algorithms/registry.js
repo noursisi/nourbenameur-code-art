@@ -24,6 +24,7 @@ import { AsciiRender }         from './data-art/ascii-render.js';
 import { AttractorZoo }        from './nature/attractor-zoo.js';
 import { Moire }               from './physics/moire.js';
 import { Penrose }             from './data-art/penrose.js';
+import { BlobTrack }            from './data-art/blob-track.js';
 import { TextSilhouette }      from './camera-art/text-silhouette.js';
 import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 import { BodyParticles }       from './camera-art/body-particles.js';
@@ -133,6 +134,9 @@ registry.register('ascii-render',   AsciiRender);
 registry.register('attractor-zoo',  AttractorZoo);
 registry.register('moire',          Moire);
 registry.register('penrose',        Penrose);
+// Data Art (blob tracking)
+registry.register('blob-track',    BlobTrack);
+
 // Camera Art
 registry.register('text-silhouette', TextSilhouette);
 registry.register('pixel-mosaic',    PixelMosaic);
