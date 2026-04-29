@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-p loaded');
+console.log('[BlobTrack] build 2026-04-29-q loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -607,13 +607,28 @@ export class BlobTrack extends Algorithm {
       blob.age++;
     }
 
-    // New blobs
+    // New blobs — but only if the spawn position isn't crowded by an
+    // existing blob. Without this guard, fields of similar-looking subjects
+    // (e.g. flowers swaying in a wind) accumulate redundant motion blobs
+    // even when each individual peak is technically distinct.
     for (let di = 0; di < allDetections.length; di++) {
       if (usedD.has(di)) continue;
       if (this._blobs.length >= maxBlobs) break;
       const det = allDetections[di];
       const newW = Math.min(maxBoxDim, det.w || 50);
       const newH = Math.min(maxBoxDim, det.h || 35);
+      // Reject if too close to any existing blob (proximity guard for
+      // unlabeled motion peaks). COCO-labeled detections are allowed
+      // through — they're the authoritative source.
+      if (!det.label) {
+        const guard = Math.max(newW, newH) * 0.9;
+        let crowded = false;
+        for (const b of this._blobs) {
+          if (b.missing >= 120) continue;
+          if (Math.hypot(det.x - b.x, det.y - b.y) < guard) { crowded = true; break; }
+        }
+        if (crowded) continue;
+      }
       this._blobs.push({
         x: det.x, y: det.y,
         w: newW, h: newH,
@@ -666,7 +681,7 @@ export class BlobTrack extends Algorithm {
         const aArea = a.w * a.h;
         const bArea = b.w * b.h;
         const iou = inter / (aArea + bArea - inter || 1);
-        if (iou > 0.45) {
+        if (iou > 0.3) {
           const aBetter = (a.label && !b.label)
             || (!!a.label === !!b.label && a.confirmed >= b.confirmed);
           if (aBetter) killed.add(j); else { killed.add(i); break; }
