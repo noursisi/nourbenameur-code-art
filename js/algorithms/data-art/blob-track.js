@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-r loaded');
+console.log('[BlobTrack] build 2026-04-29-s loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -517,8 +517,10 @@ export class BlobTrack extends Algorithm {
       }).catch(() => { this._cocoPending = false; });
     }
 
-    // Motion fallback always runs now (no Mode toggle).
-    const motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs, lightCutoff);
+    // Motion detection disabled — was the main source of duplicate boxes
+    // when subjects moved (each frame's motion peak spawned a new blob).
+    // COCO + tracker now provide both labels and motion-following.
+    const motionBlobs = [];
 
     // ── Combine: COCO detections + motion blobs (motion is fallback) ─────────
     const allDetections = [...this._cocoDetections];
