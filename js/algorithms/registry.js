@@ -3,28 +3,21 @@
  * Instances are lazily created and cached per engine.
  */
 
-import { LSystem }             from './fractals/lsystem.js';
-import { JuliaSet }            from './fractals/julia.js';
-import { Koch }                from './fractals/koch.js';
+// Active algorithm imports — culled set for the Kiln-facing build.
+// Removed (don't interact with image/video, or low-utility):
+//   lsystem, julia, koch, phyllotaxis, flow-field, spiral, chladni,
+//   contour, spirograph, pixel-organic, magnetic-field, interference,
+//   dot-matrix, attractor-zoo, penrose
+// Kept: line-based generative (dragon, harmonograph, lissajous, attractor),
+// image/video-aware (ascii-render, blob-track, pixel-mosaic, body-particles,
+// text-silhouette), and the universal moire pattern.
 import { Dragon }              from './fractals/dragon.js';
-import { Phyllotaxis }         from './nature/phyllotaxis.js';
-import { FlowField }           from './nature/flow-field.js';
 import { Attractor }           from './nature/attractor.js';
 import { Harmonograph }        from './physics/harmonograph.js';
 import { Lissajous }           from './physics/lissajous.js';
-import { Spiral }              from './physics/spiral.js';
-import { Chladni }             from './physics/chladni.js';
-import { Contour }             from './data-art/contour.js';
-import { Spirograph }          from './data-art/spirograph.js';
-import { PixelOrganic }        from './data-art/pixel-organic.js';
-import { MagneticField }       from './nature/magnetic-field.js';
-import { Interference }        from './physics/interference.js';
-import { DotMatrix }           from './data-art/dot-matrix.js';
 import { AsciiRender }         from './data-art/ascii-render.js';
-import { AttractorZoo }        from './nature/attractor-zoo.js';
 import { Moire }               from './physics/moire.js';
-import { Penrose }             from './data-art/penrose.js';
-import { BlobTrack }            from './data-art/blob-track.js';
+import { BlobTrack }           from './data-art/blob-track.js';
 import { TextSilhouette }      from './camera-art/text-silhouette.js';
 import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 import { BodyParticles }       from './camera-art/body-particles.js';
@@ -98,46 +91,18 @@ export const registry = new Registry();
 
 // ── Register algorithms ──────────────────────────────────────────────────────
 
-// Fractals
-registry.register('lsystem',    LSystem);
-registry.register('julia',      JuliaSet);
-registry.register('koch',       Koch);
-registry.register('dragon',     Dragon);
-
-// Nature
-registry.register('phyllotaxis',         Phyllotaxis);
-registry.register('flow-field',          FlowField);
-registry.register('attractor',           Attractor);
-
-// Physics
-registry.register('harmonograph', Harmonograph);
-registry.register('lissajous',    Lissajous);
-registry.register('spiral',       Spiral);
-registry.register('chladni',      Chladni);
-
-// Data Art
-registry.register('contour',        Contour);
-registry.register('spirograph',     Spirograph);
-registry.register('pixel-organic',  PixelOrganic);
-
-// Nature (additions)
-registry.register('magnetic-field', MagneticField);
-
-// Physics (additions)
-registry.register('interference',   Interference);
-
-// Data Art (additions)
-registry.register('dot-matrix',     DotMatrix);
-registry.register('ascii-render',   AsciiRender);
-
-// Deep Math — chaos, emergence, topology
-registry.register('attractor-zoo',  AttractorZoo);
+// Generative line-art (work as overlay layers on top of image/video)
+registry.register('dragon',         Dragon);
+registry.register('attractor',      Attractor);
+registry.register('harmonograph',   Harmonograph);
+registry.register('lissajous',      Lissajous);
 registry.register('moire',          Moire);
-registry.register('penrose',        Penrose);
-// Data Art (blob tracking)
-registry.register('blob-track',    BlobTrack);
 
-// Camera Art
+// Image/video-aware
+registry.register('ascii-render',   AsciiRender);
+registry.register('pixel-mosaic',   PixelMosaic);
+registry.register('blob-track',     BlobTrack);
+
+// Camera-aware
 registry.register('text-silhouette', TextSilhouette);
-registry.register('pixel-mosaic',    PixelMosaic);
 registry.register('body-particles',  BodyParticles);

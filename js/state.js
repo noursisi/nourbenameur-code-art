@@ -1,5 +1,5 @@
 export const state = {
-  algo: 'lsystem',
+  algo: 'blob-track',
   playing: false, time: 0, speed: 0.5,
   scrollMode: 'detail', cursorMode: false,
   mouseX: 0.5, mouseY: 0.5,
