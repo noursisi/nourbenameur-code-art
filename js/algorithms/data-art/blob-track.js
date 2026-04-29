@@ -1,7 +1,8 @@
 /**
  * Blob Track — TouchDesigner-style blob detection overlay.
- * Detects bright regions in the image, draws tracking boxes with IDs,
- * connecting lines, and text annotations.
+ * Detects bright/interesting regions, draws animated tracking boxes,
+ * connection lines, and text annotations. Alive and scanning.
+ * Re-detects every frame for video. Animates for photos.
  */
 
 import { Algorithm } from '../base.js';
@@ -10,8 +11,6 @@ function makeLCG(seed) {
   let s = (seed | 0) >>> 0;
   return () => { s = Math.imul(s, 1664525) + 1013904223 | 0; return (s >>> 0) / 0xFFFFFFFF; };
 }
-
-// ── Default text pool (poetic + technical mix) ───────────────────────────────
 
 const TEXT_POOL = [
   'Heartbeat lost in frames per second,',
@@ -44,17 +43,10 @@ const TEXT_POOL = [
 
 // ── Blob detection ───────────────────────────────────────────────────────────
 
-function detectBlobs(ctx, W, H, threshold, minSize, maxBlobs) {
-  // Downsample for analysis
-  const gridW = Math.min(80, Math.floor(W / 6));
-  const gridH = Math.min(60, Math.floor(H / 6));
-  const cellW = W / gridW;
-  const cellH = H / gridH;
-
-  // Sample brightness at grid points
+function detectBlobs(ctx, W, H, threshold, maxBlobs) {
+  const dpr = window.devicePixelRatio || 1;
   let imageData;
   try {
-    const dpr = window.devicePixelRatio || 1;
     imageData = ctx.getImageData(0, 0, Math.round(W * dpr), Math.round(H * dpr));
   } catch (e) {
     return [];
@@ -64,35 +56,66 @@ function detectBlobs(ctx, W, H, threshold, minSize, maxBlobs) {
   const imgW = imageData.width;
   const imgH = imageData.height;
 
+  // Downsample to grid
+  const gridW = Math.min(60, Math.floor(imgW / 8));
+  const gridH = Math.min(45, Math.floor(imgH / 8));
+
   const grid = [];
   for (let gy = 0; gy < gridH; gy++) {
     grid[gy] = [];
     for (let gx = 0; gx < gridW; gx++) {
-      // Sample center of cell
       const sx = Math.floor((gx + 0.5) / gridW * imgW);
       const sy = Math.floor((gy + 0.5) / gridH * imgH);
       const idx = (sy * imgW + sx) * 4;
-      const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-      grid[gy][gx] = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+      grid[gy][gx] = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114) / 255;
     }
   }
 
-  // Find local maxima (brighter than neighbors and above threshold)
-  const peaks = [];
+  // Also compute edge strength (gradient magnitude)
+  const edges = [];
   for (let gy = 1; gy < gridH - 1; gy++) {
+    edges[gy] = [];
     for (let gx = 1; gx < gridW - 1; gx++) {
-      const v = grid[gy][gx];
-      if (v < threshold) continue;
-      // Check if local max in 3x3
+      const gxVal = grid[gy][gx + 1] - grid[gy][gx - 1];
+      const gyVal = grid[gy + 1][gx] - grid[gy - 1][gx];
+      edges[gy][gx] = Math.sqrt(gxVal * gxVal + gyVal * gyVal);
+    }
+  }
+
+  // Find interesting points: bright OR high edge contrast
+  const peaks = [];
+  const cellW = W / gridW;
+  const cellH = H / gridH;
+
+  for (let gy = 2; gy < gridH - 2; gy++) {
+    for (let gx = 2; gx < gridW - 2; gx++) {
+      const brightness = grid[gy][gx];
+      const edge = edges[gy]?.[gx] || 0;
+      const interest = brightness * 0.6 + edge * 2.5; // combine brightness + edges
+
+      if (interest < threshold) continue;
+
+      // Local maximum check (5x5 area)
       let isMax = true;
-      for (let dy = -1; dy <= 1 && isMax; dy++) {
-        for (let dx = -1; dx <= 1 && isMax; dx++) {
+      for (let dy = -2; dy <= 2 && isMax; dy++) {
+        for (let dx = -2; dx <= 2 && isMax; dx++) {
           if (dx === 0 && dy === 0) continue;
-          if (grid[gy + dy][gx + dx] >= v) isMax = false;
+          const ny = gy + dy, nx = gx + dx;
+          if (ny < 0 || ny >= gridH || nx < 0 || nx >= gridW) continue;
+          const nEdge = edges[ny]?.[nx] || 0;
+          const nInterest = grid[ny][nx] * 0.6 + nEdge * 2.5;
+          if (nInterest >= interest) isMax = false;
         }
       }
+
       if (isMax) {
-        peaks.push({ x: (gx + 0.5) * cellW, y: (gy + 0.5) * cellH, brightness: v });
+        peaks.push({
+          x: (gx + 0.5) * cellW,
+          y: (gy + 0.5) * cellH,
+          brightness,
+          edge,
+          interest,
+        });
       }
     }
   }
@@ -100,184 +123,290 @@ function detectBlobs(ctx, W, H, threshold, minSize, maxBlobs) {
   // Merge nearby peaks
   const merged = [];
   const used = new Set();
+  const mergeRadius = Math.min(W, H) * 0.06;
+
   for (let i = 0; i < peaks.length; i++) {
     if (used.has(i)) continue;
-    let cx = peaks[i].x, cy = peaks[i].y, cb = peaks[i].brightness, count = 1;
+    let cx = peaks[i].x, cy = peaks[i].y;
+    let best = peaks[i].interest;
+    let count = 1;
+
     for (let j = i + 1; j < peaks.length; j++) {
       if (used.has(j)) continue;
       const dx = peaks[i].x - peaks[j].x;
       const dy = peaks[i].y - peaks[j].y;
-      if (Math.sqrt(dx * dx + dy * dy) < minSize * 2) {
+      if (Math.sqrt(dx * dx + dy * dy) < mergeRadius) {
         cx += peaks[j].x;
         cy += peaks[j].y;
-        cb = Math.max(cb, peaks[j].brightness);
+        best = Math.max(best, peaks[j].interest);
         count++;
         used.add(j);
       }
     }
-    merged.push({ x: cx / count, y: cy / count, brightness: cb, size: count });
+    merged.push({ x: cx / count, y: cy / count, interest: best, size: count });
     used.add(i);
   }
 
-  // Sort by brightness, take top N
-  merged.sort((a, b) => b.brightness - a.brightness);
+  merged.sort((a, b) => b.interest - a.interest);
   return merged.slice(0, maxBlobs);
 }
 
 // ── Algorithm ────────────────────────────────────────────────────────────────
 
 export class BlobTrack extends Algorithm {
+  constructor(engine) {
+    super(engine);
+    // Persistent blob state for smooth animation
+    this._trackedBlobs = [];
+    this._blobIdCounter = 900;
+    this._lastDetectTime = 0;
+  }
+
   get metadata() {
     return {
       name: 'Blob Track',
       eq: 'detect × annotate',
       cat: 'Data Art',
-      desc: 'TouchDesigner-style blob tracking — detects bright regions, draws bounding boxes with IDs, connection lines, and text annotations.',
+      desc: 'TouchDesigner-style blob tracking — detects bright regions, draws animated tracking boxes with IDs, connection lines, and text annotations.',
     };
   }
 
   get params() {
     return [
-      { id: 'bt_threshold', label: 'Threshold', min: 0.1, max: 0.95, step: 0.05 },
-      { id: 'bt_maxBlobs',  label: 'Max Blobs', min: 3,   max: 40,   step: 1    },
-      { id: 'bt_boxSize',   label: 'Box Size',  min: 10,  max: 80,   step: 1    },
-      { id: 'bt_lines',     label: 'Lines',     min: 0,   max: 1,    step: 0.05 },
-      { id: 'bt_text',      label: 'Text',      min: 0,   max: 1,    step: 0.05 },
-      { id: 'bt_id',        label: 'ID Number', min: 0,   max: 999,  step: 1    },
-      { id: 'bt_seed',      label: 'Seed',      min: 0,   max: 100,  step: 1    },
+      { id: 'bt_threshold', label: 'Threshold', min: 0.05, max: 0.95, step: 0.02 },
+      { id: 'bt_maxBlobs',  label: 'Max Blobs', min: 3,    max: 40,   step: 1    },
+      { id: 'bt_boxSize',   label: 'Box Size',  min: 10,   max: 80,   step: 1    },
+      { id: 'bt_lines',     label: 'Lines',     min: 0,    max: 1,    step: 0.05 },
+      { id: 'bt_text',      label: 'Text',      min: 0,    max: 1,    step: 0.05 },
+      { id: 'bt_jitter',    label: 'Jitter',    min: 0,    max: 1,    step: 0.05 },
+      { id: 'bt_seed',      label: 'Seed',      min: 0,    max: 100,  step: 1    },
     ];
   }
 
-  get detailParam() { return { id: 'bt_threshold', min: 0.1, max: 0.95, step: 0.05 }; }
+  get detailParam() { return { id: 'bt_threshold', min: 0.05, max: 0.95, step: 0.02 }; }
 
-  animate() {}
+  animate(world) {
+    // Continuously re-detect for video sources, periodically for photos
+    const t = world.state.time ?? 0;
+    // Animation drives jitter — no need to mutate state here
+  }
 
   randomize(state, set) {
-    set('bt_threshold', parseFloat((0.2 + Math.random() * 0.5).toFixed(2)));
+    set('bt_threshold', parseFloat((0.15 + Math.random() * 0.5).toFixed(2)));
     set('bt_maxBlobs',  Math.floor(5 + Math.random() * 25));
     set('bt_boxSize',   Math.floor(15 + Math.random() * 50));
     set('bt_lines',     parseFloat((Math.random() * 0.8 + 0.1).toFixed(2)));
     set('bt_text',      parseFloat((Math.random() * 0.8 + 0.1).toFixed(2)));
-    set('bt_id',        Math.floor(Math.random() * 999));
+    set('bt_jitter',    parseFloat((Math.random() * 0.6 + 0.1).toFixed(2)));
     set('bt_seed',      Math.floor(Math.random() * 100));
   }
 
   render(ctx, world) {
     const { W, H, state: s } = world;
 
-    const threshold = s.bt_threshold ?? 0.4;
+    const threshold = s.bt_threshold ?? 0.3;
     const maxBlobs  = Math.round(s.bt_maxBlobs ?? 15);
     const boxSize   = s.bt_boxSize ?? 30;
     const lineAmt   = s.bt_lines ?? 0.5;
     const textAmt   = s.bt_text ?? 0.5;
-    const idNum     = Math.round(s.bt_id ?? 909);
+    const jitter    = s.bt_jitter ?? 0.3;
     const seed      = Math.round(s.bt_seed ?? 42);
+    const t         = s.time ?? 0;
 
     const rng = makeLCG(seed * 7919 + 31337);
 
-    // Detect blobs from current canvas content
-    const blobs = detectBlobs(ctx, W, H, threshold, boxSize * 0.5, maxBlobs);
+    // ── Re-detect blobs (every frame for video, periodically for photos) ─────
+    const now = performance.now();
+    const detectInterval = 100; // ms between re-detections
 
-    if (blobs.length === 0) return;
+    if (now - this._lastDetectTime > detectInterval) {
+      const rawBlobs = detectBlobs(ctx, W, H, threshold, maxBlobs);
+      this._lastDetectTime = now;
 
-    // Assign each blob a box size based on its brightness/size
-    const blobData = blobs.map((b, i) => {
-      const bw = boxSize * (0.4 + b.brightness * 0.8 + (b.size || 1) * 0.1);
-      const bh = bw * (0.6 + rng() * 0.8);
-      return {
-        ...b,
-        bw: Math.max(12, Math.min(bw, W * 0.3)),
-        bh: Math.max(10, Math.min(bh, H * 0.3)),
-        id: idNum + Math.floor(rng() * 3),
-        textIdx: Math.floor(rng() * TEXT_POOL.length),
-        hasText: rng() < textAmt,
-        hasId: rng() < 0.7,
-      };
-    });
+      // Match detected blobs to existing tracked blobs (simple nearest-neighbor)
+      const newTracked = [];
+      const usedOld = new Set();
+
+      for (const raw of rawBlobs) {
+        let bestDist = Infinity;
+        let bestIdx = -1;
+
+        for (let i = 0; i < this._trackedBlobs.length; i++) {
+          if (usedOld.has(i)) continue;
+          const dx = raw.x - this._trackedBlobs[i].x;
+          const dy = raw.y - this._trackedBlobs[i].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < bestDist && dist < W * 0.15) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+
+        if (bestIdx >= 0) {
+          // Smooth toward new position
+          const old = this._trackedBlobs[bestIdx];
+          usedOld.add(bestIdx);
+          newTracked.push({
+            x: old.x + (raw.x - old.x) * 0.3,
+            y: old.y + (raw.y - old.y) * 0.3,
+            interest: raw.interest,
+            size: raw.size,
+            id: old.id,
+            textIdx: old.textIdx,
+            age: old.age + 1,
+            alpha: Math.min(1, old.alpha + 0.05),
+          });
+        } else {
+          // New blob
+          newTracked.push({
+            x: raw.x,
+            y: raw.y,
+            interest: raw.interest,
+            size: raw.size,
+            id: this._blobIdCounter++,
+            textIdx: Math.floor(rng() * TEXT_POOL.length),
+            age: 0,
+            alpha: 0.1, // fade in
+          });
+        }
+      }
+
+      // Keep dying blobs briefly (fade out)
+      for (let i = 0; i < this._trackedBlobs.length; i++) {
+        if (!usedOld.has(i) && this._trackedBlobs[i].alpha > 0.05) {
+          const dying = { ...this._trackedBlobs[i] };
+          dying.alpha *= 0.85; // fade out
+          dying.age++;
+          newTracked.push(dying);
+        }
+      }
+
+      this._trackedBlobs = newTracked;
+    }
+
+    if (this._trackedBlobs.length === 0) return;
+
+    const blobs = this._trackedBlobs;
 
     ctx.save();
 
-    // ── Connection lines between nearby blobs ────────────────────────────────
+    // ── Scanning line (horizontal sweep) ─────────────────────────────────────
+    const scanY = ((t * 0.15) % 1) * H;
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, scanY);
+    ctx.lineTo(W, scanY);
+    ctx.stroke();
+
+    // ── Connection lines ─────────────────────────────────────────────────────
     if (lineAmt > 0) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 0.5;
-      for (let i = 0; i < blobData.length; i++) {
-        const a = blobData[i];
-        // Connect to nearest 1-2 blobs
-        let connections = 0;
-        const maxConn = rng() < 0.3 ? 2 : 1;
-        for (let j = 0; j < blobData.length && connections < maxConn; j++) {
-          if (i === j) continue;
-          const b = blobData[j];
+      for (let i = 0; i < blobs.length; i++) {
+        const a = blobs[i];
+        if (a.alpha < 0.2) continue;
+        for (let j = i + 1; j < blobs.length; j++) {
+          const b = blobs[j];
+          if (b.alpha < 0.2) continue;
           const dist = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-          if (dist < W * lineAmt * 0.8 && rng() < lineAmt) {
+          const maxDist = W * lineAmt * 0.6;
+          if (dist < maxDist) {
+            const lineAlpha = (1 - dist / maxDist) * 0.3 * Math.min(a.alpha, b.alpha);
+            ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`;
+            ctx.lineWidth = 0.5;
             ctx.beginPath();
-            // Line from box edge to box edge
-            ctx.moveTo(a.x + a.bw * 0.5 * (b.x > a.x ? 1 : -1), a.y + a.bh * 0.3);
-            ctx.lineTo(b.x - b.bw * 0.5 * (b.x > a.x ? 1 : -1), b.y - b.bh * 0.3);
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
             ctx.stroke();
-            connections++;
           }
         }
       }
     }
 
-    // ── Bounding boxes ───────────────────────────────────────────────────────
-    for (const blob of blobData) {
-      const bx = blob.x - blob.bw / 2;
-      const by = blob.y - blob.bh / 2;
+    // ── Tracking boxes ───────────────────────────────────────────────────────
+    for (const blob of blobs) {
+      if (blob.alpha < 0.03) continue;
+
+      // Animated jitter
+      const jx = Math.sin(t * 3.7 + blob.id * 0.37) * jitter * 4;
+      const jy = Math.cos(t * 2.9 + blob.id * 0.53) * jitter * 4;
+      const bx = blob.x + jx;
+      const by = blob.y + jy;
+
+      // Box size based on interest
+      const bw = boxSize * (0.5 + (blob.interest || 0.5) * 0.8 + (blob.size || 1) * 0.08);
+      const bh = bw * (0.5 + Math.abs(Math.sin(blob.id * 1.7)) * 0.7);
+      const hw = bw / 2, hh = bh / 2;
+
+      const alpha = blob.alpha;
+
+      // Size jitter (breathing)
+      const breathe = 1 + Math.sin(t * 1.5 + blob.id) * jitter * 0.08;
+      const dw = hw * breathe, dh = hh * breathe;
 
       // Box outline
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-      ctx.lineWidth = 0.8;
-      ctx.strokeRect(bx, by, blob.bw, blob.bh);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.5})`;
+      ctx.lineWidth = 0.7;
+      ctx.strokeRect(bx - dw, by - dh, dw * 2, dh * 2);
 
-      // Corner ticks (small L-shapes at corners for that tracking look)
-      const tickLen = Math.min(6, blob.bw * 0.15);
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      // Corner ticks
+      const tickLen = Math.min(8, dw * 0.25);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.8})`;
       ctx.lineWidth = 1;
-      // Top-left
-      ctx.beginPath();
-      ctx.moveTo(bx, by + tickLen); ctx.lineTo(bx, by); ctx.lineTo(bx + tickLen, by);
-      ctx.stroke();
-      // Top-right
-      ctx.beginPath();
-      ctx.moveTo(bx + blob.bw - tickLen, by); ctx.lineTo(bx + blob.bw, by); ctx.lineTo(bx + blob.bw, by + tickLen);
-      ctx.stroke();
-      // Bottom-left
-      ctx.beginPath();
-      ctx.moveTo(bx, by + blob.bh - tickLen); ctx.lineTo(bx, by + blob.bh); ctx.lineTo(bx + tickLen, by + blob.bh);
-      ctx.stroke();
-      // Bottom-right
-      ctx.beginPath();
-      ctx.moveTo(bx + blob.bw - tickLen, by + blob.bh); ctx.lineTo(bx + blob.bw, by + blob.bh); ctx.lineTo(bx + blob.bw, by + blob.bh - tickLen);
-      ctx.stroke();
+      const corners = [
+        [bx - dw, by - dh, 1, 1],
+        [bx + dw, by - dh, -1, 1],
+        [bx - dw, by + dh, 1, -1],
+        [bx + dw, by + dh, -1, -1],
+      ];
+      for (const [cx, cy, sx, sy] of corners) {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + tickLen * sy * -1);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx + tickLen * sx, cy);
+        ctx.stroke();
+      }
 
       // ID number
-      if (blob.hasId) {
-        const idStr = String(blob.id);
-        ctx.font = `${Math.max(8, Math.min(14, blob.bw * 0.3))}px monospace`;
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(idStr, blob.x, blob.y);
-      }
+      const idStr = String(blob.id);
+      const idSize = Math.max(7, Math.min(13, dw * 0.35));
+      ctx.font = `${idSize}px monospace`;
+      ctx.fillStyle = `rgba(255,255,255,${alpha * 0.6})`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Blink the ID occasionally
+      const blink = Math.sin(t * 4 + blob.id * 2.1) > -0.8;
+      if (blink) ctx.fillText(idStr, bx, by);
 
       // Text annotation
-      if (blob.hasText) {
-        const text = TEXT_POOL[blob.textIdx];
-        const fontSize = Math.max(7, Math.min(12, blob.bw * 0.18));
+      if (rng() < textAmt && blob.age > 5) {
+        const text = TEXT_POOL[blob.textIdx % TEXT_POOL.length];
+        const fontSize = Math.max(7, Math.min(11, dw * 0.2));
         ctx.font = `italic ${fontSize}px serif`;
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.5})`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-
-        // Place text below or beside the box
-        const textX = bx + (rng() < 0.5 ? blob.bw + 4 : -2);
-        const textY = by + blob.bh + 3;
-        ctx.fillText(text, rng() < 0.5 ? textX : bx, textY);
+        ctx.fillText(text, bx - dw, by + dh + 3);
       }
+
+      // Small crosshair at center
+      const chSize = 3;
+      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.3})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(bx - chSize, by);
+      ctx.lineTo(bx + chSize, by);
+      ctx.moveTo(bx, by - chSize);
+      ctx.lineTo(bx, by + chSize);
+      ctx.stroke();
     }
+
+    // ── Bottom status bar ────────────────────────────────────────────────────
+    ctx.font = '8px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    const activeCount = blobs.filter(b => b.alpha > 0.3).length;
+    ctx.fillText(`TRACK ${activeCount}/${maxBlobs}  THR ${threshold.toFixed(2)}  T+${Math.floor(t)}`, 6, H - 4);
 
     ctx.restore();
   }
