@@ -13,22 +13,22 @@
 
   /* Borders */
   --border-faint: rgba(255, 255, 255, 0.05);
-  --border-soft: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --border-active: rgba(232, 199, 158, 0.55);
+  --border-soft: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --border-active: rgba(255, 255, 255, 0.55);
 
   /* Text */
-  --text-primary: rgba(255, 255, 255, 0.94);
+  --text-primary: rgba(255, 255, 255, 0.96);
   --text-secondary: rgba(255, 255, 255, 0.62);
-  --text-muted: rgba(255, 255, 255, 0.36);
+  --text-muted: rgba(255, 255, 255, 0.38);
   --text-faint: rgba(255, 255, 255, 0.22);
 
-  /* Accent — warm cream, artsy not "hacker" */
-  --accent: #e8c79e;
-  --accent-soft: rgba(232, 199, 158, 0.14);
+  /* Accent — pure white. No tint, just contrast. */
+  --accent: #ffffff;
+  --accent-soft: rgba(255, 255, 255, 0.10);
 
-  /* State colors */
-  --status-play: #b8e6c7;
+  /* State colors — desaturated to keep palette monochrome */
+  --status-play: rgba(255, 255, 255, 0.82);
   --status-rec: #f49b9b;
 
   /* Geometry */
@@ -94,65 +94,98 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 56px;
   z-index: 5;
-  pointer-events: none;
-  transition: opacity 0.6s var(--ease-out);
-  /* faint vignette + subtle texture so the background isn't dead black */
+  /* faint vignette only — dead-black canvas, no tint */
   background:
-    radial-gradient(ellipse at center, rgba(232,199,158,0.04) 0%, transparent 65%),
+    radial-gradient(ellipse at center, rgba(255,255,255,0.025) 0%, transparent 70%),
     var(--bg-canvas);
+  transition: opacity 0.5s var(--ease-out), visibility 0.5s var(--ease-out);
 }
 
 .welcome.hidden {
   opacity: 0;
+  visibility: hidden;
 }
 
 .welcome-mark {
-  font-family: 'Instrument Serif', 'Times New Roman', serif;
-  font-style: italic;
-  font-size: 96px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  color: var(--text-primary);
-  background: linear-gradient(180deg, var(--text-primary) 0%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  line-height: 1;
-  animation: welcome-shimmer 6s ease-in-out infinite;
+  height: 64px;
+  width: auto;
+  opacity: 0.95;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 0 32px rgba(255, 255, 255, 0.06));
 }
 
-@keyframes welcome-shimmer {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.2) drop-shadow(0 0 24px rgba(232,199,158,0.18)); }
-}
-
-.welcome-tagline {
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  font-weight: 400;
+/* Click-to-upload card — glassmorphism, white outline only on hover */
+.welcome-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(520px, 60vw);
+  padding: 56px 32px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-family: 'Inter', system-ui, sans-serif;
   color: var(--text-secondary);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: all 0.25s var(--ease-out);
+  pointer-events: auto;
 }
 
-.welcome-hint {
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-muted);
+.welcome-drop:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+}
+
+.welcome-drop:active {
+  transform: translateY(0);
+}
+
+.welcome-drop.drag-over {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent);
+  border-style: solid;
+  color: var(--text-primary);
+  transform: scale(1.01);
+}
+
+.welcome-drop-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  font-size: 18px;
+  margin-bottom: 6px;
+  transition: all 0.25s var(--ease-out);
+}
+
+.welcome-drop:hover .welcome-drop-icon {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+.welcome-drop-title {
+  font-size: 14px;
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 
-.welcome-key {
-  display: inline-block;
-  padding: 2px 8px;
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: var(--bg-control);
-  color: var(--text-primary);
-  font-weight: 500;
+.welcome-drop-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .canvas-area:active {
@@ -307,11 +340,16 @@ html, body {
   letter-spacing: 0.02em;
   color: var(--text-primary);
   font-style: italic;
-  /* subtle gradient sheen — that "mirror" feel */
-  background: linear-gradient(180deg, var(--text-primary) 0%, rgba(232, 199, 158, 0.85) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+}
+
+.brand-mark {
+  height: 22px;
+  width: auto;
+  display: block;
+  /* SVG is white; opacity tones it to match panel hierarchy */
+  opacity: 0.95;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* Panel Sections */

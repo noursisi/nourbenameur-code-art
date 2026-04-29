@@ -18,9 +18,6 @@ import { Lissajous }           from './physics/lissajous.js';
 import { AsciiRender }         from './data-art/ascii-render.js';
 import { Moire }               from './physics/moire.js';
 import { BlobTrack }           from './data-art/blob-track.js';
-import { EdgeGlow }            from './image-art/edge-glow.js';
-import { ImageFlow }           from './image-art/image-flow.js';
-import { ToneContour }         from './image-art/tone-contour.js';
 import { TextSilhouette }      from './camera-art/text-silhouette.js';
 import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 import { BodyParticles }       from './camera-art/body-particles.js';
@@ -102,9 +99,6 @@ registry.register('lissajous',      Lissajous);
 registry.register('moire',          Moire);
 
 // Image/video-aware — all read the canvas every frame and draw based on it
-registry.register('edge-glow',      EdgeGlow);
-registry.register('image-flow',     ImageFlow);
-registry.register('tone-contour',   ToneContour);
 registry.register('ascii-render',   AsciiRender);
 registry.register('pixel-mosaic',   PixelMosaic);
 registry.register('blob-track',     BlobTrack);

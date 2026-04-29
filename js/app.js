@@ -178,9 +178,19 @@ document.getElementById('ip-file-input')?.addEventListener('change', e => {
 
 // Drag-and-drop the source file directly onto the canvas
 const _canvasArea = document.getElementById('canvas-area');
+const _welcomeDrop = document.getElementById('welcome-drop');
 if (_canvasArea) {
   ['dragenter', 'dragover'].forEach(ev =>
-    _canvasArea.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); })
+    _canvasArea.addEventListener(ev, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      _welcomeDrop?.classList.add('drag-over');
+    })
+  );
+  ['dragleave', 'drop'].forEach(ev =>
+    _canvasArea.addEventListener(ev, e => {
+      _welcomeDrop?.classList.remove('drag-over');
+    })
   );
   _canvasArea.addEventListener('drop', e => {
     e.preventDefault();
@@ -189,6 +199,11 @@ if (_canvasArea) {
     if (file) _ingestFile(file);
   });
 }
+
+// Welcome click-to-upload — opens the same file picker the panel button does
+_welcomeDrop?.addEventListener('click', () => {
+  document.getElementById('ip-file-input')?.click();
+});
 
 // Camera toggle
 document.getElementById('btn-ip-camera')?.addEventListener('click', async () => {

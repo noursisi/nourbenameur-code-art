@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-m loaded');
+console.log('[BlobTrack] build 2026-04-29-n loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -371,8 +371,10 @@ export class BlobTrack extends Algorithm {
     this._lastCocoTime = 0;
     this._cocoPending = false;
     this._tracker = new TemplateTracker();
-    this._currentModelIdx = 1;
-    loadCoco(1);
+    // Always use lite_mobilenet_v2 (index 0). The larger mobilenet_v2 was
+    // unreliable in practice; keep loader pluggable for future YOLOv8/DETR.
+    this._currentModelIdx = 0;
+    loadCoco(0);
   }
 
   get metadata() {
@@ -388,7 +390,6 @@ export class BlobTrack extends Algorithm {
   get params() {
     return [
       { id: 'bt_aiOnly',     label: 'Mode',        min: 0,    max: 1,    step: 1    },
-      { id: 'bt_model',      label: 'Model',       min: 0,    max: 1,    step: 1    },
       { id: 'bt_classFilter',label: 'Class Filter',min: 0,    max: 4,    step: 1    },
       { id: 'bt_lightFilter',label: 'Light Filter',min: 0,    max: 1,    step: 0.02 },
       { id: 'bt_threshold',  label: 'Threshold',   min: 0.02, max: 0.5,  step: 0.01 },
@@ -420,16 +421,7 @@ export class BlobTrack extends Algorithm {
   render(ctx, world) {
     const { W, H, state: s } = world;
     const aiOnly      = Math.round(s.bt_aiOnly ?? 1) === 1;
-    const modelIdx    = Math.round(s.bt_model ?? 1);
     const classFilter = Math.round(s.bt_classFilter ?? 0);
-
-    // Hot-swap detector when the user changes the model slider.
-    // The old model keeps serving detections until the new one finishes
-    // loading — no black-out window.
-    if (modelIdx !== this._currentModelIdx) {
-      this._currentModelIdx = modelIdx;
-      loadCoco(modelIdx);
-    }
     const lightFilter = s.bt_lightFilter ?? 0.25;
     // Drop a region if its lightScore is above this. lightFilter goes 0..1;
     // threshold = 1 - lightFilter*0.6, so:

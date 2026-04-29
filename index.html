@@ -25,9 +25,12 @@
 
       <!-- Welcome / first-run overlay — auto-hides when source loaded -->
       <div class="welcome" id="welcome">
-        <h1 class="welcome-mark">codart</h1>
-        <p class="welcome-tagline">drop an image or video to begin</p>
-        <p class="welcome-hint">or click <span class="welcome-key">Upload</span> in the panel</p>
+        <img class="welcome-mark" src="assets/CODART.svg" alt="codart" />
+        <button class="welcome-drop" id="welcome-drop" type="button">
+          <span class="welcome-drop-icon">↑</span>
+          <span class="welcome-drop-title">drop or click to upload</span>
+          <span class="welcome-drop-sub">image or video</span>
+        </button>
       </div>
 
       <!-- HUD top-left -->
@@ -53,7 +56,7 @@
 
       <!-- Header -->
       <div class="panel-header">
-        <h1>codart</h1>
+        <img class="brand-mark" src="assets/CODART.svg" alt="codart" />
         <span class="status-paused" id="play-status">PAUSED</span>
       </div>
 
