@@ -47,9 +47,9 @@
         <span class="status-paused" id="play-status">PAUSED</span>
       </div>
 
-      <!-- Image Processor -->
+      <!-- Source (image / video / camera) -->
       <div class="panel-section" id="section-image-processor">
-        <h2>Image Processor</h2>
+        <h2>Source</h2>
         <div class="controls">
 
           <div class="btn-grid">
@@ -113,8 +113,8 @@
         </div>
       </div>
 
-      <!-- Layers -->
-      <div class="panel-section" id="section-layers">
+      <!-- Layers (collapsed by default — advanced) -->
+      <div class="panel-section collapsed" id="section-layers">
         <h2>Layers</h2>
         <div class="controls">
           <div id="layer-list">
@@ -126,8 +126,8 @@
         </div>
       </div>
 
-      <!-- Symmetry -->
-      <div class="panel-section" id="section-symmetry">
+      <!-- Symmetry (collapsed by default — advanced) -->
+      <div class="panel-section collapsed" id="section-symmetry">
         <h2>Symmetry</h2>
         <div class="controls">
           <div class="toggle-row">
@@ -237,52 +237,9 @@
         </div>
       </div>
 
-      <!-- Image Layer -->
-      <div class="panel-section" id="section-image">
-        <h2>Image Layer</h2>
-        <div class="controls">
-
-          <button class="btn full" id="btn-import-image">Import Image</button>
-          <input type="file" id="file-input" accept="image/*" style="display:none;" />
-
-          <div id="image-controls" style="display:none;">
-            <div class="slider-label" style="margin-bottom:4px;"><span>Position</span></div>
-            <div class="btn-grid">
-              <button class="btn active" id="btn-img-behind" data-layer="behind">Behind</button>
-              <button class="btn" id="btn-img-front" data-layer="front">Front</button>
-            </div>
-
-            <div class="slider-row" style="margin-top:6px;">
-              <div class="slider-label">
-                <span>Opacity</span>
-                <span class="val" id="val-img-opacity">0.50</span>
-              </div>
-              <input type="range" id="sl-img-opacity" min="0" max="1" step="0.01" value="0.5" data-state-key="img_opacity" />
-            </div>
-
-            <div class="slider-row">
-              <div class="slider-label">
-                <span>Scale</span>
-                <span class="val" id="val-img-scale">1.00</span>
-              </div>
-              <input type="range" id="sl-img-scale" min="0.1" max="3" step="0.01" value="1" data-state-key="img_scale" />
-            </div>
-
-            <div class="slider-label" style="margin-top:4px; margin-bottom:4px;"><span>Blend Mode</span></div>
-            <div class="btn-grid" id="blend-btns">
-              <button class="btn active" data-blend="source-over">Normal</button>
-              <button class="btn" data-blend="multiply">Multiply</button>
-              <button class="btn" data-blend="screen">Screen</button>
-              <button class="btn" data-blend="overlay">Overlay</button>
-              <button class="btn" data-blend="difference">Difference</button>
-              <button class="btn" data-blend="exclusion">Exclusion</button>
-            </div>
-
-            <button class="btn full" id="btn-remove-image" style="margin-top:6px; color:#a77; border-color:#533;">Remove</button>
-          </div>
-
-        </div>
-      </div>
+      <!-- (Legacy "Image Layer" section removed — Source section above
+           handles all image/video/camera input. Removing the duplicate
+           cleans up the panel for the Kiln-facing build.) -->
 
       <!-- Actions -->
       <div class="panel-section" id="section-actions">
