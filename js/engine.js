@@ -146,7 +146,7 @@ class Engine {
     const isSoloEffect = s.ip_enabled && s.ip_effect === 'needlework';
     const wantsClean = !!(this._algorithm && this._algorithm.wantsCleanBackground);
     if (imageProcessor.hasSource() && !s.ip_mixWithAlgo) {
-      if (!wantsClean && s.ip_enabled && s.ip_effect !== 'none') {
+      if (s.ip_enabled && s.ip_effect !== 'none') {
         imageProcessor.render(this, ctx, W, H, s);
       } else {
         imageProcessor._drawFitted(ctx, W, H, s);

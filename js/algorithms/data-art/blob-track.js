@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-c loaded');
+console.log('[BlobTrack] build 2026-04-29-d loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -251,7 +251,7 @@ export class BlobTrack extends Algorithm {
     const { W, H, state: s } = world;
     const aiOnly      = Math.round(s.bt_aiOnly ?? 1) === 1;
     const classFilter = Math.round(s.bt_classFilter ?? 0);
-    const lightFilter = s.bt_lightFilter ?? 0.5;
+    const lightFilter = s.bt_lightFilter ?? 0.25;
     // Drop a region if its lightScore is above this. lightFilter goes 0..1;
     // threshold = 1 - lightFilter*0.6, so:
     //   0   -> threshold 1.0 (nothing dropped)
@@ -295,8 +295,10 @@ export class BlobTrack extends Algorithm {
             // Reject giant boxes (>18% of canvas area = false positive on a crowd
             // or a misread scene element, never a real single subject)
             if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.18) return false;
-            // Reject landscape-oriented "person" boxes (people are taller than wide)
-            if (p.class === 'person' && p.bbox[2] > p.bbox[3] * 1.2) return false;
+            // Reject obviously-wrong landscape "person" boxes (a real person
+            // standing/walking is taller than wide; allow some leniency for
+            // crouched, sitting, or occluded subjects).
+            if (p.class === 'person' && p.bbox[2] > p.bbox[3] * 1.6) return false;
             // Light filter — drops blown-out / desaturated regions (sun, sky,
             // snow, screens). Saturated subjects (red car, blue jacket) survive.
             if (regionLightScore(cap, p.bbox) > lightCutoff) return false;
