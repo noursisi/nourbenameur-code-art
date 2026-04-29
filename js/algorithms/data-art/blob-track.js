@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-o loaded');
+console.log('[BlobTrack] build 2026-04-29-p loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -393,7 +393,6 @@ export class BlobTrack extends Algorithm {
 
   get params() {
     return [
-      { id: 'bt_aiOnly',     label: 'Mode',        min: 0,    max: 1,    step: 1    },
       { id: 'bt_classFilter',label: 'Class Filter',min: 0,    max: 4,    step: 1    },
       { id: 'bt_lightFilter',label: 'Light Filter',min: 0,    max: 1,    step: 0.02 },
       { id: 'bt_threshold',  label: 'Threshold',   min: 0.02, max: 0.5,  step: 0.01 },
@@ -410,21 +409,21 @@ export class BlobTrack extends Algorithm {
   animate() {}
 
   randomize(state, set) {
-    const ai = Math.round(state.bt_aiOnly ?? 1) === 1;
     set('bt_threshold', parseFloat((0.04 + Math.random() * 0.2).toFixed(2)));
     set('bt_maxBlobs',  Math.floor(5 + Math.random() * 30));
     set('bt_boxSize',   parseFloat((0.6 + Math.random() * 1.4).toFixed(2)));
     set('bt_text',      Math.floor(8 + Math.random() * 8));
     set('bt_seed',      Math.floor(Math.random() * 100));
-    if (!ai) {
-      set('bt_lines',   parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
-      set('bt_color',   Math.round(Math.random()));
-    }
+    set('bt_lines',     parseFloat((Math.random() * 0.7).toFixed(2)));
+    set('bt_color',     Math.round(Math.random()));
   }
 
   render(ctx, world) {
     const { W, H, state: s } = world;
-    const aiOnly      = Math.round(s.bt_aiOnly ?? 1) === 1;
+    // Always show every confirmed blob — labeled (COCO) and unlabeled
+    // (motion). The previous Mode toggle hid unlabeled boxes which made
+    // it look like nothing was happening when COCO didn't catch the
+    // subject. One unified output now.
     const classFilter = Math.round(s.bt_classFilter ?? 0);
     const lightFilter = s.bt_lightFilter ?? 0.25;
     // Drop a region if its lightScore is above this. lightFilter goes 0..1;
@@ -518,11 +517,8 @@ export class BlobTrack extends Algorithm {
       }).catch(() => { this._cocoPending = false; });
     }
 
-    // ── Motion fallback (frame diff) — only when AI Only mode is off ─────────
-    let motionBlobs = [];
-    if (!aiOnly) {
-      motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs, lightCutoff);
-    }
+    // Motion fallback always runs now (no Mode toggle).
+    const motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs, lightCutoff);
 
     // ── Combine: COCO detections + motion blobs (motion is fallback) ─────────
     const allDetections = [...this._cocoDetections];
@@ -647,30 +643,50 @@ export class BlobTrack extends Algorithm {
     }
 
     // Save current frame as prev for next-frame motion diff
-    if (!aiOnly) {
-      if (!this._prevFrame) this._prevFrame = document.createElement('canvas');
-      this._prevFrame.width = Math.round(W);
-      this._prevFrame.height = Math.round(H);
-      this._prevFrame.getContext('2d').drawImage(this._cap, 0, 0);
+    if (!this._prevFrame) this._prevFrame = document.createElement('canvas');
+    this._prevFrame.width = Math.round(W);
+    this._prevFrame.height = Math.round(H);
+    this._prevFrame.getContext('2d').drawImage(this._cap, 0, 0);
+
+    // IoU dedup: when the tracker drifts a blob slightly, a fresh COCO
+    // detection sometimes can't match it (centroid distance > matchR) and
+    // spawns a duplicate. Pair-check overlapping survivors and keep the
+    // stronger one (labeled > unlabeled, then more confirmed frames).
+    const surviving = this._blobs.filter(b => b.confirmed >= 3 && b.missing < 120);
+    const killed = new Set();
+    for (let i = 0; i < surviving.length; i++) {
+      if (killed.has(i)) continue;
+      const a = surviving[i];
+      for (let j = i + 1; j < surviving.length; j++) {
+        if (killed.has(j)) continue;
+        const b = surviving[j];
+        const ix = Math.max(0, Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2));
+        const iy = Math.max(0, Math.min(a.y + a.h / 2, b.y + b.h / 2) - Math.max(a.y - a.h / 2, b.y - b.h / 2));
+        const inter = ix * iy;
+        const aArea = a.w * a.h;
+        const bArea = b.w * b.h;
+        const iou = inter / (aArea + bArea - inter || 1);
+        if (iou > 0.45) {
+          const aBetter = (a.label && !b.label)
+            || (!!a.label === !!b.label && a.confirmed >= b.confirmed);
+          if (aBetter) killed.add(j); else { killed.add(i); break; }
+        }
+      }
+    }
+    // Mark killed blobs so they leave on the next kill-pass too
+    for (let i = 0; i < surviving.length; i++) {
+      if (killed.has(i)) surviving[i].missing = 240;
     }
 
-    // Persist a blob for ~2 seconds at 60fps even without re-detection. COCO
-    // is noisy — a person doesn't actually blink in/out at 6Hz. Long
-    // persistence + binary alpha = no flicker.
-    const visible = this._blobs.filter(b => {
-      if (b.confirmed < 3 || b.missing >= 120) return false;
-      if (aiOnly && !b.label) return false;
-      return true;
-    });
+    const visible = surviving.filter((_, i) => !killed.has(i));
     if (visible.length === 0) return;
 
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
 
-    // ── K-nearest-neighbor mesh (gallery mode only) ──────────────────────────
+    // ── K-nearest-neighbor mesh (only when Lines slider > 0) ────────────────
     // Each blob connects to its 2 nearest neighbors, with a distance cap.
-    // Avoids the O(n²) full-mesh cobweb that was just visual noise.
-    if (!aiOnly && lineAmt > 0 && visible.length > 1) {
+    if (lineAmt > 0 && visible.length > 1) {
       const distCap = Math.min(W, H) * 0.4;
       const edges = new Set();
       for (let i = 0; i < visible.length; i++) {
@@ -735,24 +751,18 @@ export class BlobTrack extends Algorithm {
       ctx.moveTo(bx+bw-tick, by+bh); ctx.lineTo(bx+bw, by+bh); ctx.lineTo(bx+bw, by+bh-tick);
       ctx.stroke();
 
-      // Label: 2018-style minimal in AI-only mode (just class name above box).
-      // Gallery mode keeps the labeled-box-with-confidence + integer IDs + poetry.
+      // Label: class name above the box if COCO knows it, integer ID below
+      // for unlabeled (motion-detected) blobs. Plain Helvetica everywhere.
       ctx.font = `${textSize}px Helvetica, Arial, sans-serif`;
       ctx.fillStyle = color;
       ctx.globalAlpha = fade * 0.95;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
-      if (aiOnly) {
-        if (blob.label) {
-          ctx.fillText(blob.label, bx, by - textSize - 2);
-        }
+      if (blob.label) {
+        ctx.fillText(blob.label, bx, by - textSize - 2);
       } else {
-        if (blob.label) {
-          ctx.fillText(`${blob.label} ${Math.round((blob.score || 0) * 100)}%`, bx, by + bh + 2);
-        } else {
-          ctx.fillText(String(blob.id), bx, by + bh + 2);
-        }
+        ctx.fillText(String(blob.id), bx, by + bh + 2);
         if (blob.age > 10 && (blob.id + seed) % 3 === 0) {
           ctx.font = `${textSize - 1}px Helvetica, Arial, sans-serif`;
           ctx.globalAlpha = 0.5;
