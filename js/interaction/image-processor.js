@@ -916,6 +916,223 @@ void main() {
       u_scatter:  s.ip_dm_scatter  ?? 0.3,
     }),
   },
+
+  vhs: {
+    name: 'VHS Tape',
+    params: [
+      { id: 'ip_vhs_aberration', label: 'Aberration', min: 0,    max: 0.04,  step: 0.001, default: 0.012 },
+      { id: 'ip_vhs_scanlines',  label: 'Scanlines',  min: 0,    max: 1,     step: 0.05,  default: 0.6   },
+      { id: 'ip_vhs_noise',      label: 'Noise',      min: 0,    max: 0.5,   step: 0.02,  default: 0.15  },
+      { id: 'ip_vhs_wobble',     label: 'Wobble',     min: 0,    max: 0.04,  step: 0.001, default: 0.008 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_aberration;
+uniform float u_scanlines;
+uniform float u_noise;
+uniform float u_wobble;
+uniform float u_time;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+void main() {
+  vec2 uv = v_uv;
+  // Horizontal wobble that drifts with time
+  uv.x += sin(uv.y * 80.0 + u_time * 4.0) * u_wobble;
+  // Chromatic aberration — split RGB
+  float r = texture2D(u_image, clamp(uv + vec2(u_aberration, 0.0), 0.0, 1.0)).r;
+  float g = texture2D(u_image, uv).g;
+  float b = texture2D(u_image, clamp(uv - vec2(u_aberration, 0.0), 0.0, 1.0)).b;
+  vec3 col = vec3(r, g, b);
+  // Scanlines — every other row darkened
+  float scan = sin(uv.y * u_resolution.y * 1.5) * 0.5 + 0.5;
+  col *= mix(1.0, scan, u_scanlines * 0.5);
+  // Tape noise — snowy speckle
+  float n = hash(uv * u_resolution + u_time * 60.0);
+  col += (n - 0.5) * u_noise;
+  // Slight saturation crush — VHS magnetic decay
+  float gray = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(vec3(gray), col, 0.85);
+  gl_FragColor = vec4(col, 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_aberration: s.ip_vhs_aberration ?? 0.012,
+      u_scanlines:  s.ip_vhs_scanlines  ?? 0.6,
+      u_noise:      s.ip_vhs_noise      ?? 0.15,
+      u_wobble:     s.ip_vhs_wobble     ?? 0.008,
+      u_time:       s.time              ?? 0,
+    }),
+  },
+
+  vaporwave: {
+    name: 'Vaporwave',
+    params: [
+      { id: 'ip_vw_intensity', label: 'Intensity', min: 0, max: 1,    step: 0.05, default: 0.7 },
+      { id: 'ip_vw_grid',      label: 'Grid',      min: 0, max: 1,    step: 0.05, default: 0.4 },
+      { id: 'ip_vw_glow',      label: 'Glow',      min: 0, max: 1,    step: 0.05, default: 0.5 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_intensity;
+uniform float u_grid;
+uniform float u_glow;
+
+void main() {
+  vec3 col = texture2D(u_image, v_uv).rgb;
+  // Pastel pink/cyan duotone via luma
+  float luma = dot(col, vec3(0.299, 0.587, 0.114));
+  vec3 pink = vec3(1.0, 0.55, 0.85);
+  vec3 cyan = vec3(0.45, 0.95, 1.0);
+  vec3 duo  = mix(vec3(0.12, 0.05, 0.25), mix(pink, cyan, luma), pow(luma, 0.7));
+  col = mix(col, duo, u_intensity);
+  // Soft glow on bright regions
+  vec3 b = vec3(0.0);
+  for (int i = -2; i <= 2; i++)
+    for (int j = -2; j <= 2; j++) {
+      vec2 o = vec2(float(i), float(j)) * 2.0 / u_resolution;
+      b += texture2D(u_image, clamp(v_uv + o, 0.0, 1.0)).rgb;
+    }
+  b /= 25.0;
+  float bright = max(0.0, dot(b, vec3(0.299, 0.587, 0.114)) - 0.55);
+  col += vec3(1.0, 0.6, 0.95) * bright * u_glow;
+  // Synthwave horizon grid — perspective lines below the lower third
+  vec2 g = v_uv;
+  if (g.y > 0.66) {
+    float persp = 1.0 / (1.0 - g.y + 0.01);
+    float vline = abs(fract((g.x - 0.5) * persp * 8.0) - 0.5);
+    float hline = abs(fract(persp * 0.5) - 0.5);
+    float gl = smoothstep(0.48, 0.5, max(vline, hline));
+    col = mix(col, vec3(1.0, 0.3, 0.9), gl * u_grid);
+  }
+  gl_FragColor = vec4(col, 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_intensity: s.ip_vw_intensity ?? 0.7,
+      u_grid:      s.ip_vw_grid      ?? 0.4,
+      u_glow:      s.ip_vw_glow      ?? 0.5,
+    }),
+  },
+
+  heatmap: {
+    name: 'Thermal',
+    params: [
+      { id: 'ip_th_intensity', label: 'Intensity', min: 0, max: 1, step: 0.05, default: 1.0 },
+      { id: 'ip_th_invert',    label: 'Invert',    min: 0, max: 1, step: 1,    default: 0   },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform float u_intensity;
+uniform float u_invert;
+
+vec3 thermal(float t) {
+  // Black -> blue -> magenta -> red -> orange -> yellow -> white
+  vec3 c0 = vec3(0.00, 0.00, 0.05);
+  vec3 c1 = vec3(0.10, 0.05, 0.55);
+  vec3 c2 = vec3(0.55, 0.10, 0.55);
+  vec3 c3 = vec3(0.95, 0.20, 0.10);
+  vec3 c4 = vec3(1.00, 0.65, 0.00);
+  vec3 c5 = vec3(1.00, 0.95, 0.30);
+  vec3 c6 = vec3(1.00, 1.00, 1.00);
+  if (t < 0.166) return mix(c0, c1, t/0.166);
+  if (t < 0.333) return mix(c1, c2, (t-0.166)/0.167);
+  if (t < 0.5)   return mix(c2, c3, (t-0.333)/0.167);
+  if (t < 0.666) return mix(c3, c4, (t-0.5)/0.166);
+  if (t < 0.833) return mix(c4, c5, (t-0.666)/0.167);
+  return mix(c5, c6, (t-0.833)/0.167);
+}
+
+void main() {
+  vec3 src = texture2D(u_image, v_uv).rgb;
+  float luma = dot(src, vec3(0.299, 0.587, 0.114));
+  if (u_invert > 0.5) luma = 1.0 - luma;
+  vec3 t = thermal(clamp(luma, 0.0, 1.0));
+  gl_FragColor = vec4(mix(src, t, u_intensity), 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_intensity: s.ip_th_intensity ?? 1.0,
+      u_invert:    s.ip_th_invert    ?? 0,
+    }),
+  },
+
+  posterize: {
+    name: 'Posterize',
+    params: [
+      { id: 'ip_po_levels',   label: 'Levels',     min: 2, max: 12, step: 1,    default: 4   },
+      { id: 'ip_po_saturate', label: 'Saturation', min: 0, max: 2,  step: 0.05, default: 1.4 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform float u_levels;
+uniform float u_saturate;
+
+void main() {
+  vec3 col = texture2D(u_image, v_uv).rgb;
+  // Boost saturation around luma
+  float luma = dot(col, vec3(0.299, 0.587, 0.114));
+  col = mix(vec3(luma), col, u_saturate);
+  col = clamp(col, 0.0, 1.0);
+  // Quantize to N levels per channel
+  col = floor(col * u_levels) / (u_levels - 1.0);
+  gl_FragColor = vec4(col, 1.0);
+}
+`,
+    uniforms: (s) => ({
+      u_levels:   s.ip_po_levels   ?? 4,
+      u_saturate: s.ip_po_saturate ?? 1.4,
+    }),
+  },
+
+  bulge: {
+    name: 'Bulge',
+    params: [
+      { id: 'ip_bg_strength', label: 'Strength', min: -1,  max: 1,    step: 0.05, default: 0.5 },
+      { id: 'ip_bg_radius',   label: 'Radius',   min: 0.1, max: 1,    step: 0.05, default: 0.6 },
+      { id: 'ip_bg_centerX',  label: 'Center X', min: 0,   max: 1,    step: 0.02, default: 0.5 },
+      { id: 'ip_bg_centerY',  label: 'Center Y', min: 0,   max: 1,    step: 0.02, default: 0.5 },
+    ],
+    frag: /* glsl */`
+precision highp float;
+varying vec2 v_uv;
+uniform sampler2D u_image;
+uniform vec2 u_resolution;
+uniform float u_strength;
+uniform float u_radius;
+uniform float u_centerX;
+uniform float u_centerY;
+
+void main() {
+  vec2 center = vec2(u_centerX, u_centerY);
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 d = (v_uv - center) * vec2(aspect, 1.0);
+  float r = length(d);
+  // Bell curve falloff inside u_radius. Negative strength = pinch.
+  float t = 1.0 - smoothstep(0.0, u_radius, r);
+  float bulge = 1.0 + u_strength * t * t;
+  vec2 src = center + (v_uv - center) * (1.0 / bulge);
+  src = clamp(src, 0.0, 1.0);
+  gl_FragColor = texture2D(u_image, src);
+}
+`,
+    uniforms: (s) => ({
+      u_strength: s.ip_bg_strength ?? 0.5,
+      u_radius:   s.ip_bg_radius   ?? 0.6,
+      u_centerX:  s.ip_bg_centerX  ?? 0.5,
+      u_centerY:  s.ip_bg_centerY  ?? 0.5,
+    }),
+  },
 };
 
 // ── ImageProcessor class ────────────────────────────────────────────────────
