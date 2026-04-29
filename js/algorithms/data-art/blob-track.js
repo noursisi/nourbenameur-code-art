@@ -177,7 +177,7 @@ export class BlobTrack extends Algorithm {
       { id: 'bt_maxBlobs',  label: 'Max Blobs', min: 3,    max: 40,   step: 1    },
       { id: 'bt_boxSize',   label: 'Box Size',  min: 10,   max: 80,   step: 1    },
       { id: 'bt_lines',     label: 'Lines',     min: 0,    max: 1,    step: 0.05 },
-      { id: 'bt_text',      label: 'Text',      min: 0,    max: 1,    step: 0.05 },
+      { id: 'bt_text',      label: 'Text Size', min: 6,    max: 18,   step: 1    },
       { id: 'bt_jitter',    label: 'Jitter',    min: 0,    max: 1,    step: 0.05 },
       { id: 'bt_seed',      label: 'Seed',      min: 0,    max: 100,  step: 1    },
     ];
@@ -208,16 +208,18 @@ export class BlobTrack extends Algorithm {
     const maxBlobs  = Math.round(s.bt_maxBlobs ?? 15);
     const boxSize   = s.bt_boxSize ?? 30;
     const lineAmt   = s.bt_lines ?? 0.5;
-    const textAmt   = s.bt_text ?? 0.5;
+    const textSize  = Math.round(s.bt_text ?? 11);
     const jitter    = s.bt_jitter ?? 0.3;
     const seed      = Math.round(s.bt_seed ?? 42);
     const t         = s.time ?? 0;
+    // Use the foreground color from the Style panel
+    const fg        = s.fgColor || '#ffffff';
 
     const rng = makeLCG(seed * 7919 + 31337);
 
     // ── Re-detect blobs (every frame for video, periodically for photos) ─────
     const now = performance.now();
-    const detectInterval = 100; // ms between re-detections
+    const detectInterval = 50; // ms between re-detections (faster for video)
 
     if (now - this._lastDetectTime > detectInterval) {
       const rawBlobs = detectBlobs(ctx, W, H, threshold, maxBlobs);
@@ -247,8 +249,8 @@ export class BlobTrack extends Algorithm {
           const old = this._trackedBlobs[bestIdx];
           usedOld.add(bestIdx);
           newTracked.push({
-            x: old.x + (raw.x - old.x) * 0.3,
-            y: old.y + (raw.y - old.y) * 0.3,
+            x: old.x + (raw.x - old.x) * 0.6,
+            y: old.y + (raw.y - old.y) * 0.6,
             interest: raw.interest,
             size: raw.size,
             id: old.id,
@@ -290,36 +292,36 @@ export class BlobTrack extends Algorithm {
 
     ctx.save();
 
-    // ── Scanning line (horizontal sweep) ─────────────────────────────────────
-    const scanY = ((t * 0.15) % 1) * H;
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
+    // Clip everything to canvas bounds
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(0, scanY);
-    ctx.lineTo(W, scanY);
-    ctx.stroke();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
 
-    // ── Connection lines ─────────────────────────────────────────────────────
-    if (lineAmt > 0) {
+    // ── Connection lines (always between ALL blobs, chain nearest) ─────────
+    if (lineAmt > 0 && blobs.length > 1) {
+      ctx.strokeStyle = fg;
+      ctx.lineWidth = 0.7;
+      ctx.globalAlpha = lineAmt * 0.6;
+
+      // Connect each blob to its nearest neighbor
       for (let i = 0; i < blobs.length; i++) {
         const a = blobs[i];
-        if (a.alpha < 0.2) continue;
-        for (let j = i + 1; j < blobs.length; j++) {
-          const b = blobs[j];
-          if (b.alpha < 0.2) continue;
-          const dist = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-          const maxDist = W * lineAmt * 0.6;
-          if (dist < maxDist) {
-            const lineAlpha = (1 - dist / maxDist) * 0.3 * Math.min(a.alpha, b.alpha);
-            ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
+        if (a.alpha < 0.15) continue;
+        let bestDist = Infinity, bestJ = -1;
+        for (let j = 0; j < blobs.length; j++) {
+          if (i === j || blobs[j].alpha < 0.15) continue;
+          const d = Math.sqrt((a.x - blobs[j].x) ** 2 + (a.y - blobs[j].y) ** 2);
+          if (d < bestDist) { bestDist = d; bestJ = j; }
+        }
+        if (bestJ >= 0) {
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(blobs[bestJ].x, blobs[bestJ].y);
+          ctx.stroke();
         }
       }
+      ctx.globalAlpha = 1;
     }
 
     // ── Tracking boxes ───────────────────────────────────────────────────────
@@ -332,26 +334,22 @@ export class BlobTrack extends Algorithm {
       const bx = blob.x + jx;
       const by = blob.y + jy;
 
-      // Box size based on interest
       const bw = boxSize * (0.5 + (blob.interest || 0.5) * 0.8 + (blob.size || 1) * 0.08);
       const bh = bw * (0.5 + Math.abs(Math.sin(blob.id * 1.7)) * 0.7);
-      const hw = bw / 2, hh = bh / 2;
+      const dw = bw / 2, dh = bh / 2;
 
       const alpha = blob.alpha;
 
-      // Size jitter (breathing)
-      const breathe = 1 + Math.sin(t * 1.5 + blob.id) * jitter * 0.08;
-      const dw = hw * breathe, dh = hh * breathe;
-
       // Box outline
-      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.5})`;
-      ctx.lineWidth = 0.7;
+      ctx.strokeStyle = fg;
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.lineWidth = 0.8;
       ctx.strokeRect(bx - dw, by - dh, dw * 2, dh * 2);
 
       // Corner ticks
-      const tickLen = Math.min(8, dw * 0.25);
-      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.8})`;
-      ctx.lineWidth = 1;
+      const tickLen = Math.min(8, dw * 0.3);
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.lineWidth = 1.2;
       const corners = [
         [bx - dw, by - dh, 1, 1],
         [bx + dw, by - dh, -1, 1],
@@ -360,55 +358,36 @@ export class BlobTrack extends Algorithm {
       ];
       for (const [cx, cy, sx, sy] of corners) {
         ctx.beginPath();
-        ctx.moveTo(cx, cy + tickLen * sy * -1);
+        ctx.moveTo(cx, cy - tickLen * sy);
         ctx.lineTo(cx, cy);
         ctx.lineTo(cx + tickLen * sx, cy);
         ctx.stroke();
       }
 
-      // ID number
-      const idStr = String(blob.id);
-      const idSize = Math.max(7, Math.min(13, dw * 0.35));
-      ctx.font = `${idSize}px monospace`;
-      ctx.fillStyle = `rgba(255,255,255,${alpha * 0.6})`;
+      // ID number (no blinking — always visible)
+      ctx.font = `${textSize}px monospace`;
+      ctx.fillStyle = fg;
+      ctx.globalAlpha = alpha * 0.8;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // Blink the ID occasionally
-      const blink = Math.sin(t * 4 + blob.id * 2.1) > -0.8;
-      if (blink) ctx.fillText(idStr, bx, by);
+      ctx.fillText(String(blob.id), bx, by);
 
-      // Text annotation
-      if (rng() < textAmt && blob.age > 5) {
+      // Text annotation (bigger, readable, no randomization per frame)
+      if (blob.age > 3) {
         const text = TEXT_POOL[blob.textIdx % TEXT_POOL.length];
-        const fontSize = Math.max(7, Math.min(11, dw * 0.2));
-        ctx.font = `italic ${fontSize}px serif`;
-        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.5})`;
+        ctx.font = `italic ${textSize}px serif`;
+        ctx.fillStyle = fg;
+        ctx.globalAlpha = alpha * 0.7;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.fillText(text, bx - dw, by + dh + 3);
+        ctx.fillText(text, bx - dw, by + dh + 4);
       }
-
-      // Small crosshair at center
-      const chSize = 3;
-      ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.3})`;
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(bx - chSize, by);
-      ctx.lineTo(bx + chSize, by);
-      ctx.moveTo(bx, by - chSize);
-      ctx.lineTo(bx, by + chSize);
-      ctx.stroke();
     }
 
-    // ── Bottom status bar ────────────────────────────────────────────────────
-    ctx.font = '8px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'bottom';
-    const activeCount = blobs.filter(b => b.alpha > 0.3).length;
-    ctx.fillText(`TRACK ${activeCount}/${maxBlobs}  THR ${threshold.toFixed(2)}  T+${Math.floor(t)}`, 6, H - 4);
+    ctx.globalAlpha = 1;
 
-    ctx.restore();
+    ctx.restore(); // end clip
+    ctx.restore(); // end save
   }
 
   collectSVG() { return null; }
