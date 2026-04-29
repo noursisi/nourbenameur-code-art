@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-s loaded');
+console.log('[BlobTrack] build 2026-04-29-t loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -483,33 +483,50 @@ export class BlobTrack extends Algorithm {
       this._lastCocoTime = now;
       const cap = this._cap;
       cocoModel.detect(cap, maxBlobs).then(preds => {
-        this._cocoDetections = preds
+        const filtered = preds
           .filter(p => {
-            // Class filter (user override — hides classes the user knows are wrong)
             if (!classAllowed(p.class, classFilter)) return false;
-            // Per-class confidence floor — animals on hard scenes need very high confidence
             const minConf = CLASS_MIN_CONF[p.class] ?? DEFAULT_MIN_CONF;
             if (p.score < minConf) return false;
-            // Reject giant boxes (>18% of canvas area = false positive on a crowd
-            // or a misread scene element, never a real single subject)
             if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.18) return false;
-            // Reject obviously-wrong landscape "person" boxes (a real person
-            // standing/walking is taller than wide; allow some leniency for
-            // crouched, sitting, or occluded subjects).
             if (p.class === 'person' && p.bbox[2] > p.bbox[3] * 1.6) return false;
-            // Light filter — drops blown-out / desaturated regions (sun, sky,
-            // snow, screens). Saturated subjects (red car, blue jacket) survive.
             if (regionLightScore(cap, p.bbox) > lightCutoff) return false;
             return true;
           })
-          .map(p => ({
-            x: p.bbox[0] + p.bbox[2] / 2,
-            y: p.bbox[1] + p.bbox[3] / 2,
-            w: p.bbox[2],
-            h: p.bbox[3],
-            label: p.class,
-            score: p.score,
-          }));
+          // Sort by confidence so NMS keeps the strongest box first
+          .sort((a, b) => b.score - a.score);
+
+        // Non-Maximum Suppression: drop any detection that overlaps a
+        // higher-confidence one (IoU > 0.4). COCO-SSD's internal NMS isn't
+        // perfect — it sometimes returns 2-3 boxes for the same subject.
+        // This collapses them to the single best one.
+        const kept = [];
+        for (const p of filtered) {
+          let suppressed = false;
+          for (const q of kept) {
+            const ax1 = p.bbox[0], ay1 = p.bbox[1];
+            const ax2 = ax1 + p.bbox[2], ay2 = ay1 + p.bbox[3];
+            const bx1 = q.bbox[0], by1 = q.bbox[1];
+            const bx2 = bx1 + q.bbox[2], by2 = by1 + q.bbox[3];
+            const ix = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1));
+            const iy = Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
+            const inter = ix * iy;
+            const aArea = p.bbox[2] * p.bbox[3];
+            const bArea = q.bbox[2] * q.bbox[3];
+            const iou = inter / (aArea + bArea - inter || 1);
+            if (iou > 0.4) { suppressed = true; break; }
+          }
+          if (!suppressed) kept.push(p);
+        }
+
+        this._cocoDetections = kept.map(p => ({
+          x: p.bbox[0] + p.bbox[2] / 2,
+          y: p.bbox[1] + p.bbox[3] / 2,
+          w: p.bbox[2],
+          h: p.bbox[3],
+          label: p.class,
+          score: p.score,
+        }));
         this._cocoPending = false;
         // Force a re-render so still-image users see the new detections —
         // without this, COCO results never appear on a paused/static source.
@@ -535,7 +552,10 @@ export class BlobTrack extends Algorithm {
     }
 
     // ── Match to existing blobs (with velocity prediction) ───────────────────
-    const matchR = Math.min(W, H) * 0.25;
+    // Big radius — better to match a slightly-off detection to an existing
+    // blob than to spawn a duplicate. Drift on a single track is correctable
+    // (smoothing pulls it back); duplicate boxes are the worse failure mode.
+    const matchR = Math.min(W, H) * 0.45;
     const usedD = new Set();
 
     for (const blob of this._blobs) {
