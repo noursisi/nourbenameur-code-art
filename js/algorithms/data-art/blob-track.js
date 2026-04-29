@@ -153,7 +153,13 @@ function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs) {
           if (!dx && !dy) continue;
           if (m[(y+dy) * sW + (x+dx)] > v) isMax = false;
         }
-      if (isMax) peaks.push({
+      if (!isMax) continue;
+      // Skip motion peaks that sit over very bright pixels — those are
+      // flickering screens, billboards, or sun shimmer, not subjects.
+      const ci = (y * sW + x) * 4;
+      const luma = cur[ci] * 0.299 + cur[ci+1] * 0.587 + cur[ci+2] * 0.114;
+      if (luma > 200) continue;
+      peaks.push({
         x: (x + 0.5) * cellW, y: (y + 0.5) * cellH,
         w: cellW * 3, h: cellH * 3,
         label: null, score: v
@@ -233,7 +239,7 @@ export class BlobTrack extends Algorithm {
     const multiColor  = Math.round(s.bt_color ?? 0) === 1;
     const seed        = Math.round(s.bt_seed ?? 42);
     const fg          = s.fgColor || '#ffffff';
-    const maxBoxDim   = Math.min(W, H) * 0.22;
+    const maxBoxDim   = Math.min(W, H) * 0.18;
     const minDim      = Math.min(W, H);
     const canvasArea  = W * H;
 
@@ -257,8 +263,11 @@ export class BlobTrack extends Algorithm {
             // Per-class confidence floor — animals on hard scenes need very high confidence
             const minConf = CLASS_MIN_CONF[p.class] ?? DEFAULT_MIN_CONF;
             if (p.score < minConf) return false;
-            // Reject giant boxes (>35% of canvas area = almost always wrong)
-            if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.35) return false;
+            // Reject giant boxes (>18% of canvas area = false positive on a crowd
+            // or a misread scene element, never a real single subject)
+            if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.18) return false;
+            // Reject landscape-oriented "person" boxes (people are taller than wide)
+            if (p.class === 'person' && p.bbox[2] > p.bbox[3] * 1.2) return false;
             // Reject boxes sitting over mostly-bright pixels (sun, sky, snow glare)
             if (boxIsOverBright(cap, p.bbox)) return false;
             return true;
@@ -332,8 +341,10 @@ export class BlobTrack extends Algorithm {
         // Position smoothing — low value, residual correction only
         blob.x += dx * 0.12;
         blob.y += dy * 0.12;
-        blob.w += (det.w - blob.w) * 0.08;
-        blob.h += (det.h - blob.h) * 0.08;
+        // Hard cap at update time — runaway blobs from a transient bad detection
+        // can no longer grow past maxBoxDim
+        blob.w = Math.min(maxBoxDim, blob.w + (det.w - blob.w) * 0.08);
+        blob.h = Math.min(maxBoxDim, blob.h + (det.h - blob.h) * 0.08);
         // Sticky label — require new class to win 2 consecutive calls before overwriting
         if (det.label && det.score >= 0.6) {
           if (!blob.label || det.label === blob.label) {
@@ -372,7 +383,8 @@ export class BlobTrack extends Algorithm {
       const det = allDetections[di];
       this._blobs.push({
         x: det.x, y: det.y,
-        w: det.w || boxSize, h: det.h || boxSize * 0.7,
+        w: Math.min(maxBoxDim, det.w || boxSize),
+        h: Math.min(maxBoxDim, det.h || boxSize * 0.7),
         vx: 0, vy: 0,
         id: this._nextId++,
         label: det.label || null,

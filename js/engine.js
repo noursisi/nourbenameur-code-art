@@ -187,7 +187,11 @@ class Engine {
     }
 
     // ── 6. Post-process: tint, glow, blur ─────────────────────────────────────
-    postProcess(this.canvas, ctx, W, H, s);
+    // wantsCleanBackground algos (Blob Track) skip post-process so the
+    // detection overlay isn't blurred/glowed into a smear over the image.
+    if (!wantsClean) {
+      postProcess(this.canvas, ctx, W, H, s);
+    }
 
     // ── 7. Image — front layer (legacy) ────────────────────────────────────────
     if (s.img_layer === 'front') {
