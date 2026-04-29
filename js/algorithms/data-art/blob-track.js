@@ -56,9 +56,17 @@ const CLASS_MIN_CONF = {
 };
 const DEFAULT_MIN_CONF = 0.65;
 
-// Reject a COCO box if too much of it sits over very bright pixels — those
-// are almost always sun glare, sky, or snow being misread as an object.
-function boxIsOverBright(canvas, bbox) {
+// Compute the "light signature" of an image region: high luma + low
+// saturation = sun glare / sky / snow / blown-out highlights. A real
+// subject has either lower luma OR enough saturation to survive the test.
+//
+// Returns lightScore in [0, 1]. Higher = more light-like.
+//   - meanLuma in [0, 1]
+//   - meanSat in [0, 1]
+//   - score = meanLuma * (1 - meanSat * 0.4)
+// So a saturated red car (luma 0.5, sat 0.8) scores 0.34 — kept.
+// A blown-out cloud (luma 0.85, sat 0.05) scores 0.83 — dropped.
+function regionLightScore(canvas, bbox) {
   try {
     const off = document.createElement('canvas');
     const sw = 16, sh = 16;
@@ -66,14 +74,21 @@ function boxIsOverBright(canvas, bbox) {
     const c = off.getContext('2d', { willReadFrequently: true });
     c.drawImage(canvas, bbox[0], bbox[1], bbox[2], bbox[3], 0, 0, sw, sh);
     const d = c.getImageData(0, 0, sw, sh).data;
-    let bright = 0;
-    for (let i = 0; i < sw * sh; i++) {
+    let sumLuma = 0, sumSat = 0;
+    const n = sw * sh;
+    for (let i = 0; i < n; i++) {
       const j = i * 4;
-      const luma = d[j] * 0.299 + d[j+1] * 0.587 + d[j+2] * 0.114;
-      if (luma > 215) bright++;
+      const r = d[j], g = d[j+1], b = d[j+2];
+      const luma = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      const sat = mx === 0 ? 0 : (mx - mn) / mx;
+      sumLuma += luma;
+      sumSat += sat;
     }
-    return bright / (sw * sh) > 0.7;
-  } catch { return false; }
+    const meanLuma = sumLuma / n;
+    const meanSat = sumSat / n;
+    return meanLuma * (1 - meanSat * 0.4);
+  } catch { return 0; }
 }
 
 // ── COCO-SSD model management ────────────────────────────────────────────────
@@ -105,7 +120,7 @@ async function loadCoco() {
 // relative to the scene get picked up. Without this, a panning camera
 // would light up the entire frame as "motion".
 
-function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs) {
+function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs, lightCutoff) {
   if (!prevCanvas || prevCanvas.width === 0) return [];
 
   const sW = 64, sH = 40;
@@ -154,11 +169,15 @@ function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs) {
           if (m[(y+dy) * sW + (x+dx)] > v) isMax = false;
         }
       if (!isMax) continue;
-      // Skip motion peaks that sit over very bright pixels — those are
-      // flickering screens, billboards, or sun shimmer, not subjects.
+      // Light filter on motion: skip peaks where the underlying pixel is
+      // bright + desaturated (screens, sun shimmer, billboard flicker).
       const ci = (y * sW + x) * 4;
-      const luma = cur[ci] * 0.299 + cur[ci+1] * 0.587 + cur[ci+2] * 0.114;
-      if (luma > 200) continue;
+      const r = cur[ci], g = cur[ci+1], b = cur[ci+2];
+      const luma = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      const sat = mx === 0 ? 0 : (mx - mn) / mx;
+      const lightScore = luma * (1 - sat * 0.4);
+      if (lightScore > lightCutoff) continue;
       peaks.push({
         x: (x + 0.5) * cellW, y: (y + 0.5) * cellH,
         w: cellW * 3, h: cellH * 3,
@@ -200,6 +219,7 @@ export class BlobTrack extends Algorithm {
     return [
       { id: 'bt_aiOnly',     label: 'AI Only',     min: 0,    max: 1,    step: 1    },
       { id: 'bt_classFilter',label: 'Class Filter',min: 0,    max: 4,    step: 1    },
+      { id: 'bt_lightFilter',label: 'Light Filter',min: 0,    max: 1,    step: 0.02 },
       { id: 'bt_threshold',  label: 'Threshold',   min: 0.02, max: 0.5,  step: 0.01 },
       { id: 'bt_maxBlobs',   label: 'Max Blobs',   min: 2,    max: 50,   step: 1    },
       { id: 'bt_boxSize',    label: 'Box Size',    min: 15,   max: 80,   step: 1    },
@@ -231,6 +251,13 @@ export class BlobTrack extends Algorithm {
     const { W, H, state: s } = world;
     const aiOnly      = Math.round(s.bt_aiOnly ?? 1) === 1;
     const classFilter = Math.round(s.bt_classFilter ?? 0);
+    const lightFilter = s.bt_lightFilter ?? 0.5;
+    // Drop a region if its lightScore is above this. lightFilter goes 0..1;
+    // threshold = 1 - lightFilter*0.6, so:
+    //   0   -> threshold 1.0 (nothing dropped)
+    //   0.5 -> threshold 0.7 (drops blown-out highlights)
+    //   1   -> threshold 0.4 (very aggressive)
+    const lightCutoff = 1 - lightFilter * 0.6;
     const threshold   = s.bt_threshold ?? 0.08;
     const maxBlobs    = Math.round(s.bt_maxBlobs ?? 15);
     const boxSize     = s.bt_boxSize ?? 35;
@@ -270,8 +297,9 @@ export class BlobTrack extends Algorithm {
             if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.18) return false;
             // Reject landscape-oriented "person" boxes (people are taller than wide)
             if (p.class === 'person' && p.bbox[2] > p.bbox[3] * 1.2) return false;
-            // Reject boxes sitting over mostly-bright pixels (sun, sky, snow glare)
-            if (boxIsOverBright(cap, p.bbox)) return false;
+            // Light filter — drops blown-out / desaturated regions (sun, sky,
+            // snow, screens). Saturated subjects (red car, blue jacket) survive.
+            if (regionLightScore(cap, p.bbox) > lightCutoff) return false;
             return true;
           })
           .map(p => ({
@@ -292,7 +320,7 @@ export class BlobTrack extends Algorithm {
     // ── Motion fallback (frame diff) — only when AI Only mode is off ─────────
     let motionBlobs = [];
     if (!aiOnly) {
-      motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs);
+      motionBlobs = detectMotion(this._cap, this._prevFrame, W, H, threshold, maxBlobs, lightCutoff);
     }
 
     // ── Combine: COCO detections + motion blobs (motion is fallback) ─────────
