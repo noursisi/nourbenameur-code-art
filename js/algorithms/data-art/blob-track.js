@@ -1,7 +1,8 @@
 /**
- * Blob Track — TouchDesigner-style blob tracking.
- * Boxes show CROPPED IMAGE CONTENT inside them.
- * Plain integer IDs. Full mesh lines. No blinking.
+ * Blob Track — Object detection + brightness blob tracking.
+ * Uses TensorFlow.js COCO-SSD for real object detection (people, animals, cars, etc.)
+ * Falls back to brightness peaks when model unavailable.
+ * Boxes show image crops. Full mesh lines. Plain integer IDs.
  */
 
 import { Algorithm } from '../base.js';
@@ -28,9 +29,32 @@ const TEXT_POOL = [
 
 const MULTI_COLORS = ['#00ddff','#ff3344','#00ff88','#ffdd00','#ff69b4','#ff8800','#aa55ff','#55ffaa','#ffffff'];
 
-// ── Detection: find individual bright spots on a fine grid ───────────────────
+// ── COCO-SSD model management ────────────────────────────────────────────────
 
-function detect(canvas, W, H, threshold, maxBlobs) {
+let cocoModel = null;
+let cocoLoading = false;
+let cocoFailed = false;
+
+async function loadCoco() {
+  if (cocoModel || cocoLoading || cocoFailed) return;
+  cocoLoading = true;
+  try {
+    if (typeof cocoSsd !== 'undefined') {
+      cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+      console.log('[BlobTrack] COCO-SSD model loaded');
+    } else {
+      cocoFailed = true;
+    }
+  } catch (e) {
+    console.error('[BlobTrack] COCO-SSD failed:', e);
+    cocoFailed = true;
+  }
+  cocoLoading = false;
+}
+
+// ── Brightness peak detection (fallback) ─────────────────────────────────────
+
+function detectBrightness(canvas, W, H, threshold, maxBlobs) {
   const sW = 48, sH = 36;
   const off = document.createElement('canvas');
   off.width = sW; off.height = sH;
@@ -39,14 +63,12 @@ function detect(canvas, W, H, threshold, maxBlobs) {
   const d = c.getImageData(0, 0, sW, sH).data;
   const cellW = W / sW, cellH = H / sH;
 
-  // Brightness grid
   const g = new Float32Array(sW * sH);
   for (let i = 0; i < sW * sH; i++) {
     const j = i * 4;
     g[i] = (d[j] * 0.299 + d[j+1] * 0.587 + d[j+2] * 0.114) / 255;
   }
 
-  // Find local maxima (3x3 neighborhood) above threshold
   const peaks = [];
   for (let y = 1; y < sH - 1; y++) {
     for (let x = 1; x < sW - 1; x++) {
@@ -58,12 +80,15 @@ function detect(canvas, W, H, threshold, maxBlobs) {
           if (!dx && !dy) continue;
           if (g[(y+dy) * sW + (x+dx)] >= v) isMax = false;
         }
-      if (isMax) peaks.push({ x: (x + 0.5) * cellW, y: (y + 0.5) * cellH, v });
+      if (isMax) peaks.push({
+        x: (x + 0.5) * cellW, y: (y + 0.5) * cellH,
+        w: cellW * 2, h: cellH * 2,
+        label: null, score: v
+      });
     }
   }
 
-  // Sort by brightness, return top N
-  peaks.sort((a, b) => b.v - a.v);
+  peaks.sort((a, b) => b.score - a.score);
   return peaks.slice(0, maxBlobs);
 }
 
@@ -74,12 +99,16 @@ export class BlobTrack extends Algorithm {
     super(engine);
     this._blobs = [];
     this._nextId = 900;
-    this._capturedCanvas = null; // store a captured frame for box content
+    this._cap = null;
+    this._cocoDetections = [];
+    this._lastCocoTime = 0;
+    this._cocoPending = false;
+    loadCoco();
   }
 
   get metadata() {
     return { name: 'Blob Track', eq: 'detect × annotate', cat: 'Data Art',
-      desc: 'Blob tracking with image crops inside boxes, integer IDs, full mesh connections.' };
+      desc: 'Object + blob tracking. Uses AI to detect people, animals, cars. Image crops in boxes. Full mesh lines.' };
   }
 
   get params() {
@@ -98,7 +127,7 @@ export class BlobTrack extends Algorithm {
   animate() {}
 
   randomize(state, set) {
-    set('bt_threshold', parseFloat((0.2 + Math.random() * 0.4).toFixed(2)));
+    set('bt_threshold', parseFloat((0.15 + Math.random() * 0.4).toFixed(2)));
     set('bt_maxBlobs',  Math.floor(5 + Math.random() * 30));
     set('bt_boxSize',   Math.floor(20 + Math.random() * 50));
     set('bt_lines',     parseFloat((0.3 + Math.random() * 0.7).toFixed(2)));
@@ -118,38 +147,69 @@ export class BlobTrack extends Algorithm {
     const seed      = Math.round(s.bt_seed ?? 42);
     const fg        = s.fgColor || '#ffffff';
 
-    // ── Capture canvas for drawing image crops inside boxes ──────────────────
-    const dpr = window.devicePixelRatio || 1;
-    if (!this._capturedCanvas) {
-      this._capturedCanvas = document.createElement('canvas');
-    }
-    this._capturedCanvas.width = Math.round(W);
-    this._capturedCanvas.height = Math.round(H);
-    const capCtx = this._capturedCanvas.getContext('2d');
-    // Draw at 1:1 CSS resolution (no DPR) for easy cropping later
-    capCtx.drawImage(ctx.canvas, 0, 0, Math.round(W), Math.round(H));
+    // ── Capture canvas ───────────────────────────────────────────────────────
+    if (!this._cap) this._cap = document.createElement('canvas');
+    this._cap.width = Math.round(W);
+    this._cap.height = Math.round(H);
+    this._cap.getContext('2d').drawImage(ctx.canvas, 0, 0, Math.round(W), Math.round(H));
 
-    // ── Detect ───────────────────────────────────────────────────────────────
-    const peaks = detect(ctx.canvas, W, H, threshold, maxBlobs + 10);
+    // ── COCO-SSD detection (async, every 150ms) ─────────────────────────────
+    const now = performance.now();
+    if (cocoModel && !this._cocoPending && now - this._lastCocoTime > 150) {
+      this._cocoPending = true;
+      this._lastCocoTime = now;
+      cocoModel.detect(this._cap, maxBlobs).then(preds => {
+        this._cocoDetections = preds.map(p => ({
+          x: p.bbox[0] + p.bbox[2] / 2,
+          y: p.bbox[1] + p.bbox[3] / 2,
+          w: p.bbox[2],
+          h: p.bbox[3],
+          label: p.class,
+          score: p.score,
+        }));
+        this._cocoPending = false;
+      }).catch(() => { this._cocoPending = false; });
+    }
+
+    // ── Brightness fallback detection ────────────────────────────────────────
+    const brightBlobs = detectBrightness(ctx.canvas, W, H, threshold, maxBlobs);
+
+    // ── Combine: COCO detections + brightness blobs ──────────────────────────
+    // COCO detections take priority (they're real objects)
+    const allDetections = [...this._cocoDetections];
+    // Add brightness blobs that don't overlap with COCO detections
+    for (const bb of brightBlobs) {
+      let overlaps = false;
+      for (const cd of this._cocoDetections) {
+        if (Math.hypot(bb.x - cd.x, bb.y - cd.y) < Math.max(cd.w, cd.h) * 0.5) {
+          overlaps = true; break;
+        }
+      }
+      if (!overlaps) allDetections.push(bb);
+    }
 
     // ── Match to existing blobs ──────────────────────────────────────────────
-    const matchR = Math.min(W, H) * 0.12;
-    const usedP = new Set();
+    const matchR = Math.min(W, H) * 0.15;
+    const usedD = new Set();
 
     for (const blob of this._blobs) {
-      let bestD = Infinity, bestPi = -1;
-      for (let pi = 0; pi < peaks.length; pi++) {
-        if (usedP.has(pi)) continue;
-        const d = Math.hypot(peaks[pi].x - blob.x, peaks[pi].y - blob.y);
-        if (d < bestD && d < matchR) { bestD = d; bestPi = pi; }
+      let bestD = Infinity, bestDi = -1;
+      for (let di = 0; di < allDetections.length; di++) {
+        if (usedD.has(di)) continue;
+        const d = Math.hypot(allDetections[di].x - blob.x, allDetections[di].y - blob.y);
+        if (d < bestD && d < matchR) { bestD = d; bestDi = di; }
       }
-      if (bestPi >= 0) {
-        const p = peaks[bestPi];
-        usedP.add(bestPi);
-        blob.x += (p.x - blob.x) * 0.4;
-        blob.y += (p.y - blob.y) * 0.4;
+      if (bestDi >= 0) {
+        const det = allDetections[bestDi];
+        usedD.add(bestDi);
+        blob.x += (det.x - blob.x) * 0.4;
+        blob.y += (det.y - blob.y) * 0.4;
+        blob.w += (det.w - blob.w) * 0.3;
+        blob.h += (det.h - blob.h) * 0.3;
+        if (det.label) blob.label = det.label;
+        if (det.score > 0.3) blob.score = det.score;
         blob.missing = 0;
-        blob.confirmed = Math.min(blob.confirmed + 1, 100);
+        blob.confirmed = Math.min(blob.confirmed + 1, 200);
       } else {
         blob.missing++;
       }
@@ -157,18 +217,19 @@ export class BlobTrack extends Algorithm {
     }
 
     // New blobs
-    for (let pi = 0; pi < peaks.length; pi++) {
-      if (usedP.has(pi)) continue;
+    for (let di = 0; di < allDetections.length; di++) {
+      if (usedD.has(di)) continue;
       if (this._blobs.length >= maxBlobs) break;
-      const p = peaks[pi];
+      const det = allDetections[di];
       this._blobs.push({
-        x: p.x, y: p.y,
+        x: det.x, y: det.y,
+        w: det.w || boxSize, h: det.h || boxSize * 0.7,
         id: this._nextId++,
+        label: det.label || null,
+        score: det.score || 0,
         textIdx: Math.floor(Math.random() * TEXT_POOL.length),
         colorIdx: Math.floor(Math.random() * MULTI_COLORS.length),
         age: 0, missing: 0, confirmed: 1,
-        bw: boxSize * (0.6 + Math.random() * 0.8),
-        bh: boxSize * (0.4 + Math.random() * 0.6),
       });
     }
 
@@ -181,22 +242,20 @@ export class BlobTrack extends Algorithm {
       b.y = Math.max(5, Math.min(H - 5, b.y));
     }
 
-    // Only show confirmed blobs (seen 4+ frames)
-    const visible = this._blobs.filter(b => b.confirmed >= 4 && b.missing < 40);
+    // Show confirmed blobs (3+ frames)
+    const visible = this._blobs.filter(b => b.confirmed >= 3 && b.missing < 40);
     if (visible.length === 0) return;
 
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
 
-    // ── Full mesh connection lines ───────────────────────────────────────────
+    // ── Full mesh lines ──────────────────────────────────────────────────────
     if (lineAmt > 0 && visible.length > 1) {
       ctx.lineWidth = 0.7;
       for (let i = 0; i < visible.length; i++) {
         for (let j = i + 1; j < visible.length; j++) {
           const a = visible[i], b = visible[j];
-          const fadeA = Math.max(0, 1 - a.missing / 40);
-          const fadeB = Math.max(0, 1 - b.missing / 40);
-          const alpha = lineAmt * 0.3 * fadeA * fadeB;
+          const alpha = lineAmt * 0.3 * Math.max(0, 1 - a.missing/40) * Math.max(0, 1 - b.missing/40);
           if (alpha < 0.01) continue;
           ctx.strokeStyle = multiColor ? MULTI_COLORS[a.colorIdx] : fg;
           ctx.globalAlpha = alpha;
@@ -208,58 +267,62 @@ export class BlobTrack extends Algorithm {
       }
     }
 
-    // ── Boxes with image crops inside ────────────────────────────────────────
+    // ── Boxes ────────────────────────────────────────────────────────────────
     for (const blob of visible) {
       const fade = Math.max(0, 1 - blob.missing / 40);
       if (fade < 0.02) continue;
 
       const color = multiColor ? MULTI_COLORS[blob.colorIdx] : fg;
-      const bw = blob.bw;
-      const bh = blob.bh;
+      const bw = Math.max(20, blob.w);
+      const bh = Math.max(15, blob.h);
       const bx = blob.x - bw / 2;
       const by = blob.y - bh / 2;
 
-      // ── Image crop inside the box ──────────────────────────────────────────
-      ctx.globalAlpha = fade * 0.7;
+      // Image crop inside box
+      ctx.globalAlpha = fade * 0.65;
       try {
-        // Crop from the captured canvas at this blob's position
-        const srcX = Math.max(0, Math.floor(blob.x - bw * 0.7));
-        const srcY = Math.max(0, Math.floor(blob.y - bh * 0.7));
-        const srcW = Math.floor(bw * 1.4);
-        const srcH = Math.floor(bh * 1.4);
-        ctx.drawImage(this._capturedCanvas, srcX, srcY, srcW, srcH, bx, by, bw, bh);
+        const srcX = Math.max(0, Math.round(blob.x - bw * 0.7));
+        const srcY = Math.max(0, Math.round(blob.y - bh * 0.7));
+        ctx.drawImage(this._cap, srcX, srcY, Math.round(bw * 1.4), Math.round(bh * 1.4), bx, by, bw, bh);
       } catch (e) {}
 
-      // ── Box outline ────────────────────────────────────────────────────────
+      // Box outline
       ctx.strokeStyle = color;
       ctx.globalAlpha = fade * 0.8;
       ctx.lineWidth = 1;
       ctx.strokeRect(bx, by, bw, bh);
 
-      // ── Corner ticks ───────────────────────────────────────────────────────
+      // Corner ticks
       const tick = Math.min(7, Math.min(bw, bh) * 0.15);
       ctx.lineWidth = 1.5;
       ctx.globalAlpha = fade * 0.95;
       ctx.beginPath();
-      ctx.moveTo(bx, by + tick); ctx.lineTo(bx, by); ctx.lineTo(bx + tick, by);
-      ctx.moveTo(bx + bw - tick, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + tick);
-      ctx.moveTo(bx, by + bh - tick); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + tick, by + bh);
-      ctx.moveTo(bx + bw - tick, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - tick);
+      ctx.moveTo(bx, by+tick); ctx.lineTo(bx, by); ctx.lineTo(bx+tick, by);
+      ctx.moveTo(bx+bw-tick, by); ctx.lineTo(bx+bw, by); ctx.lineTo(bx+bw, by+tick);
+      ctx.moveTo(bx, by+bh-tick); ctx.lineTo(bx, by+bh); ctx.lineTo(bx+tick, by+bh);
+      ctx.moveTo(bx+bw-tick, by+bh); ctx.lineTo(bx+bw, by+bh); ctx.lineTo(bx+bw, by+bh-tick);
       ctx.stroke();
 
-      // ── ID number (plain integer, below box) ──────────────────────────────
+      // Label: object name if detected, otherwise integer ID
       ctx.font = `${textSize}px Helvetica, Arial, sans-serif`;
       ctx.fillStyle = color;
-      ctx.globalAlpha = fade * 0.85;
+      ctx.globalAlpha = fade * 0.9;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText(String(blob.id), bx, by + bh + 2);
 
-      // ── Text annotation (every 3rd blob) ───────────────────────────────────
+      if (blob.label) {
+        // Real object: show class name + confidence
+        ctx.fillText(`${blob.label} ${Math.round((blob.score || 0) * 100)}%`, bx, by + bh + 2);
+      } else {
+        // Brightness blob: show integer ID
+        ctx.fillText(String(blob.id), bx, by + bh + 2);
+      }
+
+      // Text annotation
       if (blob.age > 10 && (blob.id + seed) % 3 === 0) {
         ctx.font = `italic ${textSize - 1}px Helvetica, Arial, sans-serif`;
-        ctx.globalAlpha = fade * 0.5;
-        ctx.fillText(TEXT_POOL[blob.textIdx % TEXT_POOL.length], bx, by + bh + textSize + 4);
+        ctx.globalAlpha = fade * 0.45;
+        ctx.fillText(TEXT_POOL[blob.textIdx % TEXT_POOL.length], bx, by + bh + textSize + 5);
       }
     }
 
