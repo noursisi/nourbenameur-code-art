@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-d loaded');
+console.log('[BlobTrack] build 2026-04-29-e loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -207,7 +207,7 @@ export class BlobTrack extends Algorithm {
 
   get metadata() {
     return { name: 'Blob Track', eq: 'detect × annotate', cat: 'Data Art',
-      desc: 'Object detection overlay. AI Only = clean COCO-SSD boxes (people/animals/vehicles). Gallery mode adds motion blobs, mesh, and poetry.' };
+      desc: 'Object detection overlay. Mode 1 (Detect): clean COCO-SSD boxes only. Mode 0 (Gallery): adds motion blobs with IDs, mesh, italic poetry.' };
   }
 
   // Tells the engine to render the image behind cleanly — no distortion,
@@ -217,12 +217,12 @@ export class BlobTrack extends Algorithm {
 
   get params() {
     return [
-      { id: 'bt_aiOnly',     label: 'AI Only',     min: 0,    max: 1,    step: 1    },
+      { id: 'bt_aiOnly',     label: 'Mode',        min: 0,    max: 1,    step: 1    },
       { id: 'bt_classFilter',label: 'Class Filter',min: 0,    max: 4,    step: 1    },
       { id: 'bt_lightFilter',label: 'Light Filter',min: 0,    max: 1,    step: 0.02 },
       { id: 'bt_threshold',  label: 'Threshold',   min: 0.02, max: 0.5,  step: 0.01 },
       { id: 'bt_maxBlobs',   label: 'Max Blobs',   min: 2,    max: 50,   step: 1    },
-      { id: 'bt_boxSize',    label: 'Box Size',    min: 15,   max: 80,   step: 1    },
+      { id: 'bt_boxSize',    label: 'Box Scale',   min: 0.3,  max: 2.5,  step: 0.05 },
       { id: 'bt_lines',      label: 'Lines',       min: 0,    max: 1,    step: 0.05 },
       { id: 'bt_text',       label: 'Text Size',   min: 6,    max: 18,   step: 1    },
       { id: 'bt_color',      label: 'Color',       min: 0,    max: 1,    step: 1    },
@@ -234,11 +234,10 @@ export class BlobTrack extends Algorithm {
   animate() {}
 
   randomize(state, set) {
-    // AI Only randomizes only model-relevant params; gallery mode also randomizes mesh + colors
     const ai = Math.round(state.bt_aiOnly ?? 1) === 1;
     set('bt_threshold', parseFloat((0.04 + Math.random() * 0.2).toFixed(2)));
     set('bt_maxBlobs',  Math.floor(5 + Math.random() * 30));
-    set('bt_boxSize',   Math.floor(20 + Math.random() * 50));
+    set('bt_boxSize',   parseFloat((0.6 + Math.random() * 1.4).toFixed(2)));
     set('bt_text',      Math.floor(8 + Math.random() * 8));
     set('bt_seed',      Math.floor(Math.random() * 100));
     if (!ai) {
@@ -260,7 +259,7 @@ export class BlobTrack extends Algorithm {
     const lightCutoff = 1 - lightFilter * 0.6;
     const threshold   = s.bt_threshold ?? 0.08;
     const maxBlobs    = Math.round(s.bt_maxBlobs ?? 15);
-    const boxSize     = s.bt_boxSize ?? 35;
+    const boxScale    = s.bt_boxSize ?? 1;
     const lineAmt     = s.bt_lines ?? 0;
     const textSize    = Math.round(s.bt_text ?? 11);
     const multiColor  = Math.round(s.bt_color ?? 0) === 1;
@@ -415,8 +414,8 @@ export class BlobTrack extends Algorithm {
       const det = allDetections[di];
       this._blobs.push({
         x: det.x, y: det.y,
-        w: Math.min(maxBoxDim, det.w || boxSize),
-        h: Math.min(maxBoxDim, det.h || boxSize * 0.7),
+        w: Math.min(maxBoxDim, det.w || 50),
+        h: Math.min(maxBoxDim, det.h || 35),
         vx: 0, vy: 0,
         id: this._nextId++,
         label: det.label || null,
@@ -429,8 +428,9 @@ export class BlobTrack extends Algorithm {
       });
     }
 
-    // Kill long-missing
-    this._blobs = this._blobs.filter(b => b.missing < 80);
+    // Kill long-missing — bump from 80 to 240 frames (~4s) so a paused subject
+    // or a temporarily-occluded one keeps its identity instead of respawning.
+    this._blobs = this._blobs.filter(b => b.missing < 240);
 
     // Clamp
     for (const b of this._blobs) {
@@ -446,9 +446,11 @@ export class BlobTrack extends Algorithm {
       this._prevFrame.getContext('2d').drawImage(this._cap, 0, 0);
     }
 
-    // Show confirmed blobs (3+ frames). In AI-only mode, hide unlabeled blobs.
+    // Persist a blob for ~2 seconds at 60fps even without re-detection. COCO
+    // is noisy — a person doesn't actually blink in/out at 6Hz. Long
+    // persistence + binary alpha = no flicker.
     const visible = this._blobs.filter(b => {
-      if (b.confirmed < 3 || b.missing >= 40) return false;
+      if (b.confirmed < 3 || b.missing >= 120) return false;
       if (aiOnly && !b.label) return false;
       return true;
     });
@@ -483,11 +485,9 @@ export class BlobTrack extends Algorithm {
         const [pi, pj] = key.split('-').map(Number);
         const a = visible[pi], b = visible[pj];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        const fadeA = Math.max(0, 1 - a.missing/40);
-        const fadeB = Math.max(0, 1 - b.missing/40);
         // Fully visible at distCap*0.5, fading toward distCap
         const distFade = Math.max(0, 1 - d / distCap);
-        const alpha = lineAmt * 0.85 * fadeA * fadeB * distFade;
+        const alpha = lineAmt * 0.85 * distFade;
         if (alpha < 0.02) continue;
         ctx.strokeStyle = multiColor ? MULTI_COLORS[a.colorIdx] : fg;
         ctx.globalAlpha = alpha;
@@ -500,13 +500,13 @@ export class BlobTrack extends Algorithm {
 
     // ── Boxes ────────────────────────────────────────────────────────────────
     for (const blob of visible) {
-      const fade = Math.max(0, 1 - blob.missing / 40);
-      if (fade < 0.02) continue;
+      // Solid alpha while alive — no fade-blinking. The box exists or it doesn't.
+      const fade = 1;
 
       const color = multiColor ? MULTI_COLORS[blob.colorIdx] : fg;
-      // Cap rendered box size — even if blob.w grew huge, never paint beyond ~35% of min dim
-      const bw = Math.min(maxBoxDim, Math.max(20, blob.w));
-      const bh = Math.min(maxBoxDim, Math.max(15, blob.h));
+      // Apply user-controlled box scale, then clamp to the hard cap.
+      const bw = Math.min(maxBoxDim, Math.max(12, blob.w * boxScale));
+      const bh = Math.min(maxBoxDim, Math.max(10, blob.h * boxScale));
       const bx = blob.x - bw / 2;
       const by = blob.y - bh / 2;
 
@@ -546,8 +546,8 @@ export class BlobTrack extends Algorithm {
           ctx.fillText(String(blob.id), bx, by + bh + 2);
         }
         if (blob.age > 10 && (blob.id + seed) % 3 === 0) {
-          ctx.font = `italic ${textSize - 1}px Helvetica, Arial, sans-serif`;
-          ctx.globalAlpha = fade * 0.45;
+          ctx.font = `${textSize - 1}px Helvetica, Arial, sans-serif`;
+          ctx.globalAlpha = 0.5;
           ctx.fillText(TEXT_POOL[blob.textIdx % TEXT_POOL.length], bx, by + bh + textSize + 5);
         }
       }
