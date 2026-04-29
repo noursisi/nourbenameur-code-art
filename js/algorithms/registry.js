@@ -3,24 +3,16 @@
  * Instances are lazily created and cached per engine.
  */
 
-// Active algorithm imports — culled set for the Kiln-facing build.
-// Removed (don't interact with image/video, or low-utility):
-//   lsystem, julia, koch, phyllotaxis, flow-field, spiral, chladni,
-//   contour, spirograph, pixel-organic, magnetic-field, interference,
-//   dot-matrix, attractor-zoo, penrose
-// Kept: line-based generative (dragon, harmonograph, lissajous, attractor),
-// image/video-aware (ascii-render, blob-track, pixel-mosaic, body-particles,
-// text-silhouette), and the universal moire pattern.
+// Active algorithm imports — minimal set for the Kiln-facing build.
+// Blob Track is the headline feature and goes first.
+import { BlobTrack }           from './data-art/blob-track.js';
+import { AsciiRender }         from './data-art/ascii-render.js';
+import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
 import { Dragon }              from './fractals/dragon.js';
 import { Attractor }           from './nature/attractor.js';
 import { Harmonograph }        from './physics/harmonograph.js';
 import { Lissajous }           from './physics/lissajous.js';
-import { AsciiRender }         from './data-art/ascii-render.js';
 import { Moire }               from './physics/moire.js';
-import { BlobTrack }           from './data-art/blob-track.js';
-import { TextSilhouette }      from './camera-art/text-silhouette.js';
-import { PixelMosaic }         from './camera-art/pixel-mosaic.js';
-import { BodyParticles }       from './camera-art/body-particles.js';
 
 class Registry {
   constructor() {
@@ -91,18 +83,16 @@ export const registry = new Registry();
 
 // ── Register algorithms ──────────────────────────────────────────────────────
 
-// Generative line-art (work as overlay layers on top of image/video)
+// Blob Track — headline feature, listed first.
+registry.register('blob-track',     BlobTrack);
+
+// Image/video-aware — read the canvas every frame and draw based on it
+registry.register('ascii-render',   AsciiRender);
+registry.register('pixel-mosaic',   PixelMosaic);
+
+// Generative line-art overlays (sit on top of the source image/video)
 registry.register('dragon',         Dragon);
 registry.register('attractor',      Attractor);
 registry.register('harmonograph',   Harmonograph);
 registry.register('lissajous',      Lissajous);
 registry.register('moire',          Moire);
-
-// Image/video-aware — all read the canvas every frame and draw based on it
-registry.register('ascii-render',   AsciiRender);
-registry.register('pixel-mosaic',   PixelMosaic);
-registry.register('blob-track',     BlobTrack);
-
-// Camera-aware
-registry.register('text-silhouette', TextSilhouette);
-registry.register('body-particles',  BodyParticles);
