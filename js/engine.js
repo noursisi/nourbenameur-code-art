@@ -140,9 +140,13 @@ class Engine {
     // ── 3. Image Processor (behind algorithm if not mix mode) ──────────────
     // Always show image when source exists; distortion only when ip_enabled
     // "Solo effects" like needlework replace the algorithm entirely
+    // wantsCleanBackground algorithms (e.g. Blob Track) bypass distortion
+    // and the on-top mix overlay so their annotations sit on a single,
+    // un-doubled image.
     const isSoloEffect = s.ip_enabled && s.ip_effect === 'needlework';
+    const wantsClean = !!(this._algorithm && this._algorithm.wantsCleanBackground);
     if (imageProcessor.hasSource() && !s.ip_mixWithAlgo) {
-      if (s.ip_enabled && s.ip_effect !== 'none') {
+      if (!wantsClean && s.ip_enabled && s.ip_effect !== 'none') {
         imageProcessor.render(this, ctx, W, H, s);
       } else {
         imageProcessor._drawFitted(ctx, W, H, s);
@@ -159,7 +163,7 @@ class Engine {
     }
 
     // ── 5. Image Processor (on top if mix mode) ─────────────────────────────
-    if (imageProcessor.hasSource() && s.ip_mixWithAlgo) {
+    if (imageProcessor.hasSource() && s.ip_mixWithAlgo && !wantsClean) {
       ctx.save();
       ctx.globalAlpha = 0.6;
       ctx.globalCompositeOperation = 'screen';
@@ -170,6 +174,16 @@ class Engine {
       }
       ctx.restore();
       ctx.globalCompositeOperation = 'source-over';
+    }
+    // For wantsCleanBackground algos, draw the image once if mix-mode would
+    // otherwise have left it absent (because step 3 was skipped).
+    if (imageProcessor.hasSource() && s.ip_mixWithAlgo && wantsClean) {
+      // step 3 skipped because mix-mode was on; paint a clean fitted image
+      // *behind* the just-rendered algorithm by drawing under via composite
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      imageProcessor._drawFitted(ctx, W, H, s);
+      ctx.restore();
     }
 
     // ── 6. Post-process: tint, glow, blur ─────────────────────────────────────

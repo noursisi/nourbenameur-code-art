@@ -6,6 +6,21 @@
  */
 
 import { Algorithm } from '../base.js';
+import { markDirty } from '../../state.js';
+
+// Class buckets for the "Class Filter" preset slider — your manual override
+// when COCO insists the sun is a cat or the sky is a person.
+const CLASS_PEOPLE   = new Set(['person']);
+const CLASS_VEHICLES = new Set(['car','truck','bus','motorcycle','bicycle','train','boat','airplane']);
+const CLASS_ANIMALS  = new Set(['cat','dog','bird','horse','cow','sheep','elephant','bear','zebra','giraffe']);
+function classAllowed(cls, mode) {
+  if (mode === 0) return true;
+  if (mode === 1) return CLASS_PEOPLE.has(cls) || CLASS_VEHICLES.has(cls);
+  if (mode === 2) return CLASS_PEOPLE.has(cls);
+  if (mode === 3) return CLASS_VEHICLES.has(cls);
+  if (mode === 4) return CLASS_ANIMALS.has(cls);
+  return true;
+}
 
 const TEXT_POOL = [
   'Heartbeat lost in frames per second,',
@@ -28,6 +43,38 @@ const TEXT_POOL = [
 ];
 
 const MULTI_COLORS = ['#00ddff','#ff3344','#00ff88','#ffdd00','#ff69b4','#ff8800','#aa55ff','#55ffaa','#ffffff'];
+
+// Per-class minimum confidence. COCO-SSD on hard scenes (sun glare, snow,
+// fog) hallucinates animals from bokeh shapes. Animal classes are rare and
+// pricey when wrong — require higher confidence. Persons + vehicles are
+// common, lower floor.
+const CLASS_MIN_CONF = {
+  cat: 0.85, dog: 0.85, bird: 0.85, horse: 0.78, cow: 0.78, sheep: 0.78,
+  elephant: 0.85, bear: 0.85, zebra: 0.85, giraffe: 0.85,
+  person: 0.65,
+  car: 0.55, truck: 0.55, bus: 0.55, motorcycle: 0.6, bicycle: 0.6,
+};
+const DEFAULT_MIN_CONF = 0.65;
+
+// Reject a COCO box if too much of it sits over very bright pixels — those
+// are almost always sun glare, sky, or snow being misread as an object.
+function boxIsOverBright(canvas, bbox) {
+  try {
+    const off = document.createElement('canvas');
+    const sw = 16, sh = 16;
+    off.width = sw; off.height = sh;
+    const c = off.getContext('2d', { willReadFrequently: true });
+    c.drawImage(canvas, bbox[0], bbox[1], bbox[2], bbox[3], 0, 0, sw, sh);
+    const d = c.getImageData(0, 0, sw, sh).data;
+    let bright = 0;
+    for (let i = 0; i < sw * sh; i++) {
+      const j = i * 4;
+      const luma = d[j] * 0.299 + d[j+1] * 0.587 + d[j+2] * 0.114;
+      if (luma > 215) bright++;
+    }
+    return bright / (sw * sh) > 0.7;
+  } catch { return false; }
+}
 
 // ── COCO-SSD model management ────────────────────────────────────────────────
 
@@ -54,8 +101,9 @@ async function loadCoco() {
 
 // ── Motion detection (frame differencing) ──────────────────────────────────
 // Find local peaks of pixel change between current and previous frame.
-// Catches any moving subject regardless of class — works on crowds,
-// murmurations, and anything COCO doesn't have a label for.
+// Subtracts GLOBAL motion (camera pan / shake) so only subjects moving
+// relative to the scene get picked up. Without this, a panning camera
+// would light up the entire frame as "motion".
 
 function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs) {
   if (!prevCanvas || prevCanvas.width === 0) return [];
@@ -72,17 +120,29 @@ function detectMotion(curCanvas, prevCanvas, W, H, threshold, maxBlobs) {
 
   // Per-cell motion = mean abs RGB delta, normalized to 0..1
   const m = new Float32Array(sW * sH);
+  let sum = 0;
   for (let i = 0; i < sW * sH; i++) {
     const j = i * 4;
     const dr = Math.abs(cur[j]   - prev[j]);
     const dg = Math.abs(cur[j+1] - prev[j+1]);
     const db = Math.abs(cur[j+2] - prev[j+2]);
-    m[i] = (dr + dg + db) / 765; // /3/255
+    const v = (dr + dg + db) / 765; // /3/255
+    m[i] = v;
+    sum += v;
   }
+
+  // Global motion baseline (camera pan / shake). Subtract 1.5x mean so only
+  // cells moving meaningfully MORE than the camera background register.
+  const meanMotion = sum / (sW * sH);
+  const baseline = meanMotion * 1.5;
+  for (let i = 0; i < sW * sH; i++) m[i] = Math.max(0, m[i] - baseline);
+
+  // If global motion is very high (fast camera pan), suppress everything —
+  // we can't distinguish subjects from camera motion in this frame.
+  if (meanMotion > 0.18) return [];
 
   const cellW = W / sW, cellH = H / sH;
   const peaks = [];
-  // Local-max search in a 3-cell radius — gives broader peaks for moving groups
   for (let y = 2; y < sH - 2; y++) {
     for (let x = 2; x < sW - 2; x++) {
       const v = m[y * sW + x];
@@ -125,16 +185,22 @@ export class BlobTrack extends Algorithm {
       desc: 'Object detection overlay. AI Only = clean COCO-SSD boxes (people/animals/vehicles). Gallery mode adds motion blobs, mesh, and poetry.' };
   }
 
+  // Tells the engine to render the image behind cleanly — no distortion,
+  // no mix-overlay screen-blend on top. Otherwise the boxes sit on a
+  // doubled/ghosted image that looks blurry.
+  get wantsCleanBackground() { return true; }
+
   get params() {
     return [
-      { id: 'bt_aiOnly',    label: 'AI Only',   min: 0,    max: 1,    step: 1    },
-      { id: 'bt_threshold', label: 'Threshold', min: 0.02, max: 0.5,  step: 0.01 },
-      { id: 'bt_maxBlobs',  label: 'Max Blobs', min: 2,    max: 50,   step: 1    },
-      { id: 'bt_boxSize',   label: 'Box Size',  min: 15,   max: 80,   step: 1    },
-      { id: 'bt_lines',     label: 'Lines',     min: 0,    max: 1,    step: 0.05 },
-      { id: 'bt_text',      label: 'Text Size', min: 6,    max: 18,   step: 1    },
-      { id: 'bt_color',     label: 'Color',     min: 0,    max: 1,    step: 1    },
-      { id: 'bt_seed',      label: 'Seed',      min: 0,    max: 100,  step: 1    },
+      { id: 'bt_aiOnly',     label: 'AI Only',     min: 0,    max: 1,    step: 1    },
+      { id: 'bt_classFilter',label: 'Class Filter',min: 0,    max: 4,    step: 1    },
+      { id: 'bt_threshold',  label: 'Threshold',   min: 0.02, max: 0.5,  step: 0.01 },
+      { id: 'bt_maxBlobs',   label: 'Max Blobs',   min: 2,    max: 50,   step: 1    },
+      { id: 'bt_boxSize',    label: 'Box Size',    min: 15,   max: 80,   step: 1    },
+      { id: 'bt_lines',      label: 'Lines',       min: 0,    max: 1,    step: 0.05 },
+      { id: 'bt_text',       label: 'Text Size',   min: 6,    max: 18,   step: 1    },
+      { id: 'bt_color',      label: 'Color',       min: 0,    max: 1,    step: 1    },
+      { id: 'bt_seed',       label: 'Seed',        min: 0,    max: 100,  step: 1    },
     ];
   }
 
@@ -157,18 +223,19 @@ export class BlobTrack extends Algorithm {
 
   render(ctx, world) {
     const { W, H, state: s } = world;
-    const aiOnly   = Math.round(s.bt_aiOnly ?? 1) === 1;
-    const threshold = s.bt_threshold ?? 0.08;
-    const maxBlobs  = Math.round(s.bt_maxBlobs ?? 15);
-    const boxSize   = s.bt_boxSize ?? 35;
-    const lineAmt   = s.bt_lines ?? 0;
-    const textSize  = Math.round(s.bt_text ?? 11);
-    const multiColor = Math.round(s.bt_color ?? 0) === 1;
-    const seed      = Math.round(s.bt_seed ?? 42);
-    const fg        = s.fgColor || '#ffffff';
-    const maxBoxDim = Math.min(W, H) * 0.35;
-    const minDim    = Math.min(W, H);
-    const canvasArea = W * H;
+    const aiOnly      = Math.round(s.bt_aiOnly ?? 1) === 1;
+    const classFilter = Math.round(s.bt_classFilter ?? 0);
+    const threshold   = s.bt_threshold ?? 0.08;
+    const maxBlobs    = Math.round(s.bt_maxBlobs ?? 15);
+    const boxSize     = s.bt_boxSize ?? 35;
+    const lineAmt     = s.bt_lines ?? 0;
+    const textSize    = Math.round(s.bt_text ?? 11);
+    const multiColor  = Math.round(s.bt_color ?? 0) === 1;
+    const seed        = Math.round(s.bt_seed ?? 42);
+    const fg          = s.fgColor || '#ffffff';
+    const maxBoxDim   = Math.min(W, H) * 0.22;
+    const minDim      = Math.min(W, H);
+    const canvasArea  = W * H;
 
     // ── Capture canvas ───────────────────────────────────────────────────────
     if (!this._cap) this._cap = document.createElement('canvas');
@@ -181,12 +248,19 @@ export class BlobTrack extends Algorithm {
     if (cocoModel && !this._cocoPending && now - this._lastCocoTime > 150) {
       this._cocoPending = true;
       this._lastCocoTime = now;
-      cocoModel.detect(this._cap, maxBlobs).then(preds => {
+      const cap = this._cap;
+      cocoModel.detect(cap, maxBlobs).then(preds => {
         this._cocoDetections = preds
           .filter(p => {
-            if (p.score < 0.5) return false;
-            // Reject giant boxes — usually false positives covering most of the frame
-            if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.5) return false;
+            // Class filter (user override — hides classes the user knows are wrong)
+            if (!classAllowed(p.class, classFilter)) return false;
+            // Per-class confidence floor — animals on hard scenes need very high confidence
+            const minConf = CLASS_MIN_CONF[p.class] ?? DEFAULT_MIN_CONF;
+            if (p.score < minConf) return false;
+            // Reject giant boxes (>35% of canvas area = almost always wrong)
+            if ((p.bbox[2] * p.bbox[3]) / canvasArea > 0.35) return false;
+            // Reject boxes sitting over mostly-bright pixels (sun, sky, snow glare)
+            if (boxIsOverBright(cap, p.bbox)) return false;
             return true;
           })
           .map(p => ({
@@ -198,6 +272,9 @@ export class BlobTrack extends Algorithm {
             score: p.score,
           }));
         this._cocoPending = false;
+        // Force a re-render so still-image users see the new detections —
+        // without this, COCO results never appear on a paused/static source.
+        markDirty();
       }).catch(() => { this._cocoPending = false; });
     }
 
@@ -239,14 +316,24 @@ export class BlobTrack extends Algorithm {
         usedD.add(bestDi);
         const dx = det.x - blob.x;
         const dy = det.y - blob.y;
-        // Velocity EMA — prediction tracks bulk motion
-        blob.vx = (blob.vx || 0) * 0.7 + dx * 0.3;
-        blob.vy = (blob.vy || 0) * 0.7 + dy * 0.3;
+        // Velocity deadzone — sub-3px discrepancies are jitter, not motion.
+        // Without this, COCO bbox noise accumulates into apparent drift.
+        const dist = Math.hypot(dx, dy);
+        if (dist > 3) {
+          blob.vx = (blob.vx || 0) * 0.7 + dx * 0.25;
+          blob.vy = (blob.vy || 0) * 0.7 + dy * 0.25;
+          // Clamp velocity — no blob should move >20px/frame
+          const vmag = Math.hypot(blob.vx, blob.vy);
+          if (vmag > 20) { blob.vx *= 20 / vmag; blob.vy *= 20 / vmag; }
+        } else {
+          blob.vx = (blob.vx || 0) * 0.85;
+          blob.vy = (blob.vy || 0) * 0.85;
+        }
         // Position smoothing — low value, residual correction only
-        blob.x += dx * 0.15;
-        blob.y += dy * 0.15;
-        blob.w += (det.w - blob.w) * 0.1;
-        blob.h += (det.h - blob.h) * 0.1;
+        blob.x += dx * 0.12;
+        blob.y += dy * 0.12;
+        blob.w += (det.w - blob.w) * 0.08;
+        blob.h += (det.h - blob.h) * 0.08;
         // Sticky label — require new class to win 2 consecutive calls before overwriting
         if (det.label && det.score >= 0.6) {
           if (!blob.label || det.label === blob.label) {
@@ -326,21 +413,44 @@ export class BlobTrack extends Algorithm {
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
 
-    // ── Full mesh lines (gallery mode only — 2018-style demos have no mesh) ──
+    // ── K-nearest-neighbor mesh (gallery mode only) ──────────────────────────
+    // Each blob connects to its 2 nearest neighbors, with a distance cap.
+    // Avoids the O(n²) full-mesh cobweb that was just visual noise.
     if (!aiOnly && lineAmt > 0 && visible.length > 1) {
-      ctx.lineWidth = 0.7;
+      const distCap = Math.min(W, H) * 0.4;
+      const edges = new Set();
       for (let i = 0; i < visible.length; i++) {
-        for (let j = i + 1; j < visible.length; j++) {
-          const a = visible[i], b = visible[j];
-          const alpha = lineAmt * 0.3 * Math.max(0, 1 - a.missing/40) * Math.max(0, 1 - b.missing/40);
-          if (alpha < 0.01) continue;
-          ctx.strokeStyle = multiColor ? MULTI_COLORS[a.colorIdx] : fg;
-          ctx.globalAlpha = alpha;
-          ctx.beginPath();
-          ctx.moveTo(a.x, a.y);
-          ctx.lineTo(b.x, b.y);
-          ctx.stroke();
+        const a = visible[i];
+        const dists = [];
+        for (let j = 0; j < visible.length; j++) {
+          if (i === j) continue;
+          const b = visible[j];
+          dists.push({ j, d: Math.hypot(a.x - b.x, a.y - b.y) });
         }
+        dists.sort((p, q) => p.d - q.d);
+        for (let n = 0; n < Math.min(2, dists.length); n++) {
+          if (dists[n].d > distCap) break;
+          const j = dists[n].j;
+          edges.add(i < j ? `${i}-${j}` : `${j}-${i}`);
+        }
+      }
+      ctx.lineWidth = 0.9;
+      for (const key of edges) {
+        const [pi, pj] = key.split('-').map(Number);
+        const a = visible[pi], b = visible[pj];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        const fadeA = Math.max(0, 1 - a.missing/40);
+        const fadeB = Math.max(0, 1 - b.missing/40);
+        // Fully visible at distCap*0.5, fading toward distCap
+        const distFade = Math.max(0, 1 - d / distCap);
+        const alpha = lineAmt * 0.85 * fadeA * fadeB * distFade;
+        if (alpha < 0.02) continue;
+        ctx.strokeStyle = multiColor ? MULTI_COLORS[a.colorIdx] : fg;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
       }
     }
 
