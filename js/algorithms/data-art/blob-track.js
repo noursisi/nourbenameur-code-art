@@ -1,9 +1,9 @@
 /**
- * Blob Track — Object detection + brightness blob tracking.
- * Uses TensorFlow.js COCO-SSD for real object detection (people, animals, cars, etc.)
- * Falls back to brightness peaks when model unavailable.
- * Boxes show image crops. Full mesh lines. Plain integer IDs.
+ * Blob Track — Object detection overlay.
+ * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
+ * BUILD: 2026-04-29-c
  */
+console.log('[BlobTrack] build 2026-04-29-c loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
@@ -239,7 +239,9 @@ export class BlobTrack extends Algorithm {
     const multiColor  = Math.round(s.bt_color ?? 0) === 1;
     const seed        = Math.round(s.bt_seed ?? 42);
     const fg          = s.fgColor || '#ffffff';
-    const maxBoxDim   = Math.min(W, H) * 0.18;
+    // Hard cap on rendered box size. Two layers: 12% of min(W,H) AND a
+    // 220px absolute floor for HiDPI safety. Whichever is smaller wins.
+    const maxBoxDim   = Math.min(220, Math.min(W, H) * 0.12);
     const minDim      = Math.min(W, H);
     const canvasArea  = W * H;
 
