@@ -570,14 +570,18 @@ document.getElementById('btn-reset-view')?.addEventListener('click', () => {
   set('camPanY', 0);
 });
 
+// JPG = default photographic export (smaller, sharp, no transparency)
 document.getElementById('btn-export-png')?.addEventListener('click', () => {
-  exportPNG(engine, state);
+  exportPNG(engine, state, { format: 'jpg', quality: 0.95 });
 });
 
+// PNG = transparent / line-art export (alpha preserved, lossless)
 document.getElementById('btn-export-svg')?.addEventListener('click', () => {
+  // First try SVG for algorithms that support it (line-based) — falls back
+  // to PNG-with-transparency for everything else.
   const didSVG = exportSVG(engine, state, activeAlgo);
   if (!didSVG) {
-    exportPNG(engine, state);
+    exportPNG(engine, state, { format: 'png' });
   }
 });
 

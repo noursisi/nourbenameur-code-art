@@ -3,7 +3,7 @@
  * COCO-SSD for subjects, frame-diff for movement (gallery mode only).
  * BUILD: 2026-04-29-c
  */
-console.log('[BlobTrack] build 2026-04-29-f loaded');
+console.log('[BlobTrack] build 2026-04-29-g loaded');
 
 import { Algorithm } from '../base.js';
 import { markDirty } from '../../state.js';
